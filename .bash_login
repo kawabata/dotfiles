@@ -1,0 +1,6 @@
+#!/bin/bash
+
+# .bash_login は、BASH_ENVを設定して .bashrc を sourceする。
+
+export BASH_ENV=$HOME/.environ
+source ~/.bashrc
