@@ -16,7 +16,6 @@
 
 ;;;; Bug Report & 質問
 ;; - bibtex.el ... { .. ( ... ] ... } がエラーになる。
-;; - mituharu さん→Option をメタキーにできないか？
 
 ;;;; GnuPack 利用時の注意
 ;; * config.ini の設定は以下のように変更し、システム付属のcygwinを使うこと。
@@ -96,8 +95,8 @@
        (t 'utf-8)))
 (setq default-process-coding-system 
       (cond ((equal system-type 'windows-nt) '(cp932 . cp932))
-            ;((equal system-type 'darwin) (require 'ucs-normalize)
-	    ; '(utf-8-hfs . utf-8))
+            ((equal system-type 'darwin) (require 'ucs-normalize)
+	     '(utf-8-hfs . utf-8))
             (t '(undecided . utf-8))))
 ;; decode-translation-table の設定
 (coding-system-put 'euc-jp :decode-translation-table
@@ -204,7 +203,7 @@
 ;;; fileio.c
 (setq delete-by-moving-to-trash t)
 (setq default-file-name-coding-system
-      (cond ;((eq system-type 'darwin) 'utf-8-hfs)
+      (cond ((eq system-type 'darwin) 'utf-8-hfs)
             ((eq window-system 'w32)  'cp932)
             (t 'utf-8)))
 
@@ -947,8 +946,8 @@ DIRECTIONがnilなら前方向、それ以外なら後方向に回転させる�
 
 ;;; international/mule.el
 (cond ((eq system-type 'darwin)
-       ;(modify-coding-system-alist 'process "zsh" '(utf-8-hfs . utf-8))
-       ;(modify-coding-system-alist 'process "git" '(utf-8-hfs . utf-8))
+       (modify-coding-system-alist 'process "zsh" '(utf-8-hfs . utf-8))
+       (modify-coding-system-alist 'process "git" '(utf-8-hfs . utf-8))
        )
       ((eq system-type 'windows-nt)
        ;;(modify-coding-system-alist 'process ".*sh\\.exe" 'utf-8-dos)
