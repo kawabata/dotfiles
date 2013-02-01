@@ -1,4 +1,4 @@
-;;; .emacs.el  -*- coding: utf-8-unix; outline-regexp: "^;;;+"; outline-minor-mode: t -*-
+;;; .emacsrter.el  -*- coding: utf-8-unix; outline-regexp: "^;;;+"; outline-minor-mode: t -*-
 ;;; For Emacs 24.2 / 24.3 (Windows, MacOSX, Linux)
 
 ;;;; 目次：（`;;;;' でさがす。 C-c p が便利。）
@@ -579,71 +579,94 @@ DIRECTIONがnilなら前方向、それ以外なら後方向に回転させる�
 ;             (desktop-truncate regexp-search-ring 3)))
 
 ;;; dired.el
-(when (executable-find "gls")
-  (setq insert-directory-program "gls"))
 (add-hook 'dired-mode-hook '(lambda () (setenv "LANG" "C")))
 ;; diredのサイズ表示に Kbyte, Mbyte 等の単位を使う。
+;; -h :: Kbyte, Mbyte 単位の表示
 (setq dired-listing-switches "-alh")
-(setq dired-omit-files
-      (concat "^\\.?#\\|^\\.$\\|^\\.\\.$"
-              "\\|\\.aux$\\|\\.log$"))
 (setq dired-auto-revert-buffer t) ; diredで自動update
 ;; 再帰的にコピー・削除
 (setq dired-recursive-copies 'always)
 (setq dired-recursive-deletes 'always)
+;; GNU ls は、Mac では、
+;; - sudo port install coreutils (gls)
+;; - sudo port install coreutils +with_default_names (ls)
+;; でインストール可能
+(when (executable-find "gls")
+  (setq insert-directory-program "gls"))
+;; dired の sort を拡張する。
+;; -t (時間) -X (拡張子) -S (サイズ) なし (アルファベット順) を切り替える。
+;; sorter.el のバグ修正・整理版。
+(defvar dired-sort-order '(?t ?X ?S))
+(defun dired-rotate-sort ()
+  "Rotate dired toggle sorting order by `dired-sort-order'"
+  (interactive)
+  (let* ((opt  (car (set-difference (string-to-list dired-actual-switches)
+                                    (string-to-list dired-listing-switches))))
+         (next-opt (cadr (memq opt dired-sort-order))))
+    ;; (message "current opt=%s, next opt=%s" opt next-opt)
+    (setq dired-actual-switches
+          (cond ((null opt) (concat dired-actual-switches 
+                                    (list (car dired-sort-order))))
+                ((null next-opt) dired-listing-switches)
+                (t (concat dired-listing-switches (list next-opt)))))
+    (dired-sort-other dired-actual-switches)))
+(define-key dired-mode-map "s" 'dired-rotate-sort)
 
 ;; dired のバッファが氾濫しないように，ディレクトリを移動するだけなら
 ;; バッファを作らないようにする．
-(defvar my-dired-before-buffer nil)
-(defadvice dired-advertised-find-file
-  (before kill-dired-buffer activate)
-  (setq my-dired-before-buffer (current-buffer)))
-(defadvice dired-advertised-find-file
-  (after kill-dired-buffer-after activate)
-  (when
-      (and
-       (eq major-mode 'dired-mode)
-       (not (string= (buffer-name (current-buffer))
-                     (buffer-name my-dired-before-buffer))))
-    (kill-buffer my-dired-before-buffer)))
-(defadvice dired-up-directory
-  (before kill-up-dired-buffer activate)
-  (setq my-dired-before-buffer (current-buffer)))
-(defadvice dired-up-directory
-  (after kill-up-dired-buffer-after activate)
-  (when
-      (and
-       (eq major-mode 'dired-mode)
-       (not (string= (buffer-name (current-buffer))
-                     (buffer-name my-dired-before-buffer))))
-    ;;(not (string-match "^[a-z]+:[/]$" (buffer-name my-dired-before-buffer))))
-    (kill-buffer my-dired-before-buffer)))
+;(defvar my-dired-before-buffer nil)
+;(defadvice dired-advertised-find-file
+;  (before kill-dired-buffer activate)
+;  (setq my-dired-before-buffer (current-buffer)))
+;(defadvice dired-advertised-find-file
+;  (after kill-dired-buffer-after activate)
+;  (when
+;      (and
+;       (eq major-mode 'dired-mode)
+;       (not (string= (buffer-name (current-buffer))
+;                     (buffer-name my-dired-before-buffer))))
+;    (kill-buffer my-dired-before-buffer)))
+;(defadvice dired-up-directory
+;  (before kill-up-dired-buffer activate)
+;  (setq my-dired-before-buffer (current-buffer)))
+;(defadvice dired-up-directory
+;  (after kill-up-dired-buffer-after activate)
+;  (when
+;      (and
+;       (eq major-mode 'dired-mode)
+;       (not (string= (buffer-name (current-buffer))
+;                     (buffer-name my-dired-before-buffer))))
+;    ;;(not (string-match "^[a-z]+:[/]$" (buffer-name my-dired-before-buffer))))
+;    (kill-buffer my-dired-before-buffer)))
 
 ;; Cygwin 環境では、diredのファイル名はutf-8のため、fopenと整合しない。
 ;;(when (file-executable-p "c:/cygwin/bin/ls.exe")
 ;;  (setq ls-lisp-use-insert-directory-program t)
 ;;  (setq insert-directory-program "c:/cygwin/bin/ls.exe"))
 
-;; atool を使った拡張
-(defvar my-dired-additional-compression-suffixes
-  '(".7z" ".Z" ".a" ".ace" ".alz" ".arc" ".arj" ".bz" ".bz2" ".cab" ".cpio"
-    ".deb" ".gz" ".jar" ".lha" ".lrz" ".lz" ".lzh" ".lzma" ".lzo" ".rar"
-    ".rpm" ".rz" ".t7z" ".tZ" ".tar" ".tbz" ".tbz2" ".tgz" ".tlz" ".txz"
-    ".tzo" ".war" ".xz" ".zip" ".epub"))
+;;; dired-aux.el
+(require 'dired-aux)
+;; atool を使い、多数の圧縮ファイルを閲覧可能にする。
 (when (executable-find "aunpack")
-  (eval-after-load "dired-aux"
-    '(progn
-       (require 'cl)
-       (loop for suffix in my-dired-additional-compression-suffixes
-             do (add-to-list 'dired-compress-file-suffixes
-                             `(,(concat "\\" suffix "\\'") "" "aunpack"))))))
+  (let ((dired-additional-compression-suffixes
+         '(".7z" ".Z" ".a" ".ace" ".alz" ".arc" ".arj" ".bz" ".bz2" ".cab" ".cpio"
+           ".deb" ".gz" ".jar" ".lha" ".lrz" ".lz" ".lzh" ".lzma" ".lzo" ".rar"
+           ".rpm" ".rz" ".t7z" ".tZ" ".tar" ".tbz" ".tbz2" ".tgz" ".tlz" ".txz"
+           ".tzo" ".war" ".xz" ".zip" ".epub")))
+    (loop for suffix in dired-additional-compression-suffixes
+          do (add-to-list 'dired-compress-file-suffixes
+                          `(,(concat "\\" suffix "\\'") "" "aunpack")))))
 
 ;;; dired-x.el
 (require 'dired-x)
 ;; dired-omit-mode :: LaTeX等の作業ファイルを表示しない。
-;;   M-o から M-C-o に変更する。
+(setq dired-omit-files ; dired-omit-mode で隠すファイル
+      (concat "^\\.?#\\|^\\.\\|^\\.\\.?$"
+              "\\|\\.aux$\\|\\.log$"))
+;; M-o から M-C-o に変更
 (define-key dired-mode-map "\M-o" nil)
 (define-key dired-mode-map "\C-\M-o" 'dired-omit-mode)
+
 ;; shell-command-guesssing … "!" を押した時のシェルコマンドを予想
 ;; M-x dired-mark-extension … 特定の拡張子をマーク
 
@@ -863,19 +886,22 @@ DIRECTIONがnilなら前方向、それ以外なら後方向に回転させる�
 (global-hl-line-mode)
 
 ;;; htmlfontify.el
-(defun print-buffer-html ()
-  (interactive)
-  (let ((file (make-temp-file "print-buffer-" nil ".html")))
-    (htmlfontify-buffer nil file)
-    (write-region (point-min) (point-max) file)
-    (message "printing... %s " file)
-    (cond ((eq system-type 'darwin)
-           (shell-command (concat "coral -d " file)))
-          ((eq system-type 'windows-nt)
-           (w32-shell-execute "print " file))
-          (t (shell-command (concat "open " file))))
-    (message "printing... done")
-    (delete-file file)))
+;; coral が入手できないので、hfyview.el を使ってブラウザに表示させて
+;; それを印刷する。
+;(defun print-buffer-html ()
+;  "印刷する。"
+;  (interactive)
+;  (let ((file (make-temp-file "print-buffer-" nil ".html")))
+;    (htmlfontify-buffer nil file)
+;    (write-region (point-min) (point-max) file)
+;    (message "printing... %s " file)
+;    (cond ((eq system-type 'darwin)
+;           (shell-command (concat "coral -d " file)))
+;          ((eq system-type 'windows-nt)
+;           (w32-shell-execute "print " file))
+;          (t (shell-command (concat "open " file))))
+;    (message "printing... done")
+;    (delete-file file)))
 
 ;;; indent.el
 (setq indent-line-function 'indent-relative-maybe)
@@ -1467,12 +1493,10 @@ by using nxml's indentation rules."
 ;; M-x org2blog/wp-post-buffer
 ;; C-c p … Publish your blog
 ;; 737行目を (setq html-text (org-export-as-html nil nil 'string t nil)) にすること。
-(setq org2blog/wp-blog-alist
-      '(("wordpress" :url "http://xgol.wordpress.com/xmlrpc.php"
-         :username "xgol"
-         :default-title "Hello World"
-         :default-categories ("emacs")
-         :tags-as-categories nil)))
+(eval-after-load "org2blog"
+  '(when (and (executable-find "gpg")
+              (locate-library "org2blog-setup.el.gpg"))
+    (load-library "org2blog-setup.el.gpg")))
 
 ;;; outline.el
 ;; outline 直接操作ではなくfold-dwimを介して操作する。
@@ -1676,9 +1700,6 @@ by using nxml's indentation rules."
         (repeat))))
   "encode .zsh_history file.")
 
-(define-ccl-program dummy
-  '(1 ((loop (read r0) (write r0) (repeat)))))
-
 ;; CCLのwriteのUCS符号がEmacsに入る。
 ;; これをLatin-1としてdecodeしてUTF-8でencode。
 (defun post-read-decode-utf8 (len)
@@ -1689,20 +1710,12 @@ by using nxml's indentation rules."
       (decode-coding-region (point-min) (point-max) 'utf-8)
       (- (point-max) (point-min)))))
 
-;; CCLのreadは各文字のUCS値。事前に入力文字列をeight-bit char化しておく。
 (defun pre-write-encode-utf8 (dummy1 dummy2)
-  (let ((output
-         (ccl-execute-on-string
-          'zsh-history-encoder (make-vector 9 nil)
-          (encode-coding-string 
-           (buffer-substring (point-min) (point-max)) 'utf-8))))
-    (delete-region (point-min) (point-max))
-    (insert output)))
+  (encode-coding-region (point-min) (point-max) 'utf-8)
+  (decode-coding-region (point-min) (point-max) 'latin-1))
 
-;; CCLの問題点
-;; - eight-bit-char の文字列はエンコードされるが領域はエンコードされない。
-;; - pre-write-conversion は、CCLの前ではなく後になる。
-;;   そのため、ccl-encoder は直接せず、pre-write-encode-utf8 で指定する。
+;; CCLの注意点
+;; - バイナリを扱う際は、事前に バッファのバイナリをlatin-1 にエンコードする。
 (define-coding-system 'zsh-history "ZSH history"
   :coding-type 'ccl
   :charset-list '(unicode)
@@ -1710,11 +1723,10 @@ by using nxml's indentation rules."
   :eol-type 'unix 
   :ccl-decoder 'zsh-history-decoder
   :post-read-conversion 'post-read-decode-utf8
-  :ccl-encoder dummy
+  :ccl-encoder 'zsh-history-encoder
   :pre-write-conversion 'pre-write-encode-utf8)
 
 (modify-coding-system-alist 'file "zsh_history" 'zsh-history)
-
 
 ;; | Functions           | UTF-8               | eight-bit       |
 ;; |---------------------+---------------------+-----------------|
@@ -2228,15 +2240,16 @@ by using nxml's indentation rules."
 ;;   (eval-after-load 'XXX-mode
 ;;     '(progn ....)))
 
-;;; ac-mode
-;(when (locate-library "ac-mode")
-;  (autoload 'ac-mode "ac-mode" "Minor mode for advanced completion." t nil)
-;  (eval-after-load 'ac-mode
-;    '(progn
-;      (define-key ac-mode-map "\M-/" 'ac-complete))))
+;;; prefix 一覧
+;;
+;; | mode          | prefix |
+;; |---------------+--------|
+;; | ace-jump-mode | A-M-*  |
+;; | bookmark+     | C-x r  |
+;; |               | C-x p  |
 
 ;;; ac-ja (elpa)
-;; 日本語自動補完？
+;; 日本語自動補完
 ;; ホームディレクトリに SKK-JISYO.L のリンクを入れておく。
 
 ;;; ace-jump-mode (elpa)
@@ -2255,8 +2268,7 @@ by using nxml's indentation rules."
   (loop for c from ?0 to ?9 do (add-keys-to-ace-jump-mode "A-" c))
   (loop for c from ?a to ?z do (add-keys-to-ace-jump-mode "A-" c))
   (loop for c from ?0 to ?9 do (add-keys-to-ace-jump-mode "A-M-" c 'word))
-  (loop for c from ?a to ?z do (add-keys-to-ace-jump-mode "A-M-" c 'word))
-  )
+  (loop for c from ?a to ?z do (add-keys-to-ace-jump-mode "A-M-" c 'word)))
 
 ;;; alpha (elpa)
 ;; 透明度は90%に設定しておく。
@@ -2480,10 +2492,9 @@ by using nxml's indentation rules."
                                         (bbdb-record-lastname record) ext)))
                            bbdb-image-extensions)))
       (setq fnames (delete-if-not #'file-exists-p fnames))
-      (if fnames (propertize " " 'display (create-image (car fnames) nil nil :height 100)))))
-)
+      (if fnames (propertize " " 'display (create-image (car fnames) nil nil :height 100))))))
 
-;;; bookmark+ (elpa)
+;;; bookmark+ (elpa) 
 ;; タグ付き、
 ;; C-x pm (rm) … bookmark-set （名前を入力）
 ;; C-x pg (rb) … bookmark-jump 
@@ -2618,8 +2629,7 @@ by using nxml's indentation rules."
            (require 'cygwin-mount nil t)
            (file-directory-p "c:/cygwin/bin"))
   (cygwin-mount-activate)
-  (add-to-list 'exec-path "c:/cygwin/bin")
-  )
+  (add-to-list 'exec-path "c:/cygwin/bin"))
 
 ;;; dabbrev-ja
 ;; 使用中止
@@ -2652,20 +2662,18 @@ by using nxml's indentation rules."
 ;  (durendal-enable))
 
 ;;; ebib (elpa)
-;; (setq ebib-preload-bib-files my-bibliographies)
 (setq ebib-file-search-dirs (split-string (or (getenv "BIBINPUTS") "") ":"))
-;;(setq ebib-preload-bib-files '("MyBooks.bib"))
 ;; from https://bitbucket.org/kenko/dotfiles/src/
-(setq ebib-default-type 'book)
-(setq ebib-use-timestamp t)
-(setq ebib-layout 'custom)
-(setq ebib-index-display-fields '(title))
-(setq ebib-additional-fields '(doi isbn jpno issn isrn ismn pbno
-      plno usmarc ukmarc brno sici ndlcn))
-(setq ebib-common-optional-fields '(translator keywords
-      origlanguage url file location partinfo subtitle edition
-      abstract note annotator crossref urldate address
-      subtitle language))
+(setq ebib-default-type 'book
+      ebib-use-timestamp t
+      ebib-layout 'custom
+      ebib-index-display-fields '(title)
+      ebib-additional-fields '(doi isbn jpno issn isrn ismn pbno
+                               plno usmarc ukmarc brno sici ndlcn))
+(setq ebib-common-optional-fields
+      '(translator keywords origlanguage url file location
+        partinfo subtitle edition abstract note annotator
+        crossref urldate address subtitle language))
 (setq ebib-entry-types
       `((article
          (author sortname title sorttitle journaltitle year date)
@@ -2714,6 +2722,7 @@ by using nxml's indentation rules."
          (howpublished month note url urldate address))))
 
 ;;; edbi (elpa)
+;; Emacs Database Interface
 
 ;;; elscreen
 ;;(setq elscreen-prefix-key "\C-c\C-c") ; Old copy-to-register
@@ -3312,8 +3321,7 @@ by using nxml's indentation rules."
   (eval-after-load "navi2ch"
     '(when (and (executable-find "gpg")
                 (locate-library "navi2ch-oyster-setup.el.gpg"))
-      (load-library "navi2ch-oyster-setup.el.gpg")))
-  )
+      (load-library "navi2ch-oyster-setup.el.gpg"))))
 
 ;;; nethack
 (when (and (locate-library "nethack")
@@ -3593,15 +3601,8 @@ by using nxml's indentation rules."
 ;;  )
 
 ;;; sorter
-;; dired で更新日などでの並び換えをする
-;; dired+ と衝突するので使用中止。
-;(when (locate-library "sorter")
-;  ;; diredの並び換えを自由に
-;  (autoload 'dired-toggle-sort "sorter" nil t)
-;  (add-hook 'dired-mode-hook
-;            '(lambda ()
-;               (local-set-key "s" 'dired-toggle-sort)))
-;  )
+;; "s" キーで、ファイル名・サイズ・日付・拡張子名順に並び替え。
+;; dired-listing-switches が、"al" 以外だと動作しないため使用中止。
 
 ;;; stripe-buffer (elpa)
 ;; バッファを縞々模様にする。
@@ -3914,6 +3915,9 @@ by using nxml's indentation rules."
                    zencoding-self-closing-tags))
      ;; yasnippetと連携する場合 (キーバインドは自由に)
      (define-key zencoding-mode-keymap (kbd "C-,") 'zencoding-expand-yas)))
+
+;;; zotero
+;; C-c z prefix.
 
 
 ;;;; 個人用関数
