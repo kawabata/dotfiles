@@ -92,6 +92,9 @@ alias bench='ab -c10 -n100'	# Apache Benchmarking
 alias diff='diff -Naur'
 alias scp='scp -p'
 
+#** Google Chrome debugging
+alias chrome='/Applications/Google\ Chrome.app/Contents/MacOS/Google\ Chrome --remote-shell-port=9222'
+
 #* functions
 
 #** AFDKO
