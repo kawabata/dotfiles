@@ -57,6 +57,9 @@ fi
 #git config --global user.name "Taichi KAWABATA"
 #git config --global user.email kawabata.taichi@gmail.com
 
+#** cd
+alias cdsl='cd ~/.emacs.d/site-lisp'
+
 #** history
 alias h=history
 alias hall='history -E 1'
