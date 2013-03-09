@@ -26,31 +26,44 @@
 stty sane # デフォルトに戻す。(stty -a で確認可能)
 
 #* ユーザへの環境情報の表示
-echo "HTTP_PROXY=$HTTP_PROXY"
+if [ ! -z "$HTTP_PROXY" ]; then
+    echo "HTTP_PROXY=$HTTP_PROXY"
+fi
 echo "JAVA_HOME=$JAVA_HOME"
+if [ ! -L $HOME/.zsh_history ]; then
+    echo "~/.zsh_history is not symbolic link." 
+fi
 
 #* Z
 [[ -f ~/Dropbox/zsh/z/z.sh ]] && source ~/Dropbox/zsh/z/z.sh
 
 #* aliases
 #** ls コマンド
-alias l='ls -lFAo'
-alias ll='ls -l'
-alias al='ls -a'
-alias la='ls -la'
-alias lat='ls -lat'
-alias lr='ls -RF'
-alias lf='ls -AF'
-alias lt='ls -lFAot'
-alias ltr='ls -lFAotr'
-alias dir='ls -lF'
+# GNU ls (coreutils) をインストールしておくこと。
+# loF (long, except group, Decorated), はデフォルト。R (t/S/X) を適宜追加。
+alias l='ls -loF'
+alias lt='ls -loFt'
+alias lS='ls -loFS'
+alias lx='ls -loFX'
+alias la='ls -laoF'
+alias lat='ls -laoFt'
+alias laS='ls -laoFS'
+alias lax='ls -laoFX'
+alias lr='ls -loFR'
+alias lrt='ls -loFRt'
+alias lrs='ls -loFRS'
+alias lrx='ls -loFRX'
+alias lar='ls -laoFR'
+alias lart='ls -laoFRt'
+alias lars='ls -laoFRS'
+alias larx='ls -laoFRX'
 #alias lsd='ls -ld *(-/DN)'	# List only directories and symbolic
 				# links that point to directories
 #alias lsa='ls -ld .*'		# List only file beginning with "."
 # BSD版 ls 命令で、端末にも8bitコードをそのまま出力するよう指示する。
-if [ `uname` = "Darwin" ]; then
-    alias ls='ls -w'
-fi
+#if [ `uname` = "Darwin" ]; then
+#    alias ls='ls -w'
+#fi
 
 #** git
 # ~/.gitconfigに設定する。
@@ -124,7 +137,8 @@ function clean_tex {
  rm *.aux *.bbl *.blg *.brf *.ccs *.dvi *.ent *.fdb_latexmk *.fff \
     *.glo *.idx *.idv *.ilg *.ind *.ioa *.lg *.log *.lot *.mtc *.mlf \
     *.out *.pdfsync *.toc *.ttt *.wrm *.xref *.4ct *.4tc *.nav *.snm \
-    *.bcf *.fls *.run.xml *.vrb *~
+    *.bcf *.fls *.run.xml *.vrb *~ \
+    *.cp *.fn *.ky *.pg *.tp *.vr
 }
 
 function bell {
