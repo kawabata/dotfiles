@@ -1,5 +1,5 @@
-;;; .emacsrter.el  -*- coding: utf-8-unix; outline-regexp: "^;;;+"; outline-minor-mode: t; lexical-binding: t -*-
-;;; For Emacs 24.2.93 / 24.3 (Windows, MacOSX, Linux)
+;;; .emacs/init.el  -*- coding: utf-8-unix; outline-regexp: "^;;;+"; outline-minor-mode: t; lexical-binding: t -*-
+;;; For Emacs 24.3 / 24.3.50 (Windows, MacOSX, Linux)
 
 ;;;; 目次：（`;;;;' でさがす。 C-c p が便利。）
 ;;
@@ -15,12 +15,8 @@
 ;; - zotero
 ;; - XHTML5 relax NG
 
-;;;; Bug Report & 質問
+;;;; 確認事項
 ;; - bibtex.el ... { .. ( ... ] ... } がエラーになる。
-;; - flet は cl-flet に置き換わるというが、
-;;   (flet ((test (x) (+ x x))) (functionp 'test)) → t
-;;   (cl-flet ((test (x) (+ x x))) (functionp 'test)) → nil
-;; でこれらは互換性がない。
 ;; - org-agenda-google-maps-key-bindings
 
 ;;;; GnuPack 利用時の注意
@@ -30,7 +26,8 @@
 ;; (HOMEはコメントアウト)
 
 (require 'cl-lib)
-;; | 24.2          | 24.3             |
+(eval-when-compile (require 'cl))
+;; | 24.2          | 24.3/24.2+cl-lib |
 ;; |---------------+------------------|
 ;; | remove-if     | cl-remove-if     |
 ;; | remove-if-not | cl-remove-if-not |
@@ -235,6 +232,22 @@
 ;; | function    | fboundp | fset     | funcall      | fmakeunbound |
 ;; | plist       |         | setplist | symbol-plist |              |
 ;; |             |         | put      | get          |              |
+;;
+;; database architecture
+;; | kind       | key     | create               | get         | set         | enumerate      |
+;; |------------+---------+----------------------+-------------+-------------+----------------|
+;; | array      | integer | [val val val ...]    | aref        | aset        | mapcar         |
+;; | list       | integer | (val val val ...)    | elt         | setf elt    | mapcar         |
+;; | plist      | symbol  | (key val key val...) | plist-get   | plist-put   | while cddr     |
+;; | alist      | any     | ((key . val) ...)    | assoc       | push        | dolist         |
+;; | obarry     | string  | (make-vector 1 0)    | intern-soft | set intern  | mapatoms       |
+;; | char-table | char    | make-char-table      | aref        | aset        | map-char-table |
+;; | hash       | any     | make-hash-table      | gethash     | puthash     | maphash        |
+;; | trie       | string  | make-trie            | trie-lookup | trie-insert | trie-complete  |
+;;
+;; - `char-table' can have parent.  It can be used with `get-char-code-property' function.
+;; - `obarray' can be acced by a symbol which is `intern'ed to specific obarray.
+;; - `trie-complete' retrieves all candidates with common prefix.
 
 ;;; dispnew.c
 (setq visible-bell t)
@@ -1108,8 +1121,7 @@ DIR/subdir.el がある場合は、それを実行し、DIR下のディレクト
   (setq ibuffer-formats
         '((mark modified read-only (coding 15 15) " " (name 30 30)
                 " " (size 6 -1) " " (mode 16 16) " " filename)
-          (mark (coding 15 15) " " (name 30 -1) " " filename)))
-)
+          (mark (coding 15 15) " " (name 30 -1) " " filename))))
 
 ;;; ido.el
 ;; 保存時にファイル名の自動補完を行う。
@@ -1133,6 +1145,12 @@ DIR/subdir.el がある場合は、それを実行し、DIR下のディレクト
 ;;; image.el
 ;;(setq imagemagick-render-type 1)
 
+;;; imenu.el
+;; Emacs 24.2/24.3 only.
+;; load-theme を実行すると、eval → edebug-read → which-func → imenu-create-index-function
+;; でエラーが起きるのを抑止する。
+(setq imenu-create-index-function nil)
+
 ;;; info.el
 (eval-after-load "info"
   '(progn
@@ -1149,32 +1167,58 @@ DIR/subdir.el がある場合は、それを実行し、DIR下のディレクト
       ((eq system-type 'windows-nt)
        ;;(modify-coding-system-alist 'process ".*sh\\.exe" 'utf-8-dos)
        ;;(modify-coding-system-alist 'process ".*sh" 'utf-8-dos)
-       (set-keyboard-coding-system 'cp932))
-      )
+       (set-keyboard-coding-system 'cp932)))
 ;; w32select.c では、'utf-16le-dos で CF_UNICODEを利用する。
 (set-selection-coding-system
  (cond ((equal system-type 'windows-nt) 'utf-16le-dos)
        (t 'utf-8)))
-
+;; mule-version を日本語に直す。
+(defun mule-version-japanese ()
+  (let* ((versions
+          '(;("KIRITSUBO"    . "桐壷")
+            ;("HAHAKIGI"     . "帚木")
+            ;("UTSUSEMI"     . "空蝉")
+            ;("YUUGAO"       . "夕顔")
+            ;("WAKAMURASAKI" . "若紫")
+            ;("SUETSUMUHANA" . "末摘花")
+            ;("MOMIJINOGA"   . "紅葉賀")
+            ;("HANANOEN"     . "花宴")
+            ;("AOI"          . "葵")
+            ("SAKAKI"       . "賢木")
+            ("HANACHIRUSATO" . "花散里") ;; 2003.9.1
+            ("SUMA"         . "須磨")
+            ("AKASHI"       . "明石")
+            ("MIWOTSUKUSHI" . "澪標")
+            ("YOMOGIU"      . "蓬生")
+            ("SEKIYA"       . "関屋")
+            ("EAWASE"       . "絵合")
+            ("MATSUKAZE"    . "松風")
+            ("USUKUMO"      . "薄雲"))))
+    (mapc
+     (lambda (args)
+       (if (string-match (car args) mule-version)
+           (setq mule-version
+                 (concat (substring mule-version 0
+                                    (match-beginning 0))
+                         (cdr args)
+                         (substring mule-version (match-end 0))))))
+     versions)))
+(mule-version-japanese)
+    
 ;;; international/mule-cmds.el
 (when (not (equal window-system 'mac))
   (global-set-key "\C-o" 'toggle-input-method))
 
 ;;; iswitchb.el
+;; TODO switch-to-buffer のキーバイドのsubstitute-..全横取りを抑制する方法。
 (iswitchb-mode 1)
+;(global-set-key (kbd "C-x b") 'iswitchb-buffer)
+;(global-set-key (kbd "C-x 4 b") 'iswitchb-buffer-other-window)
+;(global-set-key (kbd "C-x 5 b") 'iswitchb-buffer-other-frame)
+;(global-set-key (kbd "C-x B") 'switch-to-buffer)
 (setq iswitchb-use-virtual-buffers t)
 (define-key minibuffer-local-completion-map
   "\C-c\C-i" 'file-cache-minibuffer-complete)
-(add-hook 'iswitchb-define-mode-map-hook
-          'iswitchb-my-keys)
-(defun iswitchb-my-keys ()
-  "Add my keybindings for iswitchb."
-  (define-key iswitchb-mode-map [right] 'iswitchb-next-match)
-  (define-key iswitchb-mode-map [left] 'iswitchb-prev-match)
-  (define-key iswitchb-mode-map "\C-f" 'iswitchb-next-match)
-  (define-key iswitchb-mode-map " " 'iswitchb-next-match)
-  (define-key iswitchb-mode-map "\C-b" 'iswitchb-prev-match))
-(global-set-key "\C-xB" 'switch-to-buffer)
 (setq iswitchb-method 'samewindow)
 ;; 以下の命令を実行する場合は、iswitchb-methodを、samewindowにしておく。
 ;; さもなければ、バッファ選択中に他のフレームに勝手に移動することがある。
@@ -1301,9 +1345,10 @@ by using nxml's indentation rules."
 
 ;;; net/newsticker
 ;; RSSリーダ
-(setq newsticker-url-list
-      '(("Slashdot" "http://rss.slashdot.org/Slashdot/slashdot")
-         ("TechCrunch" "http://feeds.feedburner.com/TechCrunch")))
+(lazyload () "newsticker"
+  (setq newsticker-url-list
+        '(("Slashdot" "http://rss.slashdot.org/Slashdot/slashdot")
+          ("TechCrunch" "http://feeds.feedburner.com/TechCrunch"))))
 
 ;;; net/tramp.el
 ;; e.g. C-x C-f /kawabata@femto:/var/www/html/index.html
@@ -1967,6 +2012,7 @@ by using nxml's indentation rules."
 
 ;;; woman.el
 (setq woman-cache-filename "~/.wmncach.el")
+;;(defalias 'man 'woman)
 
 
 ;;;; パッケージ管理システム
@@ -3277,10 +3323,12 @@ by using nxml's indentation rules."
   (define-key org-mode-map "\C-c\M-o" 'org-open-at-point)
   (define-key global-map "\C-cl" 'org-store-link))
 
+(setq org-startup-indented t) ;; #+STARTUP: indent (or noindent)
 (add-to-list 'auto-mode-alist '("\\.org.txt$" . org-mode))
 (setq org-directory "~/Dropbox/org/")
 ;; テンプレートについては、すでに org-structure-template-alist で定義されている。
 (setq org-hide-leading-stars t)
+(setq org-footnote-tag-for-non-org-mode-files "脚注:")
 (setq org-todo-keywords '((sequence "TODO" "WAIT" "DONE")))
 (setq org-format-latex-options
       '(:foreground default :background default :scale 1.5
@@ -3302,16 +3350,18 @@ by using nxml's indentation rules."
         ("" "wasysym"   t) ; Waldi symbol font.
         ))
 
-;; * org-preview-latex-fragment (数式の画像化 C-c C-x C-l) について
-;;   現在のorg-mode は、直接 latex 命令で数式を生成する
-;;   "org-create-formula-image-with-dvipng" と、LaTeXからPDFを生成して
-;;   そこからImageMagickで画像を生成する
-;;   "org-create-formula-image-with-imagemagick" の２つの方法が用意さ
-;;   れている。そのうち、..-with-dvipng は、直接 latex 命令を呼び出している。
-;;   imagemagick は動作が遅い。
-(setq org-latex-create-formula-image-program 'dvipng) ; imagemagick
-;; 数式を生成する際に、 `latex' 命令で利用できるパッケージを仮設定するアドバイス
 (lazyload () "org"
+  ;; * org-preview-latex-fragment (数式の画像化 C-c C-x C-l) について
+  ;;   現在のorg-mode は、直接 latex 命令で数式を生成する
+  ;;   "org-create-formula-image-with-dvipng" と、LaTeXからPDFを生成して
+  ;;   そこからImageMagickで画像を生成する
+  ;;   "org-create-formula-image-with-imagemagick" の２つの方法が用意さ
+  ;;   れている。そのうち、..-with-dvipng は、直接 latex 命令を呼び出している。
+  ;;   imagemagick は動作が遅い。
+  (setq org-latex-create-formula-image-program 'dvipng) ; imagemagick
+  ;; HTML出力の際は 自動的に色付けをする。
+  (setq org-src-fontify-natively t)
+  ;; 数式を生成する際に、 `latex' 命令で利用できるパッケージを仮設定するアドバイス
   (defadvice org-create-formula-image-with-dvipng
     (around org-reset-default-packages activate)
     (let ((org-export-latex-default-packages-alist
@@ -3587,16 +3637,6 @@ by using nxml's indentation rules."
 (lazyload (org-export) "ox"
   (require 'ox-texinfo nil t))
 
-;;; org/ox-publish
-(setq org-publish-project-alist
-      '(("blog"
-         :base-directory "~/.emacs.d/site-lisp/lookup/org"
-         :base-extension "org.txt"
-         :recursive t
-         :section-numbers nil
-         :table-of-contents nil
-         :publishing-directory "~/Dropbox/cvs/golconda.github.com/_site/")))
-
 ;;; org-exp-bibtex
 ; BibTeXをHTMLにもエクスポートする。
 ;(require 'org-exp-bibtex nil t)
@@ -3651,10 +3691,19 @@ by using nxml's indentation rules."
 ;; M-x org2blog/wp-post-buffer
 ;; C-c p … Publish your blog
 ;; 737行目を (setq html-text (org-export-as-html nil nil 'string t nil)) にすること。
-(lazyload (org2blog/wp-login org2blog/wp-new-entry) "org2blog"
-  (when (and (executable-find "gpg")
-             (locate-library "org2blog-setup.el.gpg"))
-    (load-library "org2blog-setup.el.gpg")))
+;(lazyload (org2blog/wp-login org2blog/wp-new-entry) "org2blog"
+;  (when (and (executable-find "gpg")
+;             (locate-library "org2blog-setup.el.gpg"))
+;    (load-library "org2blog-setup.el.gpg")))
+
+;;; org-octopress
+;; TODO 画像等の static file への対応
+(lazyload (org-octopress) "org-octopress"
+  (setq org-octopress-directory-top       "~/Dropbox/cvs/octopress/source"
+        org-octopress-directory-posts     "~/Dropbox/cvs/octopress/source/_posts"
+        org-octopress-directory-org-top   "~/Dropbox/org/octopress"
+        org-octopress-directory-org-posts "~/Dropbox/org/octopress/blog"
+        org-octopress-setup-file          "~/Dropbox/org/octopress.org"))
 
 ;;; org-table-comment (elpa)
 ;;
@@ -3672,6 +3721,8 @@ by using nxml's indentation rules."
 ;;; paredit-mode (elpa)
 ;; 非常に重くなるので必要な場面以外は使ってはいけない。
 
+;;; php-mode (elpa)
+
 ;;; powerline (elpa)
 ;; http://hico-horiuchi.com/wiki/doku.php?id=emacs:powerline
 ;; 美麗なmodelineとの触れ込みだが、仮名漢字変換が表示できないので使用しない。
@@ -3680,7 +3731,18 @@ by using nxml's indentation rules."
 ;; http://blogs.msdn.com/b/powershell/archive/2008/04/15/powershell-running-inside-of-emacs.aspx
 (autoload 'powershell "powershell" "Run powershell as a shell within emacs." t)
 
-;;; php-mode (elpa)
+;;; popwin (elpa)
+(when (require 'popwin)
+  (popwin-mode 1)
+  ;;(setq display-buffer-alist '(("." popwin:display-buffer)))
+  (setq popwin:popup-window-width 24
+        popwin:popup-window-height 15
+        popwin:popup-window-position 'bottom)
+  (add-to-list 'popwin:special-display-config '("*anything*" :height 20))
+  (add-to-list 'popwin:special-display-config '(dired-mode :position top))
+  (add-to-list 'popwin:special-display-config '("*BBDB*" :height 10)))
+;(eval-after-load "popwin"
+;  (setq display-buffer-function 'popwin:display-buffer))
 
 ;;; python-mode (elpa)
 
@@ -4006,11 +4068,17 @@ by using nxml's indentation rules."
 ;;  (autoload 'tm-functions "tm"    "Functions to edit Test Manager files" t))
 
 ;;; twittering-mode (elpa)
+;; M-x twit (autoload) で開始
 ;; M-x twittering-icon-mode でアイコン表示
 ;; d … direct message
 ;; <RET> … reply
 (setq twittering-username "kawabata")
 (setq twittering-timer-interval 6000)
+(lazyload () "twittering-mode"
+  (add-hook 'twittering-mode-init-hook
+            'twittering-icon-mode)
+  (add-hook 'twittering-mode-init-hook
+            'twittering-jojo-mode))
 ;; (setq twittering-password "Twitterのパスワード")
 
 ;;; typescript
