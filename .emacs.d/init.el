@@ -105,17 +105,16 @@
 ;;; callproc.c
 ;; PATHがない環境から起動された場合に備えて、exec-path に "gnupg" 等の
 ;; 必要なソフトがインストールされているパスを追加しておく。
-(let ((files '(
-               "/usr/bin"
-               "/opt/local/bin"
-               "/usr/local/bin"
-               "/cygwin/bin"
-               ;;"c:/w32tex/texinst2010/bin"
-               ;;"c:/Program Files/Ruby-1.9.2/bin"
-               )))
-  (dolist (file files)
-    (when (file-directory-p file)
-      (add-to-list 'exec-path file))))
+(loop for directory in '(
+                         "/usr/bin"
+                         "/opt/local/bin"
+                         "/usr/local/bin"
+                         "/cygwin/bin"
+                         ;;"c:/w32tex/texinst2010/bin"
+                         ;;"c:/Program Files/Ruby-1.9.2/bin"
+                         )
+      if (file-directory-p directory)
+      do (add-to-list 'exec-path directory))
 
 ;;; coding.c
 ;; coding関係の設定の前にこれを行う。
@@ -228,26 +227,76 @@
 ;; |-------------+---------+----------+--------------+--------------|
 ;; | name        |         | intern   | symbol-name  | unintern     |
 ;; | dynamic val | boundp  | set      | symbol-value | makunbound   |
-;; | lexical val |         |          | eval         |              |
+;; | lexical val |         | setq     | eval         |              |
 ;; | function    | fboundp | fset     | funcall      | fmakeunbound |
 ;; | plist       |         | setplist | symbol-plist |              |
 ;; |             |         | put      | get          |              |
+
+;; * database architecture *
 ;;
-;; database architecture
-;; | kind       | key     | create               | get         | set         | enumerate      |
-;; |------------+---------+----------------------+-------------+-------------+----------------|
-;; | array      | integer | [val val val ...]    | aref        | aset        | mapcar         |
-;; | list       | integer | (val val val ...)    | elt         | setf elt    | mapcar         |
-;; | plist      | symbol  | (key val key val...) | plist-get   | plist-put   | while cddr     |
-;; | alist      | any     | ((key . val) ...)    | assoc       | push        | dolist         |
-;; | obarry     | string  | (make-vector 1 0)    | intern-soft | set intern  | mapatoms       |
-;; | char-table | char    | make-char-table      | aref        | aset        | map-char-table |
-;; | hash       | any     | make-hash-table      | gethash     | puthash     | maphash        |
-;; | trie       | string  | make-trie            | trie-lookup | trie-insert | trie-complete  |
+;; | kind        | key     | create             | get          | set            |
+;; |-------------+---------+--------------------+--------------+----------------|
+;; | cons        | -       | cons               | car/cdr      | setcar/setcdr  |
+;; | list        | integer | list               | elt          | setf elt       |
+;; | vector      | integer | vector             | aref         | aset           |
+;; | string      | integer | string             | aref         | aset           |
+;; | char-table  | char    | make-char-table    | aref         | aset           |
+;; | bool-vector | integer | make-bool-vector   | aref         | aset           |
+;; | plist       | symbol  | (key val...)       | plist-get    | plist-put      |
+;; | alist       | any     | ((key . val) ...)  | alist-get*   | setf alist-get |
+;; | obarry      | string  | make-vector 1511 0 | intern-soft  | set intern     |
+;; | hash        | any     | make-hash-table    | gethash      | puthash        |
+;; | struct XXX  | YYY     | make-XXX           | XXX-YYY      | setf XXX-YYY   |
+;; | class XXX   | YYY     | make-instance      | oref         | oset           |
+;; | heap        | integer | make-heap          | heap-add     | heap-modify    |
+;; | trie        | string  | make-trie          | trie-lookup  | trie-insert    |
+;; | dict-tree   | string  | dictree-create     | dictree-look | dictree-insert |
 ;;
-;; - `char-table' can have parent.  It can be used with `get-char-code-property' function.
-;; - `obarray' can be acced by a symbol which is `intern'ed to specific obarray.
-;; - `trie-complete' retrieves all candidates with common prefix.
+;;
+;; | kind        | enumerate      | type-check    | member-check     | delete  |
+;; |-------------+----------------+---------------+------------------+---------|
+;; | cons        |                | consp         |                  |         |
+;; | list        | mapcar         | listp         | member           |         |
+;; | vector      | mapcar         | vectorp       |                  | X       |
+;; | string      | mapcar         | stringp       | string-match     | X       |
+;; | char-table  | map-char-table | char-table-p  |                  | X       |
+;; | bool-vector | mapcar         | bool-vector-p |                  | X       |
+;; | plist       | while cddr     |               | plist-member     |         |
+;; | alist       | dolist         |               | assoc            |         |
+;; | obarry      | mapatoms       |               |                  |         |
+;; | hash        | maphash        | hash-table-p  |                  | remhash |
+;; | struct XXX  |                | XXXX-p        |                  |         |
+;; | class XXX   |                | object-p      |                  | ???     |
+;; | heap        |                | heap-p        |                  |         |
+;; | trie        |                | trie-p        | trie-complete    |         |
+;; | dict-tree   | dictree-mapcar |               | dictree-complete |         |
+;;
+;;
+;; | kind        | size              | value | order    |
+;; |-------------+-------------------+-------+----------|
+;; | cons        | 2                 | any   | o(1)     |
+;; | list        | length (variable) | any   | o(n)     |
+;; | vector      | length (fixed)    | any   | o(1)     |
+;; | string      | length (variable) | char  | o(n)     |
+;; | char-table  | length            | any   | o(log n) |
+;; | bool-vector | length            | t/nil | o(1)     |
+;; | plist       | (/ length 2)      | any   | o(n)     |
+;; | alist       | length            | any   | o(n)     |
+;; | obarry      |                   | any   | o(1)     |
+;; | hash        | hash-table-size   | any   | o(1)     |
+;; | struct XXX  | (fixed)           | any   |          |
+;; | class XXX   | fixed             | any   |          |
+;; | heap        | length (variable) | any   | o(log n) |
+;; | trie        | length (variable) | any   | o(log n) |
+;; | dict-tree   |                   |       |          |
+;;
+;; - `char-table' and `class' can have parent.  
+;; - `char-table' can be used with `get-char-code-property' function.
+;; - `obarray' can be accessed by a symbol which is `intern'ed to specific obarray.
+;; - `dict-tree' can output file with `dictree-save/write'.
+;;
+;; char-code-property は、まず unicode-property-table-internal を見た後で、
+;; char-code-property-table の各文字のplist を確認する。
 
 ;;; dispnew.c
 (setq visible-bell t)
@@ -307,17 +356,22 @@
     "メイリオ"
     ;; Adobe フォント
     "小塚明朝 Pr6N R" "小塚ゴシック Pr6N R"
-    ;; "Kozuka Mincho Pr6N R"
+    ;;"Kozuka Mincho Pr6N R"
+    "Kozuka Mincho Pr6N"
     "Kazuraki SPN"
     "Mio W4"
     "Ryo Text PlusN"
     "Ryo Gothic PlusN"
     "Ryo Display PlusN"
+    ;; 花園明朝
+    "HanaMinA"
+    "HanaMinB"
     ;; イワタフォント
     "PMinIWA-HW-Md" ;; "PMinIWA-Md" ← 非固定幅
     "Iwata SeichouF Pro"
     ;; IPA
-    "IPA明朝" "IPAゴシック"
+    "IPAmjMincho"
+    "IPAexMincho" "IPAexGothic"
     ;; Mona font for AA
     "IPAMonaPGothic"
     ))
@@ -339,6 +393,7 @@
         "Menlo"
         ;; Mona
         "IPAMonaPGothic"
+        "花園明朝 A"
         )
      (burmese "hogehoge") ;; dummy (for test)
      (arabic "Arabic Typesetting Sample")
@@ -1011,6 +1066,13 @@ DIR/subdir.el がある場合は、それを実行し、DIR下のディレクト
 
 (ad-activate 'find-file)
 
+;; 頻繁に開く設定ファイル
+(global-set-key (kbd "C-x M-i")
+  (lambda () (interactive) (find-file-other-window "~/.emacs.d/init.el")))
+(global-set-key (kbd "C-x M-l")
+  (lambda () (interactive) 
+    (find-file-other-window "~/.emacs.d/lookup/init.el")))
+
 ;;; font-core.el
 (global-font-lock-mode t)
 
@@ -1033,21 +1095,37 @@ DIR/subdir.el がある場合は、それを実行し、DIR下のディレクト
         "meta" "tr" "td" "table" "span" "div"))
 (setq html2text-remove-tag-list2  '("li" "dt" "dd" "meta"))
 
-;;; gnus/mm-util
+;;; gnus/mm-util.el
 (eval-after-load "mm-util"
   '(when (coding-system-p 'cp50220)
      (add-to-list 'mm-charset-override-alist '(iso-2022-jp . cp50220))))
 
+;;; gv.el
+(defun alist-get (key alist)
+  "Get the value associated to KEY in ALIST."
+  (declare
+   (gv-expander
+    (lambda (do)
+      (macroexp-let2 macroexp-copyable-p k key
+        (gv-letplace (getter setter) alist
+          (macroexp-let2 nil p `(assoc ,k ,getter)
+            (funcall do `(cdr ,p)
+                     (lambda (v)
+                       `(if ,p (setcdr ,p ,v)
+                          ,(funcall setter
+                                    `(cons (cons ,k ,v) ,getter)))))))))))
+  (cdr (assoc key alist)))
+
 ;;; help.el
 ;; helpキーを C-h から C-zに割り当て直す。
 (setq help-char 26)
-(global-set-key "\C-z" help-map)
+(global-set-key (kbd "C-z") help-map)
 (if (eq window-system 'x)
-    (global-set-key "\C-z\C-z" 'iconify-or-deiconify-frame))
+    (global-set-key (kbd "C-z C-z") 'iconify-or-deiconify-frame))
 
 ;;; hippie-exp.el
 (setq hippie-expand-dabbrev-as-symbol t)
-(global-set-key "\M-/" 'hippie-expand)
+(global-set-key (kbd "M-/") 'hippie-expand)
 
 ;;; hl-line.el
 ;; 現在の行をハイライトする
@@ -1146,10 +1224,11 @@ DIR/subdir.el がある場合は、それを実行し、DIR下のディレクト
 ;;(setq imagemagick-render-type 1)
 
 ;;; imenu.el
-;; Emacs 24.2/24.3 only.
-;; load-theme を実行すると、eval → edebug-read → which-func → imenu-create-index-function
+;; Emacs 24.3 only.
+;; load-theme を実行すると、eval → edebug-read → edebug-read-sexp
+;;  → which-function → imenu--make-index-alist → imenu-default-create-index-function
 ;; でエラーが起きるのを抑止する。
-(setq imenu-create-index-function nil)
+(setq-default which-function-imenu-failed t)
 
 ;;; info.el
 (eval-after-load "info"
@@ -1184,7 +1263,7 @@ DIR/subdir.el がある場合は、それを実行し、DIR下のディレクト
             ;("MOMIJINOGA"   . "紅葉賀")
             ;("HANANOEN"     . "花宴")
             ;("AOI"          . "葵")
-            ("SAKAKI"       . "賢木")
+            ;("SAKAKI"       . "賢木")
             ("HANACHIRUSATO" . "花散里") ;; 2003.9.1
             ("SUMA"         . "須磨")
             ("AKASHI"       . "明石")
@@ -1207,19 +1286,21 @@ DIR/subdir.el がある場合は、それを実行し、DIR下のディレクト
     
 ;;; international/mule-cmds.el
 (when (not (equal window-system 'mac))
-  (global-set-key "\C-o" 'toggle-input-method))
+  (global-set-key (kbd "C-o") 'toggle-input-method))
 
 ;;; iswitchb.el
-;; TODO switch-to-buffer のキーバイドのsubstitute-..全横取りを抑制する方法。
+;; TODO 
+;; iswitchb と、switch-to-buffer の両方を必要に応じて切り分けたいが、
+;; iswtichb は、switch-to-buffer のキーバイドをsubstitute-..で、全て横
+;; 取りする。これを抑制する方法。
+;; TODO
+;; iswitchb で、" " で始まるバッファを検索する方法
 (iswitchb-mode 1)
-;(global-set-key (kbd "C-x b") 'iswitchb-buffer)
-;(global-set-key (kbd "C-x 4 b") 'iswitchb-buffer-other-window)
-;(global-set-key (kbd "C-x 5 b") 'iswitchb-buffer-other-frame)
-;(global-set-key (kbd "C-x B") 'switch-to-buffer)
-(setq iswitchb-use-virtual-buffers t)
-(define-key minibuffer-local-completion-map
-  "\C-c\C-i" 'file-cache-minibuffer-complete)
-(setq iswitchb-method 'samewindow)
+(lazyload () "iswitchb"
+  (setq iswitchb-use-virtual-buffers t)
+  (define-key minibuffer-local-completion-map
+    "\C-c\C-i" 'file-cache-minibuffer-complete)
+  (setq iswitchb-method 'samewindow))
 ;; 以下の命令を実行する場合は、iswitchb-methodを、samewindowにしておく。
 ;; さもなければ、バッファ選択中に他のフレームに勝手に移動することがある。
 ;;(defadvice iswitchb-exhibit (after
@@ -1248,6 +1329,9 @@ DIR/subdir.el がある場合は、それを実行し、DIR下のディレクト
 
 ;;; locate.el
 ;; Macintosh: sudo launchctl load -w /System/Library/LaunchDaemons/com.apple.locate.plist
+(lazyload () "locate"
+  (when (eq system-type 'darwin)
+    (setq locate-command "mdfind")))
 
 ;;; ls-lisp.el
 (setq ls-lisp-ignore-case t)
@@ -1260,7 +1344,7 @@ DIR/subdir.el がある場合は、それを実行し、DIR下のディレクト
      (define-key Man-mode-map "\ep" nil)))
 
 ;;; menu-bar.el
-(global-set-key "\C-xk" 'kill-this-buffer)
+(global-set-key (kbd "C-x k") 'kill-this-buffer)
 (menu-bar-mode nil)
 
 ;;; msb.el
@@ -1518,15 +1602,15 @@ by using nxml's indentation rules."
 
 ;;; rect.el
 (if (functionp 'string-rectangle)
-    (global-set-key "\C-xrt" 'string-rectangle))
+    (global-set-key (kbd "C-x r t") 'string-rectangle))
 (defun kill-rectangle-save (start end)
   (interactive "*r\nP")
   (setq killed-rectangle (extract-rectangle start end)))
-(global-set-key "\C-xrK" 'kill-rectangle-save)
+(global-set-key (kbd "C-x r K") 'kill-rectangle-save)
 
 ;;; recentf.el
 ;; 最近開いたファイルの一覧を表示。helm.el と組み合わせる。
-(global-set-key "\C-x\M-F" 'recentf-open-files)
+(global-set-key (kbd "C-x M-F") 'recentf-open-files)
 (setq recentf-max-saved-items 2000)
 (setq recentf-exclude '(".recentf"))
 (setq recentf-auto-cleanup 10)
@@ -1640,7 +1724,7 @@ by using nxml's indentation rules."
 (line-number-mode t)
 (column-number-mode t)
 (transient-mark-mode t)
-(global-set-key "\C-\M-h" 'backward-kill-word) ;; 単語をまとめてBS。
+(global-set-key (kbd "C-M-h") 'backward-kill-word) ;; 単語をまとめてBS。
 (normal-erase-is-backspace-mode 1)
 ;; (setq interprogram-cut-function x-select-text)
 
@@ -1668,7 +1752,7 @@ by using nxml's indentation rules."
 
 ;;; textmodes/artist.el
 ;; artist-mode-off ("C-c C-c") to exit.
-(global-set-key "\C-x\C-a" 'artist-mode)
+(global-set-key (kbd "C-x C-a") 'artist-mode)
 
 ;;; textmodes/bibtex.el
 ;; - biblatex について
@@ -1760,7 +1844,7 @@ by using nxml's indentation rules."
 ;;; textmodes/page-ext.el
 ;; ^L で区切られた領域をnarrowingして一覧表示・ジャンプ。
 (autoload 'pages-directory "page-ext" "pages" t)
-(global-set-key "\C-x\M-P" 'pages-directory)
+(global-set-key (kbd "C-x M-P") 'pages-directory)
 
 ;;; textmodes/picture.el
 ;; picture の日本語に関する課題
@@ -1898,7 +1982,7 @@ by using nxml's indentation rules."
 (setq windmove-wrap-around t)
 
 ;;; window.el
-(global-set-key "\M-l" 'bury-buffer)
+(global-set-key (kbd "M-l") 'bury-buffer)
 (defun my-other-window ()
   "ウィンドウが1つしかない場合は、過去のウィンドウ配置に戻るか、左
 右・上下のいずれかに分割する。"
@@ -1909,9 +1993,9 @@ by using nxml's indentation rules."
           (split-window-vertically)
         (split-window-horizontally))))
   (other-window 1))
-(global-set-key "\M-o" 'my-other-window)
-(global-set-key "\M-O" (lambda () (interactive) (other-window -1)))
-(global-set-key "\M-Q" (lambda () (interactive) (fill-paragraph 1)))
+(global-set-key (kbd "M-o") 'my-other-window)
+(global-set-key (kbd "M-O") (lambda () (interactive) (other-window -1)))
+(global-set-key (kbd "M-Q") (lambda () (interactive) (fill-paragraph 1)))
 (setq split-window-preferred-function 'split-window-sensibly)
 (setq split-height-threshold 80)
 (setq split-width-threshold 160)
@@ -1934,7 +2018,7 @@ by using nxml's indentation rules."
 ;; 現在のウィンドウを垂直方向に伸ばす。まず、下にウィンドウがあれば、
 ;; それを消して、無ければ、上を消して、上もなければ、
 ;; delete-other-windowsする。
-(global-set-key "\C-x9"
+(global-set-key (kbd "C-x 9")
  (lambda () (interactive)
    (let ((current-tl  (car (window-edges (selected-window))))
          (next-tl     (car (window-edges (next-window))))
@@ -1952,10 +2036,10 @@ by using nxml's indentation rules."
   (if scroll-with-cursor
       (progn
         (setq scroll-with-cursor nil)
-        (global-set-key "\M-n" (lambda() (interactive) (scroll-up 1)))
-        (global-set-key "\M-p" (lambda() (interactive) (scroll-down 1))))
-    (global-set-key "\M-n" (lambda() (interactive) (scroll-up 1) (forward-line 1)))
-    (global-set-key "\M-p" (lambda() (interactive) (scroll-down 1) (forward-line -1)))
+        (global-set-key (kbd "M-n") (lambda() (interactive) (scroll-up 1)))
+        (global-set-key (kbd "M-p") (lambda() (interactive) (scroll-down 1))))
+    (global-set-key (kbd "M-n") (lambda() (interactive) (scroll-up 1) (forward-line 1)))
+    (global-set-key (kbd "M-p") (lambda() (interactive) (scroll-down 1) (forward-line -1)))
     (setq scroll-with-cursor t)))
 (toggle-scroll-with-cursor)
 
@@ -2257,8 +2341,8 @@ by using nxml's indentation rules."
 ;;; AUCTeX (elpa)
 ;; http://oku.edu.mie-u.ac.jp/~okumura/texfaq/auctex.html
 
-
 ;;; auto-compile (elpa)
+;; elisp を保存する際に自動的にコンパイルする。
 (and (functionp 'auto-compile-mode)
      (add-hook 'emacs-lisp-mode-hook 'auto-compile-mode))
 
@@ -2303,7 +2387,7 @@ by using nxml's indentation rules."
               (puthash str (substring (buffer-string) 0 -1) japanese-to-kana-hash))
           (set-buffer old-buffer)))))
 
-(lazyload (bbdb bbdb-create) "bbdb-com"
+(lazyload ((bbdb "C-S-b")  bbdb-create) "bbdb-com"
   (setq bbdb-file "~/.emacs.d/.bbdb.gpg")
   (setq bbdb-message-mail-as-name nil)
   (setq bbdb-default-country "") ;; Japan, Emacs, etc
@@ -2478,7 +2562,7 @@ by using nxml's indentation rules."
 ;; http://www.bookshelf.jp/soft/meadow_49.html#SEC669
 ;; replace.el list-matching-lines → occur
 ;;            → color-moccur
-(when (locate-library "color-moccur")
+(when nil ;;(locate-library "color-moccur")
   ;; occur を moccur 版に置き換える。
   (autoload 'occur-by-moccur "color-moccur" nil t)
   (autoload 'isearch-moccur "color-moccur" nil t)
@@ -2501,7 +2585,7 @@ by using nxml's indentation rules."
           '(".+TAGS.+" "*Completions*" "*Messages*")))
   ;; dmoccur (directory moccur)
   (setq dmoccur-recursive-search t) ; ディレクトリを再帰的に検索
-  (global-set-key "\C-xK" 'clean-dmoccur-buffers) ; 開いた大量のバッファを片付ける。
+  (global-set-key (kbd "C-x K") 'clean-dmoccur-buffers) ; 開いた大量のバッファを片付ける。
   ;;(setq dmoccur-use-list t)
   ;;(setq dmoccur-list
   ;;      '(
@@ -2605,64 +2689,23 @@ by using nxml's indentation rules."
 ;  (durendal-enable))
 
 ;;; ebib (elpa)
-(setq ebib-file-search-dirs (split-string (or (getenv "BIBINPUTS") "") ":"))
-;; from https://bitbucket.org/kenko/dotfiles/src/
-(setq ebib-default-type 'book
-      ebib-use-timestamp t
-      ebib-layout 'custom
-      ebib-index-display-fields '(title)
-      ebib-additional-fields '(doi isbn jpno issn isrn ismn pbno
-                               plno usmarc ukmarc brno sici ndlcn))
-(setq ebib-common-optional-fields
-      '(translator keywords origlanguage url file location
-        partinfo subtitle edition abstract note annotator
-        crossref urldate address subtitle language))
-(setq ebib-entry-types
-      `((article
-         (author sortname title sorttitle journaltitle year date)
-         (volume number pages month note
-                 ,@ebib-common-optional-fields))
-        (book
-         (author sortname title sorttitle publisher year date)
-         (volume part volumes series edition
-                  ,@ebib-common-optional-fields))
-        (mvbook
-         (author sortname title sortitle publisher year date)
-         (volume volumes series edition
-                  ,@ebib-common-optional-fields))
-        (inbook
-         (author sortname title sorttitle booktitle publisher year date)
-         (bookauthor volume part pages edition volumes series month
-                     note ,@ebib-common-optional-fields))
-        (bookinbook
-         (author sortname title sorttitle booktitle publisher year date)
-         (bookauthor volume part pages edition volumes series month
-                     note ,@ebib-common-optional-fields))
-        (collection
-         (editor sortname title sorttitle publisher year date)
-         (series ,@(remq 'editor ebib-common-optional-fields)))
-        (incollection
-         (author sortname editor sorttitle title booktitle publisher year date)
-         (pages ,@(remq 'editor ebib-common-optional-fields)))
-        (manual
-         (author sortname editor title sorttitle year date)
-         (pages organization note ,@ebib-common-optional-fields))
-        (misc
-         (author sortname editor title sorttitle year date)
-         (howpublished month note ,@ebib-common-optional-fields))
-        (online
-         (author sortname editor title sorttitle year date url)
-         (subtitle language version note organization month
-                   urldate))
-        (thesis
-         (author sortname title sorttitle type institution year date)
-         (subtitle language note address url urldate month))
-        (phdthesis
-         (author sortname title sorttitle institution year date)
-         (subtitle language note address month note url urldate))
-        (unpublished
-         (author sortname title sorttitle year date)
-         (howpublished month note url urldate address))))
+(lazyload ((ebib "C-x M-b")) "ebib"
+  (setq ebib-rc-file "~/.emacs.d/ebibrc.el"
+        ebib-preload-bib-search-dirs
+        (split-string (or (getenv "BIBINPUTS") "") ":")
+        ebib-preload-bib-files 
+        '("Books.bib" "Dict.bib" "Isolation.bib" "LifeLog.bib" "PEG.bib" "SoftwareIsolation.bib" "Text Processing.bib" "jitai.bib" "kininaru.bib" "当用漢字.bib" "汎用電子.bib" "甲骨文字.bib" "説文解字注.bib")
+        ebib-default-type 'book
+        ebib-use-timestamp t
+        ebib-layout 'custom
+        ebib-index-display-fields '(title)
+        ebib-biblatex-inheritance t
+        ebib-sort-order '(sortname)
+        ebib-additional-fields '(doi isbn jpno issn isrn ismn pbno
+                                     plno usmarc ukmarc brno sici ndlcn))
+  (ebib-key index "n" ebib-next-entry)
+  (ebib-key index "p" ebib-prev-entry)
+  (ebib-key index "N" ebib-search-next))
 
 ;;; edbi (elpa)
 ;; Emacs Database Interface
@@ -2764,8 +2807,9 @@ by using nxml's indentation rules."
 ;;   る。しかし、global-map で定義された prefix-key 付きのキーとhelmで
 ;;   定義済のキーが衝突すると、エラーになる。回避策として、global-map
 ;;   から一時的にhelp-map を除去し、読み込み後復活する。
-(global-set-key (kbd "\C-z") nil) ; 退避
+(global-set-key (kbd "C-z") nil) ; 退避
 
+(defvar helm-command-map) ;; compile-error 避け
 (when (and (require 'helm-config nil t)
            (require 'helm nil t))
   ;(require 'helm-migemo nil t)
@@ -2779,7 +2823,7 @@ by using nxml's indentation rules."
   ;; その他
   ;(define-key helm-map (kbd "C-o") nil)
   )
-(global-set-key (kbd "\C-z") help-map) ; 復旧
+(global-set-key (kbd "C-z") help-map) ; 復旧
 ;;
 ;; * helm で quail を使うには
 ;;   helm は、override-keymaps を設定するがこれが設定されていると
@@ -2804,9 +2848,10 @@ by using nxml's indentation rules."
 
 ;;; helm-c-moccur (elpa)
 (lazyload () "helm-config"
-  (require 'helm-c-moccur nil t)
-  ;; <hcm> m で helm-occur
-  (define-key helm-command-map "o" 'helm-c-moccur-occur-by-moccur))
+  (when (require 'color-moccur nil t)
+    (require 'helm-c-moccur nil t)
+    ;; <hcm> m で helm-occur
+    (define-key helm-command-map "o" 'helm-c-moccur-occur-by-moccur)))
 
 ;;; helm-c-yasnippet (elpa)
 (lazyload () "helm-config"
@@ -2945,6 +2990,9 @@ by using nxml's indentation rules."
            (executable-find "dvips"))
   (autoload 'imaxima "imaxima" "Image support for Maxima." t)
   (autoload 'imath-mode "imath" "Interactive Math minor mode." t))
+
+;;; image+ (elpa)
+;; 画像の拡大・縮小（要ImageMagick）
 
 ;;; inf-ruby (elpa)
 ;; M-x run-ruby
@@ -3180,21 +3228,21 @@ by using nxml's indentation rules."
 ;; ruby reference manual などは別途取得する。
 ;; emacs 23 で、 make install-index すると、
 ;; /usr/local/share/emacs/23.0.60/etc/mode-info/ にインデックスファイルが入る。
-(if (file-exists-p "/usr/local/share/emacs/23.0.90/etc/mode-info/")
-    (setq mode-info-index-directory "/usr/local/share/emacs/23.0.90/etc/mode-info/")
-  (setq mode-info-index-directory "/usr/local/share/emacs/site-lisp/mode-info/"))
-(when nil ;;(locate-library "mode-info")
-  (autoload 'mode-info-describe-function "mode-info" nil t)
-  (autoload 'mode-info-describe-variable "mode-info" nil t)
-  (autoload 'mode-info-find-tag "mode-info" nil t)
-  (define-key global-map "\C-hf" 'mode-info-describe-function)
-  (define-key global-map "\C-hv" 'mode-info-describe-variable)
-  (define-key global-map "\M-." 'mode-info-find-tag)
-  (defadvice help-for-help
-    (before activate-mi activate)
-    (when (locate-library "mi-config")
-      (require 'mi-config)
-      (require 'mi-fontify))))
+;;(if (file-exists-p "/usr/local/share/emacs/23.0.90/etc/mode-info/")
+;;    (setq mode-info-index-directory "/usr/local/share/emacs/23.0.90/etc/mode-info/")
+;;  (setq mode-info-index-directory "/usr/local/share/emacs/site-lisp/mode-info/"))
+;;(when nil ;;(locate-library "mode-info")
+;;  (autoload 'mode-info-describe-function "mode-info" nil t)
+;;  (autoload 'mode-info-describe-variable "mode-info" nil t)
+;;  (autoload 'mode-info-find-tag "mode-info" nil t)
+;;  (define-key global-map "\C-hf" 'mode-info-describe-function)
+;;  (define-key global-map "\C-hv" 'mode-info-describe-variable)
+;;  (define-key global-map "\M-." 'mode-info-find-tag)
+;;  (defadvice help-for-help
+;;    (before activate-mi activate)
+;;    (when (locate-library "mi-config")
+;;      (require 'mi-config)
+;;      (require 'mi-fontify))))
 
 ;;; moz
 ;; MozRepl との連携
@@ -3340,11 +3388,11 @@ by using nxml's indentation rules."
       '(("" "amssymb"   t)
         ("" "amsmath"   t)
         ("" "amsxtra"   t) ; MathJax未対応
-        ("" "bbold"     t)
+        ;("" "bbold"     t)
         ("" "isomath"   t) ; MathJax未対応
         ("" "latexsym"  t) ; MathJax未対応
         ("" "marvosym"  t) ; Martin Vogel's Symbols Font
-        ("" "mathdots"  t) ; MathJax未対応
+        ;("" "mathdots"  t) ; MathJax未対応
         ("" "stmaryrd"  t) ; MathJax未対応
         ("" "textcomp"  t) ; 特殊記号
         ("" "wasysym"   t) ; Waldi symbol font.
@@ -3411,16 +3459,29 @@ by using nxml's indentation rules."
 ;; org-mode で利用する。
 ;; U+3000 以降の文字同士が改行で分割されていた場合は改行を削除する。
 ;; XeTeX/LuaTeX や HTML, DocBook 等、日本語の改行が空白扱いになる箇所で利用する。
-(defun remove-newlines-at-ja-text ()
+(defun remove-newlines-at-ja-text (&optional _mode)
   (interactive)
   (goto-char (point-min))
-  (while (re-search-forward "^\\([^*\n].+\\)\\(.\\)\n[ \t]+\\(.\\)" nil t)
+  (message "remove-newlines-at-ja-text run!")
+  (while (re-search-forward "^\\([^*\n].+\\)\\(.\\)\n *\\(.\\)" nil t)
     (when (and (> (string-to-char (match-string 2)) #x2000)
                (> (string-to-char (match-string 3)) #x2000))
       (replace-match "\\1\\2\\3")
       (goto-char (point-at-bol)))))
+
+(defun org-latex-filter-fancyvrb (text backend _info)
+  "Convert begin/end{verbatim} to begin/end{Verbatim}.
+Allows use of the fancyvrb latex package."
+  (when (or (org-export-derived-backend-p backend 'beamer)
+            (org-export-derived-backend-p backend 'latex))
+    (replace-regexp-in-string
+     "\\\\\\(begin\\|end\\){verbatim}"
+     "\\\\\\1{Verbatim}" text)))
+
 (lazyload () "org-exp"
-  (add-hook 'org-export-preprocess-hook 'remove-newlines-at-ja-text))
+  (add-hook 'org-export-before-processing-hook 'remove-newlines-at-ja-text)
+  (add-to-list 'org-export-filter-final-output-functions
+               'org-latex-filter-fancyvrb))
 
 ;;; org/org-exp-blocks
 (let ((ditaa "~/.emacs.d/program/jditaa.jar"))
@@ -3460,17 +3521,20 @@ by using nxml's indentation rules."
 
 ;; luatex, xetex, euptex 用に 設定
 (defun my-org-export-latex-setup (latex)
+  (interactive
+   (list (intern (completing-read "engine for org-latex=?" '("luatex" "xetex" "euptex")))))
   (setq org-export-latex-verbatim-wrap
         '("\\begin{Verbatim}\n" . "\\end{Verbatim}\n"))
   ;; すべてのLaTeX出力に共通なパッケージ
-  (setq org-export-latex-default-packages-alist
+  (setq org-latex-default-packages-alist
         `(
           ,@(cond ((equal latex 'luatex)
                    '(("" "luacode" t)
                      ("" "luatexja-otf" t)))
                   ((equal latex 'xetex)
                    '(("" "zxjatype" t)
-                     ("macros" "zxotf" t)))
+                     ;("macros" "zxotf" t)
+                     ))
                   ((equal latex 'euptex)
                    '(("uplatex,multi" "otf" t)
                      ("" "okumacro" t)))
@@ -3489,17 +3553,18 @@ by using nxml's indentation rules."
 \\providecommand{\\alert}[1]{\\textbf{#1}}
 "))
   ;; 一部のLaTeX出力に特有のパッケージ（Beamerで使わないパッケージ）
-  (setq org-export-latex-packages-alist
+  (setq org-latex-packages-alist
         `(
           ;; graphicx: jpeg や png を取り込む。
           ;;   ebb *.png 命令を実行しないと Bounding Boxが生成されない。
-          ,(cond ((equal latex 'xetex)  '("xetex" "graphicx"  t))
+          ,(cond ((equal latex 'xetex)  '("" "graphicx"  t))
                  ((equal latex 'euptex) '("dvipdfm" "graphicx"  t))
                  (t '("pdftex" "graphicx"  t)))
           ;; hyperref: PDFでハイパーリンクを生成
           ;; colorlinks=true を入れると、graphicx が dvipdfmx で失敗するので注意。
           ,(cond ((equal latex 'luatex)  '("pdftex,pdfencoding=auto" "hyperref"  t))
                  ((equal latex 'euptex)  '("dvipdfm" "hyperref"  t))
+                 ((equal latex 'xetex)   '("xetex" "hyperref"  t))
                  (t '("pdftex" "hyperref"  t)))
           ;; biblatex は重いのとスタイル設定が必要なので、使用するorg-fileのみ、
           ;; `+LATEX_HEADER: \usepackage[backend=biber]{biblatex}' で入れること。
@@ -3509,7 +3574,7 @@ by using nxml's indentation rules."
           ))
 
   (setq
-   org-export-latex-classes
+   org-latex-classes
    `(("article"
       ,(cond ((equal latex 'luatex) "\\documentclass{ltjsarticle}\n")
              ((equal latex 'xetex) "\\documentclass[a4paper]{bxjsarticle}\n")
@@ -3544,8 +3609,7 @@ by using nxml's indentation rules."
       ;; #+LaTeX_CLASS_OPTIONS: [presentation,dvipdfm] をつけたサンプルには注意すること。
       ,(concat "\\documentclass[compress,dvipdfm]{beamer}\n[NO-PACKAGES]\n"
                "\\usepackage{graphicx}\n")
-      org-beamer-sectioning
-      )))
+      org-beamer-sectioning)))
 
   (setq org-latex-to-pdf-process
         (cond ((equal latex 'luatex) '("latexmk -pdf"))
@@ -3553,7 +3617,7 @@ by using nxml's indentation rules."
               ((equal latex 'euptex) '("latexmk -pdfdvi"))
               (t '("latexmk -pdfdvi")))))
 
-(my-org-export-latex-setup 'luatex) ;; euptex, xetex
+(my-org-export-latex-setup 'xetex) ;; euptex, xetex, luatex
 
 ;;; org/org-odt.el
 ;; NSimSun →　MS Gothic
@@ -3943,6 +4007,7 @@ by using nxml's indentation rules."
 ;;; sorter
 ;; "s" キーで、ファイル名・サイズ・日付・拡張子名順に並び替え。
 ;; dired-listing-switches が、"al" 以外だと動作しないため使用中止。
+;; 独自に移植。 (dired-rotate-sort) 参照。
 
 ;;; stripe-buffer (elpa)
 ;; バッファを縞々模様にする。
@@ -4087,9 +4152,11 @@ by using nxml's indentation rules."
            "TypeScript")
 
 ;;; undo-tree (elpa)
-;; C-/ : undo, C-? : redo, C-x u : show tree (p/n/f/b)
-;(when (require 'undo-tree nil t)
-;  (global-undo-tree-mode))
+;; C-/ : undo
+;; C-? : redo
+;; C-x u : show tree (p/n/f/b)
+(when (require 'undo-tree nil t)
+  (global-undo-tree-mode))
 
 ;;; w32-print
 ;; http://www.bookshelf.jp/soft/meadow_15.html#SEC14
@@ -4268,22 +4335,27 @@ by using nxml's indentation rules."
 ;;; aozora-view
 (lazyload (aozora-view) "aozora-view")
 
-;;; math-symbols.el
+;;; math-symbols
 (lazyload (math-symbols-stylize-region math-insert) "math-symbols")
 
-;;; ivs-aj1
-;; AJ1のIVS編集用
-(lazyload (ivs-aj1-trad-region) "ivs-aj1")
+;;; ivs-utils
+(lazyload ((ivs-edit "M-J")) "ivs-utils")
 
-;;; birthdays
+;;; 誕生日
 (eval-after-load "calendar"
   (require 'birthday nil t))
 
+;;; 辞書検索
+(lazyload ((dict-view-pdf-at-point "M-S-d")) "view-pdf-dict")
+
 ;;; 異体字入力
-(lazyload ((variants-tree "C-x M-v") (variants-insert "M-I")) "variants-tree")
+(lazyload ((variants-tree "C-x M-v")) "variants-tree")
+(lazyload ((variants-insert "M-I")) "variants")
 
 ;;; IDS編集モード
-(lazyload (ids-edit-mode "C-x I") "ids-edit")
+(makunbound 'ids-edit-mode)
+;(lazyload ((ids-edit-mode "C-x I") (ids-edit-char "M-U")) "ids-edit")
+(lazyload ((ids-edit-char "M-U")) "ids-edit")
 
 ;;; view-pdf
 ;; `browse-url-browser-function' 変数を拡張して、ローカルファイル上の
@@ -4295,82 +4367,54 @@ by using nxml's indentation rules."
 
 ;;;; 個人用関数
 
-(defun put-text-property-region (from to property value)
-  "指定した領域に指定した名前のテキストプロパティを設定する。"
-  (interactive "*r\nSproperty name: \nSproperty value: ")
-  (put-text-property from to property value))
+;;; データ操作
 
-(defun find-file-in-dropbox (&optional filename)
-  "FILENAME を DropBox で開く。"
-  ;; ffap 機能の活用例。
-  (interactive)
-  (or filename
-      (setq filename
-            (ffap-read-file-or-url
-             "Find file in DropBox: " (ffap-guesser))))
-  (setq filename (expand-file-name (file-truename filename)))
-  (if (string-match "Dropbox/\\(.*\\)$" filename)
-      (if (file-directory-p filename)
-          (browse-url (concat "https://www.dropbox.com/home/" (match-string 1 filename)))
-        (browse-url (concat "https://www.dropbox.com/revisions/" (match-string 1 filename))))
-    (message "Not Dropbox Directory! %s -- " filename)))
-(global-set-key (kbd "C-x M-f") 'find-file-in-dropbox)
+(defun map-plist (plist func)
+  (let (result)
+    (while plist
+      (push (funcall func (car plist) (cadr plist)) result)
+      (setq plist (cddr plist)))
+    result))
 
-(defun find-in-naxos-music-library (word)
-  (interactive "s Naxos Keyword? ")
-  (browse-url (concat "http://ml.naxos.jp/KeywordSearch.aspx?word=" word)))
+(defun plist-remove (plist prop)
+  (if (equal (car plist) prop) (cddr plist)
+    (let ((tail (cdr plist)))
+      (while (cdr tail)
+        (if (equal (cadr tail) prop) (setcdr tail (cdddr tail)))
+        (setq tail (cddr tail)))
+      plist)))
+    
+(defun assoc-all (key alist &optional test)
+  (loop for cons in alist
+        if (funcall (or test 'equal) (car cons) key)
+        collect (cdr cons)))
+        
+(defun rassoc-all (key alist &optional test)
+  (loop for cons in alist
+        if (funcall (or test 'equal) (cdr cons) key)
+        collect (car cons)))
 
-(defun find-in-japan-knowledge (word)
-  (interactive "s JK Keyword? ")
-  (browse-url (concat "http://ml.naxos.jp/KeywordSearch.aspx?word=" word)))
-
-(lazyload () "org"
-  (defun my-org-screenshot ()
-    "Take a screenshot into a time stamped unique-named file in the
-same directory as the org-buffer and insert a link to this file."
-    (interactive)
-    (let ((filename
-           (concat
-            (make-temp-name
-             (concat (buffer-file-name)
-                     "_"
-                     (format-time-string "%Y%m%d_%H%M%S_")) ) ".png"))
-          (command (or (executable-find "screencapture")
-                       (executable-find "import"))))
-      (call-process command nil nil nil filename)
-      (insert (concat "[[" filename "]]"))
-      (org-display-inline-images))))
-
-(defun remove-overlays-region (from to)
-  "指定した領域のoverlayを全て除去する。"
-  (interactive "r")
-  (remove-overlays from to))
-
-(defun addhash (key value table &optional ignored)
-  ;; APPEND is ignored.
+(defvar add-value) ;; special variable （構文スコープ対策）
+(defun addhash (key value table &optional append)
   "Add VALUE to a list associated with KEY in table TABLE."
-  (let ((x (gethash key table)))
-    (push value x)
-    ;; (add-to-list x value append) lexcial-scoping 問題で利用不可
-    (puthash key x table)))
+  (let ((add-value (gethash key table)))
+    (add-to-list 'add-value value append)
+    (puthash key add-value table)))
 
-(defun add-char-code-property (char propname value)
+(defun add-char-code-property (char propname value &optional append)
   "Add VALUE to list contained in character CHAR's property  PROPNAME."
-  (let ((x (get-char-code-property char propname)))
-    (if (not (listp x)) (setq x nil))
-    (put-char-code-property char propname
-                            (cl-union (list value) x :test 'equal))))
+  (let ((add-value (get-char-code-property char propname)))
+    (add-to-list 'add-value value append)
+    (put-char-code-property char propname add-value)))
 
-(defun clear-char-code-property (propname)
-  (dotimes (i #x2ffff)
-    (if (get-char-code-property i propname)
-        (put-char-code-property i propname nil))))
+(defun clear-char-code-property (prop)
+  (map-char-table ; char-code-property-table にある prop のみ対応。
+   (lambda (char plist)
+     (when (plist-member plist prop) 
+       (aset char-code-property-table char (plist-remove plist prop))))
+   char-code-property-table))
 
-(defun translate-string (string table)
-  (with-temp-buffer
-    (insert string)
-    (translate-region (point-min) (point-max) table)
-    (buffer-string)))
+;;; リスト操作
 
 (defun combinatorial (head &rest tail)
   "Make a list of a combinatorial of SEQuenceS.
@@ -4403,11 +4447,77 @@ returned."
     (setcdr last2 nil)
     (cons item ring)))
 
-;; 現在位置のフェイスを調べる関数
+;;; テキストプロパティ操作
+
+(defun remove-overlays-region (from to)
+  "指定した領域のoverlayを全て除去する。"
+  (interactive "r")
+  (remove-overlays from to))
+
+(defun put-text-property-region (from to property value)
+  "指定した領域に指定した名前のテキストプロパティを設定する。"
+  (interactive "*r\nSproperty name: \nSproperty value: ")
+  (put-text-property from to property value))
+
 (defun describe-face-at-point ()
   "Return face used at point."
   (interactive)
   (message "%s" (get-char-property (point) 'face)))
+
+;;; その他
+
+(defun find-file-in-dropbox (&optional filename)
+  "FILENAME を DropBox で開く。"
+  ;; ffap 機能の活用例。
+  (interactive)
+  (or filename
+      (setq filename
+            (ffap-read-file-or-url
+             "Find file in DropBox: " (ffap-guesser))))
+  (setq filename (expand-file-name (file-truename filename)))
+  (if (string-match "Dropbox/\\(.*\\)$" filename)
+      (if (file-directory-p filename)
+          (browse-url (concat "https://www.dropbox.com/home/" (match-string 1 filename)))
+        (browse-url (concat "https://www.dropbox.com/revisions/" (match-string 1 filename))))
+    (message "Not Dropbox Directory! %s -- " filename)))
+(global-set-key (kbd "C-x M-f") 'find-file-in-dropbox)
+
+(defun find-in-naxos-music-library (word)
+  (interactive "s Naxos Keyword? ")
+  (browse-url (concat "http://ml.naxos.jp/KeywordSearch.aspx?word=" word)))
+
+(defun ucs-code-point-region (from to)
+  (interactive "r*")
+  (save-excursion
+    (save-restriction
+      (narrow-to-region from to)
+      (let ((string (buffer-substring from to)))
+        (delete-region from to)
+        (insert (mapconcat (lambda (x) (format "U+%X" x))
+                           (string-to-list string) " "))))))
+
+(lazyload () "org"
+  (defun my-org-screenshot ()
+    "Take a screenshot into a time stamped unique-named file in the
+same directory as the org-buffer and insert a link to this file."
+    (interactive)
+    (let ((filename
+           (concat
+            (make-temp-name
+             (concat (buffer-file-name)
+                     "_"
+                     (format-time-string "%Y%m%d_%H%M%S_")) ) ".png"))
+          (command (or (executable-find "screencapture")
+                       (executable-find "import"))))
+      (call-process command nil nil nil filename)
+      (insert (concat "[[" filename "]]"))
+      (org-display-inline-images))))
+
+(defun translate-string (string table)
+  (with-temp-buffer
+    (insert string)
+    (translate-region (point-min) (point-max) table)
+    (buffer-string)))
 
 (defun parse-global-key-settings (file)
   "FILEにある global-set-key と lazyload の情報を読み込みキー一覧表を作成する"
@@ -4458,15 +4568,28 @@ returned."
  ;; If you edit it by hand, you could mess it up, so be careful.
  ;; Your init file should contain only one such instance.
  ;; If there is more than one, they won't work right.
+ '(Linum-format "%7i ")
  '(ansi-color-names-vector ["#242424" "#e5786d" "#95e454" "#cae682" "#8ac6f2" "#333366" "#ccaa8f" "#f6f3e8"])
+ '(ansi-term-color-vector [unspecified "#FFFFFF" "#d15120" "#5f9411" "#d2ad00" #1="#6b82a7" "#a66bab" #1# "#505050"])
  '(bmkp-last-as-first-bookmark-file "~/.emacs.d/bookmarks")
- '(custom-safe-themes (quote ("5cb805901c33a175f7505c8a8b83c43c39fb84fbae4e14cfb4d1a6c83dabbfba" "27470eddcaeb3507eca2760710cc7c43f1b53854372592a3afa008268bcf7a75" "5e1d1564b6a2435a2054aa345e81c89539a72c4cad8536cfe02583e0b7d5e2fa" "f38dd27d6462c0dac285aa95ae28aeb7df7e545f8930688c18960aeaf4e807ed" "6cfe5b2f818c7b52723f3e121d1157cf9d95ed8923dbc1b47f392da80ef7495d" "fca8ce385e5424064320d2790297f735ecfde494674193b061b9ac371526d059" "159bb8f86836ea30261ece64ac695dc490e871d57107016c09f286146f0dae64" "e9a1226ffed627ec58294d77c62aa9561ec5f42309a1f7a2423c6227e34e3581" "944f3086f68cc5ea9dfbdc9e5846ad91667af9472b3d0e1e35a9633dcab984d5" "d677ef584c6dfc0697901a44b885cc18e206f05114c8a3b7fde674fce6180879" "8aebf25556399b58091e533e455dd50a6a9cba958cc4ebb0aab175863c25b9a4" "085b401decc10018d8ed2572f65c5ba96864486062c0a2391372223294f89460" "211bb9b24001d066a646809727efb9c9a2665c270c753aa125bace5e899cb523" "c56fd34f8f404e6e9e6f226c6ce2d170595acc001741644d22b49e457e3cd497" "71efabb175ea1cf5c9768f10dad62bb2606f41d110152f4ace675325d28df8bd" "6615e5aefae7d222a0c252c81aac52c4efb2218d35dfbb93c023c4b94d3fa0db" "fe6330ecf168de137bb5eddbf9faae1ec123787b5489c14fa5fa627de1d9f82b" "27b53b2085c977a8919f25a3a76e013ef443362d887d52eaa7121e6f92434972" "967c58175840fcea30b56f2a5a326b232d4939393bed59339d21e46cf4798ecf" "6bc195f4f8f9cf1a4b1946a12e33de2b156ce44e384fbc54f1bae5b81e3f5496" "1aa022f083027dc8b1fe127427ee7b0d2cda6e334ae5869a5ab25570fc0f2090" "8281168b824a806489ca7d22e60bb15020bf6eecd64c25088c85b3fd806fc341" default)))
+ '(custom-safe-themes (quote ("281e88e0dfab4980a157331b368fb2e5eba315c38f38099d2d9153980a8047ba" "aef181bb61024f1ae45f060a7d6bb32c3a1df795fcc880afc0bf41f38b07d393" "60cd56eea72efa55d37be24b78f35dd3e9528ddeeccd6248afd8ae34e5a49c55" "d1a574d57027c2bfadde6982455dfce8d27ced3ae4747c1c0313f95d23e96713" "b3336919d9bb4c3e9a89ddb489cc9a255e13444ebde75e59cf01dc302bd5c715" "d921083fbcd13748dd1eb638f66563d564762606f6ea4389ea9328b6f92723b7" "936e5cac238333f251a8d76a2ed96c8191b1e755782c99ea1d7b8c215e66d11e" "4ddc42a539280ec21ae202b6c12a4d7ce7d7af8a19e8c344b60b09f1ca1496d5" "d5b63a5da8bf90c7347e5e484dcde0380af010ec130f6f0d132113d807e49e03" "ff7a12f1932abcdc754511b5c5c6416e769d7f1a44e64690e2c98433b18bd67e" "bf8d07f24b40cb71bb2ffb56b2df537eda5101cb6c4322ba1741e29290cc260b" "8b49009d04730bc5d904e7bb5c7ff733f3f9615c3d6b3446eca0766e6da2bea1" "38c4fb6c8b2625f6307f3dde763d5c61d774d854ecee9c5eb9c5433350bc0bef" "885c87a0f8e1cff0eb20eb93a495d307f8c70e13a9f4fa238d2897da1081107b" "998e84b018da1d7f887f39d71ff7222d68f08d694fe0a6978652fb5a447bdcd2" "3dd173744ae0990dd72094caef06c0b9176b3d98f0ee5d822d6a7e487c88d548" "246a51f19b632c27d7071877ea99805d4f8131b0ff7acb8a607d4fd1c101e163" "1760322f987b57884e38f4076ac586c27566a1d7ed421b67843c8c98a1501e3a" "e53cc4144192bb4e4ed10a3fa3e7442cae4c3d231df8822f6c02f1220a0d259a" "de2c46ed1752b0d0423cde9b6401062b67a6a1300c068d5d7f67725adc6c3afb" "f41fd682a3cd1e16796068a2ca96e82cfd274e58b978156da0acce4d56f2b0d5" "978ff9496928cc94639cb1084004bf64235c5c7fb0cfbcc38a3871eb95fa88f6" "41b6698b5f9ab241ad6c30aea8c9f53d539e23ad4e3963abff4b57c0f8bf6730" "405fda54905200f202dd2e6ccbf94c1b7cc1312671894bc8eca7e6ec9e8a41a2" "ae8d0f1f36460f3705b583970188e4fbb145805b7accce0adb41031d99bd2580" "51bea7765ddaee2aac2983fac8099ec7d62dff47b708aa3595ad29899e9e9e44" "1affe85e8ae2667fb571fc8331e1e12840746dae5c46112d5abb0c3a973f5f5a" "9bac44c2b4dfbb723906b8c491ec06801feb57aa60448d047dbfdbd1a8650897" "39211540c554d4d11d505a96c6baa04d43b03c04c8c3bf55f6409192936bd754" "50b9927ad9701f257dd1df158760e5d1deffdf19bd9b7efbd902a4f04596df8a" "d24e10524bb50385f7631400950ba488fa45560afcadd21e6e03c2f5d0fad194" "5cb805901c33a175f7505c8a8b83c43c39fb84fbae4e14cfb4d1a6c83dabbfba" "27470eddcaeb3507eca2760710cc7c43f1b53854372592a3afa008268bcf7a75" "5e1d1564b6a2435a2054aa345e81c89539a72c4cad8536cfe02583e0b7d5e2fa" "f38dd27d6462c0dac285aa95ae28aeb7df7e545f8930688c18960aeaf4e807ed" "6cfe5b2f818c7b52723f3e121d1157cf9d95ed8923dbc1b47f392da80ef7495d" "fca8ce385e5424064320d2790297f735ecfde494674193b061b9ac371526d059" "159bb8f86836ea30261ece64ac695dc490e871d57107016c09f286146f0dae64" "e9a1226ffed627ec58294d77c62aa9561ec5f42309a1f7a2423c6227e34e3581" "944f3086f68cc5ea9dfbdc9e5846ad91667af9472b3d0e1e35a9633dcab984d5" "d677ef584c6dfc0697901a44b885cc18e206f05114c8a3b7fde674fce6180879" "8aebf25556399b58091e533e455dd50a6a9cba958cc4ebb0aab175863c25b9a4" "085b401decc10018d8ed2572f65c5ba96864486062c0a2391372223294f89460" "211bb9b24001d066a646809727efb9c9a2665c270c753aa125bace5e899cb523" "c56fd34f8f404e6e9e6f226c6ce2d170595acc001741644d22b49e457e3cd497" "71efabb175ea1cf5c9768f10dad62bb2606f41d110152f4ace675325d28df8bd" "6615e5aefae7d222a0c252c81aac52c4efb2218d35dfbb93c023c4b94d3fa0db" "fe6330ecf168de137bb5eddbf9faae1ec123787b5489c14fa5fa627de1d9f82b" "27b53b2085c977a8919f25a3a76e013ef443362d887d52eaa7121e6f92434972" "967c58175840fcea30b56f2a5a326b232d4939393bed59339d21e46cf4798ecf" "6bc195f4f8f9cf1a4b1946a12e33de2b156ce44e384fbc54f1bae5b81e3f5496" "1aa022f083027dc8b1fe127427ee7b0d2cda6e334ae5869a5ab25570fc0f2090" "8281168b824a806489ca7d22e60bb15020bf6eecd64c25088c85b3fd806fc341" default)))
  '(fci-rule-character-color "#d9d9d9")
  '(fci-rule-color "#d9d9d9")
+ '(frame-brackground-mode (quote dark))
+ '(fringe-mode 4 nil (fringe))
  '(highlight-changes-colors (quote ("#d33682" "#6c71c4")))
  '(highlight-tail-colors (quote (("#eee8d5" . 0) ("#B4C342" . 20) ("#69CABF" . 30) ("#69B7F0" . 50) ("#DEB542" . 60) ("#F2804F" . 70) ("#F771AC" . 85) ("#eee8d5" . 100))))
+ '(linum-format " %7d ")
+ '(main-line-color1 "#1e1e1e")
+ '(main-line-color2 "#111111")
+ '(main-line-separator-style (quote chamfer))
+ '(powerline-color1 "#1e1e1e")
+ '(powerline-color2 "#111111")
  '(safe-local-variable-values (quote ((outline-minor-mode . t) (coding-system . utf-8))))
- '(session-use-package t nil (session)))
+ '(session-use-package t nil (session))
+ '(vc-annotate-background "#d4d4d4")
+ '(vc-annotate-color-map (quote ((20 . "#437c7c") (40 . "#336c6c") (60 . "#205070") (80 . "#2f4070") (100 . "#1f3060") (120 . "#0f2050") (140 . "#a080a0") (160 . "#806080") (180 . "#704d70") (200 . "#603a60") (220 . "#502750") (240 . "#401440") (260 . "#6c1f1c") (280 . "#935f5c") (300 . "#834744") (320 . "#732f2c") (340 . "#6b400c") (360 . "#23733c"))))
+ '(vc-annotate-very-old-color "#23733c"))
 
 (custom-set-faces
  ;; custom-set-faces was added by Custom.
