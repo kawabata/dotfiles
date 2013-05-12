@@ -1,13 +1,21 @@
 ;;; .emacs/init.el  -*- coding: utf-8-unix; lexical-binding: t; -*-
 ;;; For Emacs 24.3 / 24.3.50 (Windows, MacOSX, Linux)
 
-;;;; 目次：（`;;;;' でさがす。 C-c p が便利。）
-;;
-;; - Emacs標準の設定
-;; - Emacs標準ライブラリの設定
-;; - 外部ライブラリの設定
-;; - 個人ライブラリの設定
-;; - その他の設定
+;; Author: KAWABATA, Taichi <kawabata.taichi_at_gmail.com>
+;; Modified: 2013-05-12
+;; URL: https://github.com/kawabata/dotfiles/
+
+;;;; Installation Note:
+;; - Ubuntu 12.04 (LTS)
+;;    % sudo add-apt-repository ppa:cassou/emacs
+;;    % sudo apt-get update
+;;    % sudo apt-get install emacs-snapshot
+;;    % emacs-snapshot
+;; - Macintosh
+;;   Yamamoto Patch
+;;   (git://github.com/railwaycat/emacs-mac-port)
+;; - Windows
+;;   GnuPack
 
 ;;;; 確認事項
 ;; - bibtex.el ... { .. ( ... ] ... } がエラーになる。
@@ -41,11 +49,10 @@
           (typecase func
             (symbol `((autoload ',func ,lib nil t)))
             (list
-             (typecase (car func)
-               (bound `((add-to-list ',(car func) ,(cadr func))))
-               (t
-                `((autoload ',(car func) ,lib nil t)
-                  (global-set-key (kbd ,(cadr func)) ',(car func))))))))
+             (if (and (boundp (car func)) (consp (symbol-value (car func))))
+               `((add-to-list ',(car func) ,(cadr func)))
+               `((autoload ',(car func) ,lib nil t)
+                 (global-set-key (kbd ,(cadr func)) ',(car func)))))))
         funcs)
      (eval-after-load ,lib
        '(progn
@@ -54,15 +61,24 @@
 (defmacro command (&rest body)
   `(lambda () (interactive) ,@body))
 
-(defun join-string (&rest strings)
-  (mapconcat 'identity strings "\n"))
+;; 回転系コマンドのキーマップ (n,p,f,b,etc.)
+;; | key | function         |
+;; |-----+------------------|
+;; | f   | next-multiframe-window |
+;; | h   | rotate-han       |
+;; | k   | rotate-kana      |
+;; | l   | rotate-latin     |
+;; | s   | rotate-font-size |
+;; | t   | rotate-theme     |
+;; | w   | rotate-winhist   |
+(defvar my-rotate-keymap (make-sparse-keymap))
 
-;;;; Emacs標準設定
+;;; Emacs標準設定
 
-;;; alloc.c
+;;;; alloc.c
 ;;(setq gc-cons-threshold 8000000)
 
-;;; buffer.c
+;;;; buffer.c
 (setq-default bidi-display-reordering nil
               bidi-paragraph-direction (quote left-to-right))
 (setq truncate-lines nil)
@@ -101,7 +117,7 @@
             (unless (member "*scratch*" (my-buffer-name-list))
               (my-make-scratch 1))))
 
-;;; callproc.c
+;;;; callproc.c
 ;; PATHがない環境から起動された場合に備えて、exec-path に "gnupg" 等の
 ;; 必要なソフトがインストールされているパスを追加しておく。
 (loop for directory in '(
@@ -115,7 +131,7 @@
       if (file-directory-p directory)
       do (add-to-list 'exec-path directory))
 
-;;; coding.c
+;;;; coding.c
 ;; coding関係の設定の前にこれを行う。
 ;;(set-language-environment "Japanese")
 ;; coding関係の設定の前にこれを行う。
@@ -218,7 +234,7 @@
      (coding-system-put coding-system :encode-translation-table table))
    '(utf-8 cp932 utf-16le)))
 
-;;; data.c
+;;;; data.c
 ;; symbol architecture
 ;; | symbol      | check   | set      | get          | remove       |
 ;; |-------------+---------+----------+--------------+--------------|
@@ -240,8 +256,8 @@
 ;; | char-table  | char    | make-char-table   | aref         | aset           |
 ;; | bool-vector | integer | make-bool-vector  | aref         | aset           |
 ;; | keymap      | keystr  | make-keymap       | lookup-key   | define-key     |
-;; | fontset     |         |                   |              |                |
-;; | buffer      |         |                   |              |                |
+;; | fontset     | char    | new-fontset       | fontset-font | set-fontset-font |
+;; | buffer      | int     | get-buffer-create | char-after   | insert         |
 ;; | plist       | symbol  | (key val...)      | plist-get    | plist-put      |
 ;; | alist       | any     | ((key . val) ...) | alist-get*   | setf alist-get |
 ;; | obarry      | string  | make-vector 1511  | intern-soft  | set intern     |
@@ -261,9 +277,9 @@
 ;; | string      | mapcar         | stringp       | string-match     | X       |
 ;; | char-table  | map-char-table | char-table-p  |                  | X       |
 ;; | bool-vector | mapcar         | bool-vector-p |                  | X       |
-;; | keymap      |                | keymapp       |                  |         |
-;; | fontset     |                |               |                  |         |
-;; | buffer      |                |               |                  |         |
+;; | keymap      | map-keymap     | keymapp       |                  |         |
+;; | fontset     | fontset-list   |               | query-fontset    |         |
+;; | buffer      | while search-* | bufferp       |                  |         |
 ;; | plist       | while cddr     |               | plist-member     |         |
 ;; | alist       | dolist         |               | assoc            |         |
 ;; | obarry      | mapatoms       |               |                  |         |
@@ -285,7 +301,7 @@
 ;; | bool-vector | length            | t/nil | o(1)     | X    |
 ;; | keymap      |                   |       |          |      |
 ;; | fontset     |                   |       |          |      |
-;; | buffer      |                   |       |          |      |
+;; | buffer      | (point-max)       |       |          |      |
 ;; | plist       | (/ length 2)      | any   | o(n)     | O    |
 ;; | alist       | length            | any   | o(n)     | O    |
 ;; | obarry      |                   | any   | o(1)     |      |
@@ -304,27 +320,33 @@
 ;; char-code-property は、まず unicode-property-table-internal を見た後で、
 ;; char-code-property-table の各文字のplist を確認する。
 
-;;; dispnew.c
+;;;; dispnew.c
 (setq visible-bell t)
 
-;;; emacs.c
+;;;; editfns.c
+(setq user-full-name "川幡 太一")
+(defvar user-latin-name "Taichi KAWABATA")
+(global-set-key (kbd "C-c M-m") (command (switch-to-buffer "*Messages*")))
+(global-set-key (kbd "C-c M-s") (command (switch-to-buffer "*scratch*")))
+
+;;;; emacs.c
 (setq system-time-locale "C")
 
-;;; eval.c
+;;;; eval.c
 (setq debug-on-error t)
 (setq max-lisp-eval-depth 40000) ;; 600
 (setq max-specpdl-size 100000) ;; 1300
 (global-set-key (kbd "C-c e") 'toggle-debug-on-error)
 (global-set-key (kbd "C-c q") 'toggle-debug-on-quit)
 
-;;; fileio.c
+;;;; fileio.c
 (setq delete-by-moving-to-trash t)
 (setq default-file-name-coding-system
       (cond ((eq system-type 'darwin) 'utf-8-hfs)
             ((eq window-system 'w32)  'cp932)
             (t 'utf-8)))
 
-;;; fontset.c
+;;;; fontset.c
 (when (equal system-type 'windows-nt)
   (setq vertical-centering-font-regexp ".*"))
 ;; フォントセットの設定
@@ -433,49 +455,26 @@ DIRECTIONがnilなら前方向、それ以外なら後方向に回転させる�
       (setcdr spec fonts)
       (update-fontset
        (face-attribute 'default :fontset) (car font-sizes) font-specs)
-      (car fonts))))
+      (message "fonts=%s" (car fonts)))))
 
-(defun rotate-latin-font (&optional direction)
-  (rotate-fontspecs t direction))
-(defun rotate-kana-font (&optional direction)
-  (rotate-fontspecs 'kana direction))
-(defun rotate-kanji-font (&optional direction)
-  (rotate-fontspecs 'han direction))
 (defun rotate-font-sizes (&optional direction)
   (setq font-sizes
         (if direction (list-rotate-backward font-sizes)
           (list-rotate-forward font-sizes)))
   (update-fontset (face-attribute 'default :fontset) (car font-sizes) font-specs)
-  (car font-sizes))
+  (message "font size=%s" (car font-sizes)))
 
-(defvar rotate-command-set
-  '((rotate-latin-font . "ASCII Font")
-    (rotate-kana-font . "かな Font")
-    (rotate-kanji-font . "漢字 Font")
-    (rotate-font-sizes . "Font Size"))
-  "回転させる命令の引数。後方向回転は prefix-args の引数が付加される。")
+(lazyload () "smartrep"
+  (smartrep-define-rotate-key my-rotate-keymap "l"
+     (rotate-fontspecs t) (rotate-fontspecs t -1))
+  (smartrep-define-rotate-key my-rotate-keymap "k"
+     (rotate-fontspecs 'kana) (rotate-fontspecs 'kana -1))
+  (smartrep-define-rotate-key my-rotate-keymap "h"
+    (rotate-fontspecs 'han) (rotate-fontspecs 'han -1))
+  (smartrep-define-rotate-key my-rotate-keymap "s"
+    (rotate-font-sizes) (rotate-font-sizes -1)))
 
-(defun rotate-command-set (arg)
-  (interactive "P")
-  (setq rotate-command-set
-        (if arg (list-rotate-backward rotate-command-set)
-          (list-rotate-forward rotate-command-set)))
-  (message "Rotate Command/Set = %s" (cdar rotate-command-set)))
-
-(global-set-key (kbd "M-F") 'rotate-command-set)
-(global-set-key (kbd "M-B") (command (rotate-command-set t)))
-
-(defun rotate-command-run (arg)
-  (interactive "P")
-  (let* ((command (caar rotate-command-set))
-         (result (funcall command arg))
-         (name (cdar rotate-command-set)))
-    (message "%s = %s" name result)))
-
-(global-set-key (kbd "M-N") 'rotate-command-run)
-(global-set-key (kbd "M-P") (command (rotate-command-run t)))
-
-;;; frame.c
+;;;; frame.c
 (when (functionp 'tool-bar-mode) (tool-bar-mode -1))
 ;; デフォルトフレーム設定
 (setq default-frame-alist
@@ -493,7 +492,7 @@ DIRECTIONがnilなら前方向、それ以外なら後方向に回転させる�
 ;; (setq initial-frame-alist default-frame-alist)
 (modify-frame-parameters nil default-frame-alist)
 
-;;; keyboard.c
+;;;; keyboard.c
 ;; Event
 ;; keyboard-translate-table (keyboard.c)
 ;;  ↓
@@ -507,7 +506,7 @@ DIRECTIONがnilなら前方向、それ以外なら後方向に回転させる�
 ;; Altキーの代替として、M-A をprefixとして使用する。
 (define-key function-key-map (kbd "M-A") 'event-apply-alt-modifier)
 
-;;; lread.c
+;;;; lread.c
 ;; Lisp Reader syntax (in order of 'read1()')
 ;; - List :: e.g. (1 2 3)
 ;; - Vector :: e.g. [a b c]
@@ -538,7 +537,7 @@ DIRECTIONがnilなら前方向、それ以外なら後方向に回転させる�
 ;;   | backquote | `a  | `(1 2 3)  |
 ;;   | comma     | ,a  | ,(1 2 3)  |
 ;;   | comma-at  | ,@a | ,@(1 2 3) |
-;;   | comma-dot | ,.@ | ,.(1 2 3) |
+;;   | comma-dot | ,.a | ,.(1 2 3) |
 ;;   |-----------+-----+-----------|
 ;; - Character :: e.g. ?\a
 ;;   |-----+---------+----------------|
@@ -552,14 +551,14 @@ DIRECTIONがnilなら前方向、それ以外なら後方向に回転させる�
 ;;   | t   | #x09    |                |
 ;;   | v   | #x0b    |                |
 ;;   | ' ' | #x20    | only Character |
-;;   | M-  | Meta-   |                |
-;;   | S-  | Shift-  |                |
-;;   | H-  | Hyper-  |                |
-;;   | A-  | Alt-    |                |
-;;   | s-  | super-  |                |
-;;   | C-  | Control |                |
-;;   | u   | Unicode | 4-digit        |
-;;   | U   | Unicode | 8-digit        |
+;;   | M-  | Meta-   |   or 0x8000000 |
+;;   | C-  | Control |   or 0x4000000 |
+;;   | S-  | Shift-  |   or 0x2000000 |
+;;   | H-  | Hyper-  |   or 0x1000000 |
+;;   | s-  | super-  |   or 0x0800000 |
+;;   | A-  | Alt-    |   or 0x0400000 |
+;;   | u   | Unicode |        4-digit |
+;;   | U   | Unicode |        8-digit |
 ;;   | ^   | control |                |
 ;;   |-----+---------+----------------|
 ;; - String :: e.g. "\a"
@@ -582,23 +581,23 @@ DIR/subdir.el がある場合は、それを実行し、DIR下のディレクト
       (if (file-exists-p subdir-el)
         (load subdir-el t t t)))))
 
-;;; macterm.c
+;;;; macterm.c
 (setq mac-option-modifier 'alt)
 
-;;; minibuf.c
+;;;; minibuf.c
 (setq completion-ignore-case t)
 
-;;; print.c
+;;;; print.c
 (setq print-circle t)
 
-;;; window.c
+;;;; window.c
 (setq next-screen-context-lines 3
       scroll-preserve-screen-position t
       scroll-conservatively 4
       scroll-margin 4
       scroll-step 1)
 
-;;; xdisp.c
+;;;; xdisp.c
 (setq frame-title-format "%b")
 (setq line-number-display-limit 10000000)
 (setq message-log-max 8000)             ; default 50
@@ -607,15 +606,15 @@ DIR/subdir.el がある場合は、それを実行し、DIR下のディレクト
 (setq show-trailing-whitespace t)
 (setq truncate-partial-width-windows nil)
 
-;;;; Emacs 標準ライブラリの設定
 
-;;; align.el
+;;; Emacs標準ライブラリ
+;;;; align.el
 (eval-after-load 'align
   '(progn
      (setq align-c++-modes (cons 'jde-mode align-c++-modes))
      (setq align-indent-before-aligning t)))
 
-;;; allout.el
+;;;; allout.el
 ;; extensive outline mode for use alone and with other modes
 ;;(allout-init)
 ;;(add-hook
@@ -623,11 +622,11 @@ DIR/subdir.el がある場合は、それを実行し、DIR下のディレクト
 ;; (lambda ()
 ;;   (define-key allout-mode-map "\C-c\C-z" 'allout-hide-current-subtree)))
 
-;;; ansi-color.el
+;;;; ansi-color.el
 ;; SGR エスケープシーケンスをEmacsのFaceに解釈する。
 (ansi-color-for-comint-mode-on)
 
-;;; arc-mode.el
+;;;; arc-mode.el
 ;; 注意。archive-mode と、auto-coding-alist は、両方を設定しなければならない。
 (dolist (x '("\\.kmz\\'" "\\.odp\\'" "\\.otp\\'"))
   (add-to-list 'auto-coding-alist (cons x 'no-conversion))
@@ -641,7 +640,7 @@ DIR/subdir.el がある場合は、それを実行し、DIR下のディレクト
     ;; file-name-coding-system を変更するしかない。あとで気をつけること。
     (setq archive-member-coding-system cs)))
 
-;;; autoinsert.el
+;;;; autoinsert.el
 (auto-insert-mode t)
 (lazyload () "autoinsert"
   (setq auto-insert-directory "~/.emacs.d/insert/")
@@ -653,18 +652,18 @@ DIR/subdir.el がある場合は、それを実行し、DIR下のディレクト
              (latex-mode . "template.tex")))
     (push elem auto-insert-alist)))
 
-;;; autorevert.el
+;;;; autorevert.el
 ;; バッファ自動再読み込み
 (global-auto-revert-mode 1)
 
-;;; avoid.el
+;;;; avoid.el
 ;(if (eq window-system 'x) (mouse-avoidance-mode 'banish))
 
-;;; calendar.el
+;;;; calendar.el
 ;(setq calendar-view-diary-initially-flag t)
 ;(setq calendar-mark-diary-entries-flag t)
 
-;;; cc-mode.el
+;;;; cc-mode.el
 (lazyload (c-mode) "cc-mode"
   (add-hook
    'c-mode-common-hook
@@ -695,7 +694,7 @@ DIR/subdir.el がある場合は、それを実行し、DIR下のディレクト
                         ;;(inline-close . 0)
                         ))))
 
-;;; comint.el
+;;;; comint.el
 (lazyload () "comint"
   (add-hook 'comint-output-filter-functions
             'comint-watch-for-password-prompt nil t)
@@ -712,27 +711,27 @@ DIR/subdir.el がある場合は、それを実行し、DIR下のディレクト
         ;; ヒストリサイズは500の10倍にする。
         comint-input-ring-size 5000))
 
-;;; custom.el
+;;;; custom.el
 (setq read-quoted-char-radix 16)
 
-;;; dabbrev.el
+;;;; dabbrev.el
 (lazyload () "dabbrev"
   (setq dabbrev-abbrev-char-regexp "\\w\\|\\s_")
   (setq dabbrev-case-replace nil))
 
-;;; delsel.el
+;;;; delsel.el
 ;; リージョンを文字入力で同時に削除。
 ;; 事故でうっかり削除がたまにあるため、Offにする。
 ;;(delete-selection-mode 1)
 
-;;; desc-text.el
+;;;; desc-text.el
 (setq describe-char-unidata-list
       '(name general-category canonical-combining-class
       bidi-class decomposition decimal-digit-value digit-value
       numeric-value mirrored old-name iso-10646-comment uppercase
       lowercase titlecase))
 
-;;; desktop.el
+;;;; desktop.el
 ;; 作業途中で一旦、Emacsを再起動する必要があるときは、M-x desktop-save
 ;; を実行すること。
 ;; inhibit-default-init 変数を t にしてしまうので使用禁止。
@@ -744,7 +743,7 @@ DIR/subdir.el がある場合は、それを実行し、DIR下のディレクト
 ;;            (desktop-truncate search-ring 3)
 ;;            (desktop-truncate regexp-search-ring 3)))
 
-;;; dired.el
+;;;; dired.el
 (lazyload () "dired"
   (add-hook 'dired-mode-hook (lambda () (setenv "LANG" "C")))
   ;; diredのサイズ表示に Kbyte, Mbyte 等の単位を使う。
@@ -808,7 +807,7 @@ DIR/subdir.el がある場合は、それを実行し、DIR下のディレクト
 ;;  (setq ls-lisp-use-insert-directory-program t)
 ;;  (setq insert-directory-program "c:/cygwin/bin/ls.exe"))
 
-;;; dired-aux.el
+;;;; dired-aux.el
 (lazyload () "dired"
   (require 'dired-aux)
   ;; atool を使い、多数の圧縮ファイルを閲覧可能にする。
@@ -822,7 +821,7 @@ DIR/subdir.el がある場合は、それを実行し、DIR下のディレクト
             do (add-to-list 'dired-compress-file-suffixes
                             `(,(concat "\\" suffix "\\'") "" "aunpack"))))))
 
-;;; dired-x.el
+;;;; dired-x.el
 (lazyload () "dired"
   (require 'dired-x)
   ;; dired-omit-mode :: LaTeX等の作業ファイルを表示しない。
@@ -833,19 +832,19 @@ DIR/subdir.el がある場合は、それを実行し、DIR下のディレクト
 ;; shell-command-guesssing … "!" を押した時のシェルコマンドを予想
 ;; M-x dired-mark-extension … 特定の拡張子をマーク
 
-;;; doc-view.el
+;;;; doc-view.el
 ;; doc-view を無効にする。
 (let ((doc-view-mode (rassoc 'doc-view-mode auto-mode-alist)))
   (if doc-view-mode (delete doc-view-mode auto-mode-alist)))
 
-;;; emacs-lisp/eldoc.el
+;;;; emacs-lisp/eldoc.el
 (autoload 'turn-on-eldoc-mode "eldoc" nil t)
 (add-hook 'emacs-lisp-mode-hook 'turn-on-eldoc-mode)
 (add-hook 'lisp-interaction-mode-hook 'turn-on-eldoc-mode)
 (add-hook 'ielm-mode-hook 'turn-on-eldoc-mode)
 
-;;; emacs-lisp/find-func.el
-(global-set-key (kbd "C-c L") 'find-library)
+;;;; emacs-lisp/find-func.el
+(global-set-key (kbd "C-x M-l") 'find-library)
 (find-function-setup-keys) ; C-x (4/5/null) (F/K/V)
 (setq find-function-regexp
       (concat
@@ -855,24 +854,24 @@ DIR/subdir.el がある場合は、それを実行し、DIR下のディレクト
        find-function-space-re
        "\\('\\|\(quote \\)?%s\\(\\s-\\|$\\|\(\\|\)\\)"))
 
-;;; emacs-lisp/trace.el
+;;;; emacs-lisp/trace.el
 (global-set-key (kbd "C-c r") 'trace-function)
 (global-set-key (kbd "C-c U") 'untrace-function)
 (global-set-key (kbd "C-c u") 'untrace-all)
 
-;;; emcas-lisp/debug.el
+;;;; emcas-lisp/debug.el
 ;; よく使うのでショートカットを定義する。
 (global-set-key (kbd "C-c d") 'debug-on-entry)
 (global-set-key (kbd "C-c C") 'cancel-debug-on-entry)
 (global-set-key (kbd "C-c t") 'toggle-debug-on-error)
 ;; C-M-c は exit-recursive-edit
 
-;;; emacs-lisp/edebug.el
+;;;; emacs-lisp/edebug.el
 ;; デバッグ時は以下をtにすると、C-M-x で評価した関数にデバッガが入る。
 ;; 個別にデバッグ設定するなら、C-u C-M-x でも良い。
 (setq edebug-all-defs nil)
 
-;;; emacs-lisp/lisp.el
+;;;; emacs-lisp/lisp.el
 (lazyload () "lisp"
   (add-hook 'emacs-lisp-mode-hook 'outline-minor-mode)
   (add-hook 'lisp-interaction-mode-hook
@@ -880,7 +879,7 @@ DIR/subdir.el がある場合は、それを実行し、DIR下のディレクト
               (setq lexical-binding t)
               (message "lexical-binding is set to `t'."))))
 
-;;; env.el
+;;;; env.el
 ;; シェル環境変数をEmacsの環境変数に反映させる。
 ;; Emacs配下で動作するプロセスに引き継ぐ環境変数で重要なもの：
 ;; PATH, JAVA_TOOL_OPTIONS, HTTP_PROXY, BIBINPUTS, etc.
@@ -908,104 +907,104 @@ DIR/subdir.el がある場合は、それを実行し、DIR下のディレクト
     (parse-env env)))
 ;; 参考 Emacs で利用する環境変数
 ;; （特定言語目的のものは除く）
-;; |--------------------------+-------------------------------------------------|
-;; | BIBINPUTS                | filesets.el, textmodes/bibtex.el                |
-;; | CDPATH                   | files.el                                        |
-;; | CLASSPATH                | progmodes/gud.el                                |
-;; | COLORFGBG                | term/rxvt.el                                    |
-;; | COLORTERM                | term/xterm.el                                   |
-;; | COLUMNS                  | calendar/calendar.el, man.el                    |
-;; | COMSPEC                  | net/tramp.el, w32-fns.el                        |
-;; | CVSREAD                  | vc/vc-cvs.el                                    |
-;; | CVSROOT                  | vc/pcvs.el                                      |
-;; | DESKTOP_SESSION          | net/browse-url.el                               |
-;; | DISPLAY                  | calc/calc-graph.el, gnus/mailcap.el,            |
-;; |                          | mail/emacsbug.el, net/browse-url.el             |
-;; |                          | term/x-win.el                                   |
-;; | EMACS                    | comint.el, progmodes/compile.el                 |
-;; | EMAIL                    | startup.el                                      |
-;; | EPROLOG                  | progmodes/prolog.el                             |
-;; | ESHELL                   | shell.el, term.el, terminal.el,                 |
-;; |                          | textmodes/tex-mode.el, w32-fns.el               |
-;; | GDBHISTFILE              | progmodes/gdb-mi.el                             |
-;; | GNOME_DESKTOP_SESSION_ID | mail/emacsbug.el, net/browse-url.el             |
-;; | GPG_AGENT_INFO           | epg.el, obsolete/pgg-gpg.el                     |
-;; | GREP_OPTIONS             | progmodes/grep.el                               |
-;; | HFY_INITFILE             | htmlfontify.el                                  |
-;; | HISTFILE                 | eshell/em-hist.el, shell.el                     |
-;; | HISTSIZE                 | eshell/em-hist.el, progmodes/gdb-mi.el          |
-;; |                          | shell.el                                        |
-;; | HOME                     | gnus/nnir.el, vc/emerge.el                      |
-;; | HOST                     | net/zeroconf.el                                 |
-;; | IDLWAVE_HELP_LOCATION    | progmodes/idlw-help.el                          |
-;; | IDL_DIR                  | progmodes/idlwave.el                            |
-;; | INCLUDE                  | progmodes/flymake.el                            |
-;; | INCPATH                  | obsolete/complete.el                            |
-;; | INFOPATH                 | info.el                                         |
-;; | INITIALS                 | calendar/todo-mode.el                           |
-;; | IRCNAME                  | erc/erc.el                                      |
-;; | IRCNICK                  | erc/erc.el                                      |
-;; | IRCSERVER                | erc/erc.el                                      |
-;; | KDE_FULL_SESSION         | mail/emacsbug.el, net/browse-url.el             |
-;; | LC_ALL                   | cedet/semantic/bovine/gcc.el                    |
-;; | LC_MESSAGES              | international/mule-cmds.el                      |
-;; | LINTER_MBX               | progmodes/sql.el                                |
-;; | LOGNAME                  | gnus/pop3.el                                    |
-;; | LPDEST                   | printing.el                                     |
-;; | MAIL                     | gnus/mail-source.el, mail/mspools.el,           |
-;; |                          | mail/rmail.el, time.el                          |
-;; | MAILCAPS                 | gnus/mailcap.el                                 |
-;; | MAILDIR                  | gnus/mail-source.el                             |
-;; | MAILHOST                 | gnus/mail-source.el, gnus/pop3.el               |
-;; | MANPATH                  | woman.el                                        |
-;; | MH                       | mh-e/mh-utils.el                                |
-;; | MIMETYPES                | gnus/mailcap.el                                 |
-;; | MPD_HOST                 | mpc.el                                          |
-;; | MPD_PORT                 | mpc.el                                          |
-;; | MY_BIBINPUTS             | filesets.el                                     |
-;; | MY_TEXINPUTS             | filesets.el                                     |
-;; | NNTPSERVER               | gnus/gnus.el                                    |
-;; | NO_PROXY                 | url/url.el                                      |
-;; | ORGANIZATION             | autoinsert.el, emacs-lisp/copyright.el,         |
-;; |                          | gnus/message.el,                                |
-;; | OSTYPE                   | printing.el                                     |
-;; | PATH                     | eshell/esh-cmd.el, eshell/esh-ext.el,           |
-;; |                          | eshell/esh-util.el, net/tramp-sh.el,            |
-;; |                          | printing.el, progmodes/python.el, woman.el      |
-;; | PROJECTDIR               | ldefs-boot.el, loaddefs.el, vc/vc-sccs.el       |
-;; | PWD                      | startup.el                                      |
-;; | PYTHONPATH               | progmodes/python.el                             |
-;; | REPLYTO                  | mail/sendmail.el                                |
-;; | SAVEDIR                  | gnus/gnus.el                                    |
-;; | SHELL                    | progmodes/sh-script.el, term.el, terminal.el    |
-;; |                          | w32-fns.el                                      |
-;; | SMTPSERVER               | mail/smtpmail.el                                |
-;; | SSH_AGENT_PID            | net/tramp.el                                    |
-;; | SSH_AUTH_SOCK            | net/tramp.el                                    |
-;; | SVN_ASP_DOT_NET_HACK     | ldefs-boot.el, loaddefs.el, vc/vc-svn.el        |
-;; | SYSTEMP                  | progmodes/prolog.el                             |
-;; | SystemRoot               | w32-common-fns.el                               |
-;; | TEMP                     | cus-start.el, net/tramp-compat.el, printing.el, |
-;; |                          | progmodes/prolog.el, vc/ediff-init.el           |
-;; | TERM                     | emulation/edt-mapper.el, emulation/edt.el,      |
-;; |                          | flow-ctrl.el, international/mule-diag.el        |
-;; | TERM_PROGRAM             | international/mule-cmds.el                      |
-;; | TEXINPUTS                | filesets.el                                     |
-;; | TMP                      | cus-start.el, net/tramp-compat.el,              |
-;; |                          | progmodes/prolog.el, vc/ediff-init.el           |
-;; | TMPDIR                   | dos-w32.el, files.el, net/tramp-compat.el,      |
-;; |                          | progmodes/prolog.el, server.el, url/url-vars.el |
-;; | TZ                       | org/org-icalendar.el, time-stamp.el, time.el,   |
-;; |                          | vc/add-log.el                                   |
-;; | UNIX95                   | net/tramp-compat.el                             |
-;; | USER                     | gnus/mail-source.el, gnus/pop3.el               |
-;; | VERSION_CONTROL          | startup.el, vc/ediff-ptch.el                    |
-;; | XDG_CURRENT_DESKTOP      | net/browse-url.el                               |
-;; | XDG_DATA_HOME            | files.el                                        |
-;; | no_PROXY                 | url/url.el, url/url.el                          |
-;; | winbootdir               | dos-w32.el                                      |
+;; |--------------------------+------------------------------------------------|
+;; | BIBINPUTS                | filesets.el, textmodes/bibtex.el               |
+;; | CDPATH                   | files.el                                       |
+;; | CLASSPATH                | progmodes/gud.el                               |
+;; | COLORFGBG                | term/rxvt.el                                   |
+;; | COLORTERM                | term/xterm.el                                  |
+;; | COLUMNS                  | calendar/calendar.el, man.el                   |
+;; | COMSPEC                  | net/tramp.el, w32-fns.el                       |
+;; | CVSREAD                  | vc/vc-cvs.el                                   |
+;; | CVSROOT                  | vc/pcvs.el                                     |
+;; | DESKTOP_SESSION          | net/browse-url.el                              |
+;; | DISPLAY                  | calc/calc-graph.el, gnus/mailcap.el,           |
+;; |                          | mail/emacsbug.el, net/browse-url.el            |
+;; |                          | term/x-win.el                                  |
+;; | EMACS                    | comint.el, progmodes/compile.el                |
+;; | EMAIL                    | startup.el                                     |
+;; | EPROLOG                  | progmodes/prolog.el                            |
+;; | ESHELL                   | shell.el, term.el, terminal.el,                |
+;; |                          | textmodes/tex-mode.el, w32-fns.el              |
+;; | GDBHISTFILE              | progmodes/gdb-mi.el                            |
+;; | GNOME_DESKTOP_SESSION_ID | mail/emacsbug.el, net/browse-url.el            |
+;; | GPG_AGENT_INFO           | epg.el, obsolete/pgg-gpg.el                    |
+;; | GREP_OPTIONS             | progmodes/grep.el                              |
+;; | HFY_INITFILE             | htmlfontify.el                                 |
+;; | HISTFILE                 | eshell/em-hist.el, shell.el                    |
+;; | HISTSIZE                 | eshell/em-hist.el, progmodes/gdb-mi.el         |
+;; |                          | shell.el                                       |
+;; | HOME                     | gnus/nnir.el, vc/emerge.el                     |
+;; | HOST                     | net/zeroconf.el                                |
+;; | IDLWAVE_HELP_LOCATION    | progmodes/idlw-help.el                         |
+;; | IDL_DIR                  | progmodes/idlwave.el                           |
+;; | INCLUDE                  | progmodes/flymake.el                           |
+;; | INCPATH                  | obsolete/complete.el                           |
+;; | INFOPATH                 | info.el                                        |
+;; | INITIALS                 | calendar/todo-mode.el                          |
+;; | IRCNAME                  | erc/erc.el                                     |
+;; | IRCNICK                  | erc/erc.el                                     |
+;; | IRCSERVER                | erc/erc.el                                     |
+;; | KDE_FULL_SESSION         | mail/emacsbug.el, net/browse-url.el            |
+;; | LC_ALL                   | cedet/semantic/bovine/gcc.el                   |
+;; | LC_MESSAGES              | international/mule-cmds.el                     |
+;; | LINTER_MBX               | progmodes/sql.el                               |
+;; | LOGNAME                  | gnus/pop3.el                                   |
+;; | LPDEST                   | printing.el                                    |
+;; | MAIL                     | gnus/mail-source.el, mail/mspools.el,          |
+;; |                          | mail/rmail.el, time.el                         |
+;; | MAILCAPS                 | gnus/mailcap.el                                |
+;; | MAILDIR                  | gnus/mail-source.el                            |
+;; | MAILHOST                 | gnus/mail-source.el, gnus/pop3.el              |
+;; | MANPATH                  | woman.el                                       |
+;; | MH                       | mh-e/mh-utils.el                               |
+;; | MIMETYPES                | gnus/mailcap.el                                |
+;; | MPD_HOST                 | mpc.el                                         |
+;; | MPD_PORT                 | mpc.el                                         |
+;; | MY_BIBINPUTS             | filesets.el                                    |
+;; | MY_TEXINPUTS             | filesets.el                                    |
+;; | NNTPSERVER               | gnus/gnus.el                                   |
+;; | NO_PROXY                 | url/url.el                                     |
+;; | ORGANIZATION             | autoinsert.el, emacs-lisp/copyright.el,        |
+;; |                          | gnus/message.el,                               |
+;; | OSTYPE                   | printing.el                                    |
+;; | PATH                     | eshell/esh-cmd.el, eshell/esh-ext.el,          |
+;; |                          | eshell/esh-util.el, net/tramp-sh.el,           |
+;; |                          | printing.el, progmodes/python.el, woman.el     |
+;; | PROJECTDIR               | ldefs-boot.el, loaddefs.el, vc/vc-sccs.el      |
+;; | PWD                      | startup.el                                     |
+;; | PYTHONPATH               | progmodes/python.el                            |
+;; | REPLYTO                  | mail/sendmail.el                               |
+;; | SAVEDIR                  | gnus/gnus.el                                   |
+;; | SHELL                    | progmodes/sh-script.el, term.el, terminal.el   |
+;; |                          | w32-fns.el                                     |
+;; | SMTPSERVER               | mail/smtpmail.el                               |
+;; | SSH_AGENT_PID            | net/tramp.el                                   |
+;; | SSH_AUTH_SOCK            | net/tramp.el                                   |
+;; | SVN_ASP_DOT_NET_HACK     | ldefs-boot.el, loaddefs.el, vc/vc-svn.el       |
+;; | SYSTEMP                  | progmodes/prolog.el                            |
+;; | SystemRoot               | w32-common-fns.el                              |
+;; | TEMP                     | cus-start.el, net/tramp-compat.el,             |
+;; |                          | printing.el, vc/ediff-init.el                  |
+;; | TERM                     | emulation/edt-mapper.el, emulation/edt.el,     |
+;; |                          | flow-ctrl.el, international/mule-diag.el       |
+;; | TERM_PROGRAM             | international/mule-cmds.el                     |
+;; | TEXINPUTS                | filesets.el                                    |
+;; | TMP                      | cus-start.el, net/tramp-compat.el,             |
+;; |                          | progmodes/prolog.el, vc/ediff-init.el          |
+;; | TMPDIR                   | dos-w32.el, files.el, net/tramp-compat.el,     |
+;; |                          | progmodes/prolog.el, server.el, url/url-vars.el|
+;; | TZ                       | org/org-icalendar.el, time-stamp.el, time.el,  |
+;; |                          | vc/add-log.el                                  |
+;; | UNIX95                   | net/tramp-compat.el                            |
+;; | USER                     | gnus/mail-source.el, gnus/pop3.el              |
+;; | VERSION_CONTROL          | startup.el, vc/ediff-ptch.el                   |
+;; | XDG_CURRENT_DESKTOP      | net/browse-url.el                              |
+;; | XDG_DATA_HOME            | files.el                                       |
+;; | no_PROXY                 | url/url.el, url/url.el                         |
+;; | winbootdir               | dos-w32.el                                     |
 
-;;; ffap.el
+;;;; ffap.el
 ;; iciclesと相性が悪そうなので、一時iciclesの方をオフにする。
 (lazyload ((find-file-at-point "C-x C-f")
            (ffap-other-window "C-x 4 f")
@@ -1044,7 +1043,7 @@ DIR/subdir.el がある場合は、それを実行し、DIR下のディレクト
 ;    (setq ad-return-value (concat "h" ad-return-value))))
 ;; ffapを有効にする
 
-;;; filecache.el
+;;;; filecache.el
 ;; find-fileなどでファイル名を途中まで打って、C-TABで全体を補完。
 ;; 補完範囲のディレクトリは別途指定するが、これを使うよりはlocateで探し
 ;; た方が早いと思われる。
@@ -1061,7 +1060,7 @@ DIR/subdir.el がある場合は、それを実行し、DIR下のディレクト
 ;;     ))
 ;;  )
 
-;;; files.el
+;;;; files.el
 (setq kept-old-versions 2)
 (setq kept-new-versions 2)
 (setq delete-old-versions t)
@@ -1117,32 +1116,42 @@ DIR/subdir.el がある場合は、それを実行し、DIR下のディレクト
 (ad-activate 'find-file)
 
 ;; 頻繁に開くファイル（org-captureで代用）
+(global-set-key (kbd "C-c M-e")
+  (command (find-file-other-window "~/.environ")))
+(global-set-key (kbd "C-c M-g")
+  (command (find-file-other-window "~/.emacs.d/.gnus.el")))
 (global-set-key (kbd "C-c M-i")
   (command (find-file-other-window "~/.emacs.d/init.el")))
 (global-set-key (kbd "C-c M-l")
   (command (find-file-other-window "~/.emacs.d/lookup/init.el")))
 (global-set-key (kbd "C-c M-w")
-  (command (find-file-other-window "~/Dropbox/org/work/work.org.txt")))
+  (command (find-file-other-window "~/org/work/work.org.txt")))
 (global-set-key (kbd "C-c M-j")
-  (command (find-file-other-window "~/Dropbox/org/work/jsc2.org.txt")))
+  (command (find-file-other-window "~/org/work/jsc2.org.txt")))
 (global-set-key (kbd "C-c M-3")
-  (command (find-file-other-window "~/Dropbox/org/work/w3c.org.txt")))
-(global-set-key (kbd "C-c M-H") ; M-h は避ける。
-  (command (find-file-other-window "~/Dropbox/org/home/home.org.txt")))
+  (command (find-file-other-window "~/org/work/w3c.org.txt")))
+(global-set-key (kbd "C-c M-H") ; M-h はMacOSの予約キーなので避ける。
+  (command (find-file-other-window "~/org/home/home.org.txt")))
+(global-set-key (kbd "C-c M-p") ;
+  (command (find-file-other-window "~/.passwd.gpg")))
+(global-set-key (kbd "C-c M-z")
+  (command (find-file-other-window "~/.zsh_history")))
 
-;;; font-core.el
+;;;; font-core.el
 (global-font-lock-mode t)
 
-;;; frame.el
+;;;; frame.el
 (blink-cursor-mode 0)
+(lazyload () "smartrep"
+  (smartrep-define-rotate-key my-rotate-keymap "f"
+    (previous-multiframe-window) (next-multiframe-window)))
 
-;;; generic-x.el
-;(require 'generic-x)
-
-;;; gnus/gnus.el
+;;;; gnus/gnus.el
 (setq gnus-init-file (concat user-emacs-directory ".gnus.el"))
+(global-set-key (kbd "C-c g") 'gnus)
+(global-set-key (kbd "C-c m") 'gnus-msg-mail)
 
-;;; gnus/html2text.el
+;;;; gnus/html2text.el
 ;; iso-2022-jpをうっかりhtml化した時の復元に便利な設定
 (setq html2text-replace-list
       '(("&amp;" . "&") ("&nbsp;" . " ") ("&gt;" . ">") ("&lt;" . "<")
@@ -1152,12 +1161,12 @@ DIR/subdir.el がある場合は、それを実行し、DIR下のディレクト
         "meta" "tr" "td" "table" "span" "div"))
 (setq html2text-remove-tag-list2  '("li" "dt" "dd" "meta"))
 
-;;; gnus/mm-util.el
+;;;; gnus/mm-util.el
 (eval-after-load "mm-util"
   '(when (coding-system-p 'cp50220)
      (add-to-list 'mm-charset-override-alist '(iso-2022-jp . cp50220))))
 
-;;; gv.el
+;;;; gv.el
 (defun alist-get (key alist)
   "Get the value associated to KEY in ALIST."
   (declare
@@ -1173,18 +1182,18 @@ DIR/subdir.el がある場合は、それを実行し、DIR下のディレクト
                                     `(cons (cons ,k ,v) ,getter)))))))))))
   (cdr (assoc key alist)))
 
-;;; help.el
+;;;; help.el
 ;; helpキーを C-h から C-zに割り当て直す。
 (setq help-char 26)
 (global-set-key (kbd "C-z") help-map)
 (if (eq window-system 'x)
     (global-set-key (kbd "C-z C-z") 'iconify-or-deiconify-frame))
 
-;;; hippie-exp.el
+;;;; hippie-exp.el
 (setq hippie-expand-dabbrev-as-symbol t)
 (global-set-key (kbd "M-/") 'hippie-expand)
 
-;;; hl-line.el
+;;;; hl-line.el
 ;; 現在の行をハイライトする
 (defface hlline-face ;; デフォルトはhl-line
   '((((class color)
@@ -1200,7 +1209,7 @@ DIR/subdir.el がある場合は、それを実行し、DIR下のディレクト
 (setq hl-line-face 'hlline-face)
 (global-hl-line-mode)
 
-;;; htmlfontify.el
+;;;; htmlfontify.el
 ;; coral が入手できないので、hfyview.el を使ってブラウザに表示させて
 ;; それを印刷する。
 ;(defun print-buffer-html ()
@@ -1218,15 +1227,15 @@ DIR/subdir.el がある場合は、それを実行し、DIR下のディレクト
 ;    (message "printing... done")
 ;    (delete-file file)))
 
-;;; indent.el
+;;;; indent.el
 (setq indent-line-function 'indent-relative-maybe)
 (setq-default indent-tabs-mode nil)     ; no tabs indentation.
 
-;;; isearch.el
+;;;; isearch.el
 (setq lazy-highlight-initial-delay 0) ; isearch のハイライト反応を良くする。
 (define-key isearch-mode-map "\C-k" 'isearch-edit-string)
 
-;;; ibuffer.el
+;;;; ibuffer.el
 ;; list-buffersの高機能版。色が付いて、様々なパラメータ表示が可能。隠れ
 ;; バッファを表示したい場合は、一時的にibuffer-maybe-show-predicatesの
 ;; 値をnilにする。
@@ -1261,29 +1270,31 @@ DIR/subdir.el がある場合は、それを実行し、DIR下のディレクト
                 " " (size 6 -1) " " (mode 16 16) " " filename)
           (mark (coding 15 15) " " (name 30 -1) " " filename))))
 
-;;; ido.el
+;;;; ido.el
 ;; 保存時にファイル名の自動補完を行う。
 ;; C-f :: デフォルトの動作に戻る。
 ;; C-j :: 入力テキストをそのまま使う。
-;; やや使いにくいので保留。
-;(when (require 'ido nil t)
-;  (ido-mode t)
-;  (ido-everywhere 1)
-;  (setq ido-enable-prefix nil
-;        ido-enable-flex-matching t
-;        ido-create-new-buffer 'always
-;        ido-use-filename-at-point 'guess
-;        ido-use-virtual-buffers t ; [C-x b] (or M-x ido-switch-buffer)
-;        ido-max-prospects 10))
+;; ファイル保存時に勝手に既存ファイル名を補完するのが不便なので使用中止。
+;;(when (require 'ido nil t)
+;;  (ido-mode t)
+;;  (ido-everywhere 1)
+;;  (define-key ido-file-dir-completion-map (kbd "SPC") 'ido-exit-minibuffer)
+;;  (define-key ido-file-dir-completion-map (kbd "C-h") 'ido-delete-backward-updir)
+;;  (setq ido-enable-prefix nil
+;;        ido-enable-flex-matching t
+;;        ido-create-new-buffer 'always
+;;        ido-use-filename-at-point 'guess
+;;        ido-use-virtual-buffers t ; [C-x b] (or M-x ido-switch-buffer)
+;;        ido-max-prospects 10))
 
-;;; image-file.el
+;;;; image-file.el
 ;; 画像ファイルは自動的にimage-file-modeで開く。
 (auto-image-file-mode t)
 
-;;; image.el
+;;;; image.el
 ;;(setq imagemagick-render-type 1)
 
-;;; imenu.el
+;;;; imenu.el
 ;; Emacs 24.3 only.
 ;; load-theme を実行すると、eval → edebug-read → edebug-read-sexp
 ;; → which-function → imenu--make-index-alist →
@@ -1291,7 +1302,7 @@ DIR/subdir.el がある場合は、それを実行し、DIR下のディレクト
 ;; でエラーが起きるのを抑止する。
 (setq-default which-function-imenu-failed t)
 
-;;; info.el
+;;;; info.el
 (eval-after-load "info"
   '(progn
      ;; /usr/share/info を取り除く（/usr/local/share/info を優先する）
@@ -1299,7 +1310,7 @@ DIR/subdir.el がある場合は、それを実行し、DIR下のディレクト
      ;; M-n を無効にする
      (define-key Info-mode-map "\M-n" nil)))
 
-;;; international/mule.el
+;;;; international/mule.el
 (case system-type
   ('darwin
    (modify-coding-system-alist 'process "zsh" '(utf-8-hfs . utf-8))
@@ -1316,6 +1327,7 @@ DIR/subdir.el がある場合は、それを実行し、DIR下のディレクト
    (t 'utf-8)))
 
 ;; mule-version を日本語に直す。
+;; かつて mm-version.el としても実装されていた。
 ;; 本家Emacsのタイムラインは http://www.jwz.org/doc/emacs-timeline.html 参照。
 (let*
     ;; 1985.?:     emaKs? <based on Unipress Emacs?>
@@ -1407,11 +1419,11 @@ DIR/subdir.el がある場合は、それを実行し、DIR下のディレクト
        (setq mule-version (replace-match (cdr args) nil nil mule-version))))
    versions))
 
-;;; international/mule-cmds.el
+;;;; international/mule-cmds.el
 (global-set-key (kbd "C-o") 'toggle-input-method) ;; non-Mac用
 (global-set-key (kbd "M-S-SPC") 'toggle-input-method) ;; Mac用
 
-;;; iswitchb.el
+;;;; iswitchb.el
 ;; TODO
 ;; iswitchb と、switch-to-buffer の両方を必要に応じて切り分けたいが、
 ;; iswtichb は、switch-to-buffer のキーバイドをsubstitute-..で、全て横
@@ -1436,7 +1448,7 @@ DIR/subdir.el がある場合は、それを実行し、DIR下のディレクト
 ;;    (iswitchb-visit-buffer (get-buffer (car iswitchb-matches)))
 ;;    (select-window (minibuffer-window))))
 
-;;; jka-compr.el
+;;;; jka-compr.el
 (auto-compression-mode t)
 ;; 下記追加済み
 ;; (add-to-list 'jka-compr-compression-info-list
@@ -1445,43 +1457,43 @@ DIR/subdir.el がある場合は、それを実行し、DIR下のディレクト
 ;;               "dict uncompressing" "gzip" ("-c" "-q" "-d")
 ;;               nil t "\037\213"])
 
-;;; linum.el
+;;;; linum.el
 ;; 行番号の表示
 ;;(global-linum-mode t)
 ;;(set-face-attribute 'linum nil :height 0.8)
 ;;(setq linum-format "%4d")
 
-;;; locate.el
+;;;; locate.el
 ;; Macintosh で locate を使う場合
 ;; % sudo launchctl load -w /System/Library/LaunchDaemons/com.apple.locate.plist
 (lazyload () "locate"
   (when (eq system-type 'darwin)
     (setq locate-command "mdfind")))
 
-;;; ls-lisp.el
+;;;; ls-lisp.el
 (setq ls-lisp-ignore-case t)
 (setq ls-lisp-dirs-first nil)
 
-;;; man.el
+;;;; man.el
 (eval-after-load 'man
   '(progn
      (define-key Man-mode-map "\en" nil)
      (define-key Man-mode-map "\ep" nil)))
 
-;;; menu-bar.el
+;;;; menu-bar.el
 (menu-bar-mode nil)
 
-;;; msb.el
+;;;; msb.el
 ;; メニューのバッファ一覧を階層化する。
 ;; (msb-mode 1)
 
-;;; mwheel.el
+;;;; mwheel.el
 (when (functionp 'mwheel-install)
   (mwheel-install)
   (setq mouse-wheel-scroll-amount '(1 ((shift) . 3) ((control) . 5)))
   (setq mouse-wheel-progessive-speed nil))
 
-;;; net/browse-url.el
+;;;; net/browse-url.el
 ;; 必要な場合は、以下に設定する。
 ;; (setq browse-url-browser-function 'browse-url-default-browser)
 ;; 2ch等の "ttp://..." を開けるようにする。
@@ -1491,7 +1503,7 @@ DIR/subdir.el がある場合は、それを実行し、DIR下のディレクト
 (setq browse-url-browser-function
       '(("." . browse-url-default-browser)))
 
-;;; nxml/nxml-mode.el, nxml/rng-nxml.el
+;;;; nxml/nxml-mode.el, nxml/rng-nxml.el
 ;; xml-mode を{auto,magic}-mode-alistから取り除く。
 (cl-delete-if (lambda (x) (equal (cdr x) 'xml-mode)) auto-mode-alist)
 (cl-delete-if (lambda (x) (equal (cdr x) 'xml-mode)) magic-mode-alist)
@@ -1501,8 +1513,8 @@ DIR/subdir.el がある場合は、それを実行し、DIR下のディレクト
 (add-to-list 'auto-mode-alist '("\\.x[ms]l\\'" . nxml-mode))
 (add-to-list 'auto-mode-alist '("\\.kml\\'" . nxml-mode))
 (add-to-list 'magic-mode-alist '("<\\?xml" . nxml-mode))
-;;
-;; 各種 RelaxNG スキーマ
+
+;;;;; 各種 RelaxNG スキーマ
 ;; |------------+----------------------------------------------------|
 ;; | XSL/XSLT   | https://github.com/ndw/xslt-relax-ng               |
 ;; | XMP        | ISO/IEC 16684-1                                    |
@@ -1510,7 +1522,7 @@ DIR/subdir.el がある場合は、それを実行し、DIR下のディレクト
 ;; | EPUB OPML  | http://epub-revision.googlecode.com/svn/trunk      |
 ;; | Google KML | http://members.home.nl/cybarber/geomatters/kml.xsd |
 ;; |------------+----------------------------------------------------|
-;; 上記を XSD に変換する。
+;; XSDは、trangで rnc へ変換する。
 ;; kml における section/name 設定例：
 ;; (setq nxml-section-element-name-regexp "Folder\\|Placemark\\|GroundOverlay")
 ;; (setq nxml-heading-element-name-regexp "name")
@@ -1547,17 +1559,17 @@ DIR/subdir.el がある場合は、それを実行し、DIR下のディレクト
 ;; Ubuntu 11 : /usr/share/java/saxon-6.5.5.jar
 ;; MacOS X   : /opt/local/share/java/saxon-9.1he.jar
 
-;;; net/newsticker
+;;;; net/newsticker
 ;; 非同期なフィード取得が可能なRSSリーダ
 ;; → 非同期が重いので crontab + nnrss (asynchronous) に移行。
 ;; M-x newsticker-start :: 非同期RSS取得の開始
-;; M-x newsticker-show-news  :: 
+;; M-x newsticker-show-news  ::
 (lazyload () "newsticker"
   (let ((library "my-newticker-url-list.el.gpg"))
     (and (locate-library library)
          (load-library library))))
 
-;;; net/tramp.el
+;;;; net/tramp.el
 ;; e.g. C-x C-f /kawabata@femto:/var/www/html/index.html
 ;;      C-x C-f /root@localhost:/etc/passwd
 ;;
@@ -1609,14 +1621,14 @@ DIR/subdir.el がある場合は、それを実行し、DIR下のディレクト
   (interactive "F")
   (set-buffer (find-file (concat "/sudo::" file))))
 
-;;; obsolete/keyswap.el
+;;;; obsolete/keyswap.el
 (load "obsolete/keyswap" t)
 
-;;; org/org.el
+;;;; org/org.el
 ;; org-mode は、git版を優先するため、load-pathの設定が終わった後で設定
 ;; を行う。後方を確認。
 
-;;; outline.el
+;;;; outline.el
 ;; org-mode のFAQにある方法
 ;; http://orgmode.org/worg/org-faq.html#use-visibility-cycling-in-outline-mode
 (lazyload () "outline"
@@ -1630,31 +1642,31 @@ DIR/subdir.el がある場合は、それを実行し、DIR下のディレクト
   (define-key outline-mode-map [(tab)] 'org-cycle)
   (define-key outline-mode-map [(shift tab)] 'org-global-cycle))
 
-;;; paren.el
+;;;; paren.el
 (show-paren-mode t)
 (setq show-paren-style 'parenthesis)
 
-;;; progmodes/compile.el
+;;;; progmodes/compile.el
 (define-key ctl-x-map "'"  'compile)
 
-;;; progmodes/flymake.el
+;;;; progmodes/flymake.el
 (autoload 'flymake-mode "flymake" "Flymake Mode")
 ;(lazyload () "flymake"
 ;  (set-face-background 'flymake-errline "red4")
 ;  (set-face-background 'flymake-warnline "dark slate blue"))
 
-;;; progmodes/grep.el
+;;;; progmodes/grep.el
 (if (executable-find "xzgrep")
     (setq grep-program "xzgrep")
   (if (executable-find "bzgrep")
       (setq grep-program "bzgrep")))
 (global-set-key (kbd "M-s g") 'grep)
 
-;;; progmodes/gud.el
+;;;; progmodes/gud.el
 (setq gdb-many-windows t)
 (setq gdb-show-main t)
 
-;;; progmodes/hideshow.el
+;;;; progmodes/hideshow.el
 (eval-after-load 'hideshow
   '(progn
      (setq hs-hide-comments-when-hiding-all nil)
@@ -1663,18 +1675,18 @@ DIR/subdir.el がある場合は、それを実行し、DIR下のディレクト
 	       "\\(def\\|do\\|{\\)" "\\(end\\|end\\|}\\)" "#"
 	       (lambda (arg) (ruby-end-of-block)) nil))))
 
-;;; progmodes/make-mode.el
+;;;; progmodes/make-mode.el
 ;(add-hook 'makefile-mode-hook
 ;          (function (lambda ()
 ;                      (fset 'makefile-warn-suspicious-lines 'ignore))))
 
-;;; progmodes/scheme.el
+;;;; progmodes/scheme.el
 (setq scheme-program-name "gosh")
 
-;;; progmodes/sh-script.el
+;;;; progmodes/sh-script.el
 (setq sh-mode-hook 'outline-minor-mode)
 
-;;; progmodes/sql.el
+;;;; progmodes/sql.el
 ;; 主にsqliteと組み合わせて使うことを想定する。
 ;; http://www.emacswiki.org/cgi-bin/wiki.pl?SqlMode
 ;; M-x sql-help, M-x sql-sqlite
@@ -1728,15 +1740,7 @@ DIR/subdir.el がある場合は、それを実行し、DIR下のディレクト
         (setq comint-input-ring-index nil))))
   (ad-activate 'sql-send-region))
 
-;;; rect.el
-(if (functionp 'string-rectangle)
-    (global-set-key (kbd "C-x r t") 'string-rectangle))
-(defun kill-rectangle-save (start end)
-  (interactive "*r\nP")
-  (setq killed-rectangle (extract-rectangle start end)))
-(global-set-key (kbd "C-x r K") 'kill-rectangle-save)
-
-;;; recentf.el
+;;;; recentf.el
 ;; 最近開いたファイルの一覧を表示。helm.el と組み合わせる。
 (global-set-key (kbd "C-c F") 'recentf-open-files)
 (setq recentf-max-saved-items 2000)
@@ -1744,18 +1748,26 @@ DIR/subdir.el がある場合は、それを実行し、DIR下のディレクト
 (setq recentf-auto-cleanup 10)
 (recentf-mode 1)
 
-;;; saveplace.el
+;;;; rect.el
+(if (functionp 'string-rectangle)
+    (global-set-key (kbd "C-x r t") 'string-rectangle))
+(defun kill-rectangle-save (start end)
+  (interactive "*r\nP")
+  (setq killed-rectangle (extract-rectangle start end)))
+(global-set-key (kbd "C-x r K") 'kill-rectangle-save)
+
+;;;; saveplace.el
 ;; ファイルでのカーソルの位置を保存しておく
 (when (file-writable-p "~/.emacs.d/.emacs-places")
   (setq save-place-file (convert-standard-filename "~/.emacs.d/.emacs-places"))
   (require 'saveplace)
   (setq-default save-place t))
 
-;;; server.el
+;;;; server.el
 (when (not (equal system-type 'windows-nt))
   (server-start))
 
-;;; shell.el
+;;;; shell.el
 ;; zsh のヒストリファイル
 ;; - 0x80-0x9d,a0 :: 0x83 (r0 + 0x20)
 (define-ccl-program zsh-history-decoder
@@ -1845,46 +1857,57 @@ DIR/subdir.el がある場合は、それを実行し、DIR下のディレクト
 ;; ファイル名に使われる文字
 (setq shell-file-name-chars "~/A-Za-z0-9_^$!#%&{}@`'.,:()-")
 
-;;; simple.el
+;;;; simple.el
 (setq eval-expression-print-length nil) ; default 12.
 (setq eval-expression-print-level nil)  ; default 4
+(setq mail-user-agent 'gnus-user-agent) ; Gnusをメールに使用する。
 (setq kill-whole-line t)
 (line-number-mode t)
 (column-number-mode t)
 (transient-mark-mode t)
-(global-set-key (kbd "C-M-h") 'backward-kill-word) ;; 単語をまとめてBS。
+(global-set-key (kbd "C-M-h") 'backward-kill-word) ; 単語をまとめてBS。
+(global-set-key (kbd "C-x :") 'goto-line) ; 古い慣習。
 (normal-erase-is-backspace-mode 1)
 ;; (setq interprogram-cut-function x-select-text)
 
-;;; speedbar.el
+;;;; speedbar.el
 ;; 不明なファイルは非表示。
 (setq speedbar-show-unknown-files nil)
 
-;;; startup.el
+;;;; startup.el
 ;; interactive-mode 時の、 巨大テキストを貼り付けた時の処理の遅さを回避する。
-(setq initial-major-mode 'text-mode) 
+(setq initial-major-mode 'text-mode)
+(setq mail-host-address (replace-regexp-in-string "^.+@" "" user-mail-address))
 ;;(setq inhibit-default-init t)
 ;;(setq inhibit-startup-message t)
 ;;(setq inhibit-startup-echo-area-message -1)
 
-;;; subr.el
+;;;; subr.el
 (fset 'yes-or-no-p 'y-or-n-p)
 
-;;; term.el
+;;;; term.el
 ;; エスケープ・シーケンスは、/etc/e/eterm-color.ti に従う。
 (when (executable-find "zsh")
   (setq explicit-shell-file-name "zsh"))
 
-;;; term/common-win.el
+;;;; term/common-win.el
 ;; [Emacs 24.3] x-select-enable-clipboardはデフォルトでtになった。
 ;;(when (eq window-system 'x)
 ;;  (setq x-select-enable-clipboard t))
 
-;;; textmodes/artist.el
-;; artist-mode-off ("C-c C-c") to exit.
+;;;; textmodes/artist.el
+;; | key       | Picture   |
+;; |-----------+-----------|
+;; | C-c C-a P | polyline  |
+;; | C-c C-a r | rectangle |
+;; | C-c C-a V | vaporize  |
+;; | C-c C-k   | kill-rect |
+;; | C-c C-y   | yank-rect |
+(global-set-key (kbd "C-c C-a") 'artist-mode)
+;; org-mode では C-c C-a は使えない。
 (global-set-key (kbd "C-c A") 'artist-mode)
 
-;;; textmodes/bibtex.el
+;;;; textmodes/bibtex.el
 ;;
 ;; - BibTeX 基本要素について
 ;; |        | file-path                    | files                       |
@@ -1936,7 +1959,7 @@ DIR/subdir.el がある場合は、それを実行し、DIR下のディレクト
   (let ((misc (assoc-default "Misc" bibtex-biblatex-entry-alist))
 
         (types '("artwork" "audio" "bibnote" "commentary" "image" "jurisdiction"
-                 "legislation" "legal" "letter" "movie" "music" "performance" 
+                 "legislation" "legal" "letter" "movie" "music" "performance"
                  "review" "softare" "standard" "video" "map")))
     (dolist (type types)
       (add-to-list 'bibtex-biblatex-entry-alist
@@ -1945,7 +1968,7 @@ DIR/subdir.el がある場合は、それを実行し、DIR下のディレクト
   ;; BibLaTeX ファイルは、環境変数BIBINPUTSから取得。
   (setq bibtex-files 'bibtex-file-path
         ;; BibTeXの整形
-        bibtex-entry-format 
+        bibtex-entry-format
         '(opt-or-alts numerical-fields whitespace inherit-booktitle
           last-comma delimiters unify-case sort-fields)
         ;; `=' で揃えるか、値で揃えるか。
@@ -1992,25 +2015,25 @@ DIR/subdir.el がある場合は、それを実行し、DIR下のディレクト
           ("ranking" "文献に対する評価（５段階） (ignored)")
           ("attribute" "文献の属性、フリーキーワード (ignored)")))) ;; end bibtex
 
-;;; textmodes/css-mode.el
+;;;; textmodes/css-mode.el
 (setq css-indent-offset 2) ;; TAB値を8にしておく。
 (setq css-indent-level 2)
 
-;;; textmodes/flyspell.el
+;;;; textmodes/flyspell.el
 ;; M-x flyspell-mode
 ;; C-, 移動 C-. 修正
 
-;;; textmodes/ispell.el
+;;;; textmodes/ispell.el
 ;; spell check は aspell で行う。
 (eval-after-load "ispell"
   '(add-to-list 'ispell-skip-region-alist '("[^\000-\377]")))
 
-;;; textmodes/page-ext.el
+;;;; textmodes/page-ext.el
 ;; ^L で区切られた領域をnarrowingして一覧表示・ジャンプ。
 (autoload 'pages-directory "page-ext" "pages" t)
 (global-set-key (kbd "C-c P") 'pages-directory)
 
-;;; textmodes/picture.el
+;;;; textmodes/picture.el
 ;; picture の日本語に関する課題
 ;; - 日本語文字の挿入・削除の際に、カーソル後方の位置がずれる。(TODO)
 ;; JIS罫線は以下を使う場合：
@@ -2026,12 +2049,12 @@ DIR/subdir.el がある場合は、それを実行し、DIR下のディレクト
 ;;        (picture-rectangle-v ?┃)
 ;;        (picture-rectangle-h ?━))
 
-;;; textmodes/refer.el
+;;;; textmodes/refer.el
 (lazyload () "refer"
   (setq refer-bib-directory 'bibinputs ; BIBINPUTS環境変数ディレクトリ
         refer-bib-files 'dir))          ; ディレクトリ内の全 *.bib ファイル
 
-;;; textmodes/reftex.el
+;;;; textmodes/reftex.el
 ;; 色々と引用文献を楽に入力するようにする。
 (lazyload (reftex-browse (my-reftex-insert-reference "C-c [")) "reftex"
   (setq reftex-default-bibliography my-bibtex-files)
@@ -2050,12 +2073,12 @@ DIR/subdir.el がある場合は、それを実行し、DIR下のディレクト
             "{{Citation"
             " | author = %a" ;; first author only
             " | publisher = %u"
-            ;; " | last ="
-            ;; " | first ="
-            ;; " | author-link ="
-            ;; " | last2 ="
-            ;; " | first2 ="
-            ;; " | author2-link ="
+;; " | last ="
+;; " | first ="
+;; " | author-link ="
+;; " | last2 ="
+;; " | first2 ="
+;; " | author2-link ="
             " | title = %t"
             " | journal = %j"
             ;; " | newspaper = "
@@ -2082,7 +2105,8 @@ DIR/subdir.el がある場合は、それを実行し、DIR下のディレクト
           (reftex-comment-citations t))
       (reftex-citation))))
 
-;;; textmodes/table.el
+;;;; textmodes/table.el
+;; (参照) http://emacswiki.org/emacs/TableMode
 ;; M-x table-insert
 ;; C-c C-c !   table-fixed-width-mode
 ;; C-c C-c #   table-query-dimension
@@ -2111,13 +2135,11 @@ DIR/subdir.el がある場合は、それを実行し、DIR下のディレクト
 ;; recognize existing table.el table     C-c C-c
 ;; convert table (Org-mode <-> table.el) C-c ~
 
-;;; textmodes/table.el
-;; (参照) http://emacswiki.org/emacs/TableMode
 ;; M-x table-capture
 ;; M-x table-unrecognize
 ;; M-x table-recognize
 
-;;; thingatpt.el
+;;;; thingatpt.el
 ;; `javascript:' と 'ttp://' の追加
 (eval-after-load "thingatpt"
   '(setq thing-at-point-url-regexp
@@ -2131,32 +2153,31 @@ DIR/subdir.el がある場合は、それを実行し、DIR下のディレクト
   (when (and ad-return-value (string-match "\\`ttps?://" ad-return-value))
     (setq ad-return-value (concat "h" ad-return-value))))
 
-;;; time.el
+;;;; time.el
 (setq display-time-day-and-date t)
 (setq display-time-24hr-format t)
 (setq display-time-string-forms '(24-hours ":" minutes))
 (display-time)
 
-;;; time-stamp.el
-;; バージョン管理に使用。 `"<ver.:20xx-yy-zz>"' を更新する。
+;;;; time-stamp.el
+;; バージョン管理に使用。
 (add-hook 'before-save-hook 'time-stamp)
-(setq time-stamp-format "\"<ver.:%:y-%02m-%02d>\"")
 
-;;; uniquify.el
+;;;; uniquify.el
 ;; バッファ名にディレクトリ名を追加する。
 (require 'uniquify)
 (setq uniquify-buffer-name-style 'post-forward-angle-brackets)
 (setq uniquify-ignore-buffers-re "*[^*]+*")
 (setq uniquify-min-dir-content 1)
 
-;;; vc/ediff.el
+;;;; vc/ediff.el
 (setq ediff-window-setup-function 'ediff-setup-windows-plain)
 
-;;; vc/vc.el
+;;;; vc/vc.el
 (delete 'Bzr vc-handled-backends)
 (delete 'Git vc-handled-backends)
 
-;;; view.el
+;;;; view.el
 ;; 一週間以上古いファイルは、自動的にread-onlyにする。
 (defun read-only-if-old-file ()
   (let ((modification-time
@@ -2176,17 +2197,17 @@ DIR/subdir.el がある場合は、それを実行し、DIR下のディレクト
 ;; これがまずい場合は、以下の命令でキャンセルする。
 ;; (remove-hook 'find-file-hook 'read-only-if-old-file)
 
-;;; wdired.el
+;;;; wdired.el
 (autoload 'wdired-change-to-wdired-mode "wdired" nil t)
 (lazyload () "dired"
   (define-key dired-mode-map "r" 'wdired-change-to-wdired-mode))
 
-;;; windmove.el
+;;;; windmove.el
 ;; Shift + ↑←↓→ で、移動。
 (windmove-default-keybindings)
 (setq windmove-wrap-around t)
 
-;;; window.el
+;;;; window.el
 (global-set-key (kbd "M-l") 'bury-buffer)
 (defun my-other-window ()
   "ウィンドウが1つしかない場合は、過去のウィンドウ配置に戻るか、左
@@ -2250,7 +2271,7 @@ DIR/subdir.el がある場合は、それを実行し、DIR下のディレクト
     (setq scroll-with-cursor t)))
 (toggle-scroll-with-cursor)
 
-;;; w32-ime.el
+;;;; w32-ime.el
 (declare-function w32-ime-initialize "w32-ime")
 (declare-function ime-get-mode "w32-ime")
 (declare-function ime-force-off "w32-ime")
@@ -2300,12 +2321,12 @@ DIR/subdir.el がある場合は、それを実行し、DIR下のディレクト
     :type 'string
     :group 'Meadow))
 
-;;; woman.el
+;;;; woman.el
 (setq woman-cache-filename "~/.wmncach.el")
 ;;(defalias 'man 'woman)
 
 
-;;;; パッケージ管理システム
+;;; パッケージ管理システム
 ;;   Emacs 24 から標準装備の、パッケージ管理システム。詳細は、Elisp
 ;;   Info の40.1 Packaging-Basics を参照。
 
@@ -2334,7 +2355,26 @@ DIR/subdir.el がある場合は、それを実行し、DIR下のディレクト
   ;(message "load-path=%s" load-path)
   (global-set-key (kbd "C-c p") 'list-packages))
 
-;;; パッケージの load-pathの前に 個人のsite-lisp のpathを設定する。
+;; package management
+;; | system      | packager      |
+;; |-------------+---------------|
+;; | Clojure     | Leiningen     |
+;; | Common Lisp | QuickLisp     |
+;; | Emacs       | ELPA          |
+;; | Haskell     | Hackage       |
+;; | Java        | Maven         |
+;; | JavaScript  | npm/JSAN      |
+;; | Lua         | LuaRocks      |
+;; | OCaml       | GODI          |
+;; | PHP         | Pecl/Pear     |
+;; | Perl        | CPAN          |
+;; | Python      | PyPi          |
+;; | R           | CRAN          |
+;; | Ruby        | RubyGems      |
+;; | Scheme      | Eggs (chiken) |
+;; | TeX         | CTAN          |
+
+;; パッケージの load-pathの前に 個人のsite-lisp のpathを設定する。
 (add-to-load-path "~/.emacs.d/site-lisp/")
 ;; 本来なら上記で、load-pathの先頭に site-lisp 以下のディレクトリが入る
 ;; はずだが、なぜか入らないので以下のように無理やり順序を入れ替える。
@@ -2346,8 +2386,8 @@ DIR/subdir.el がある場合は、それを実行し、DIR下のディレクト
 ;; load-path の理想的な順番
 ;; ( <site-lisp 以下> <elpa 関係> <標準elisp> )...
 
-;;; パッケージ読み込み後にテーマの確認
-;; theme
+;;; theme
+;; パッケージ読み込み後にテーマの確認
 (defvar available-themes
   (cons nil (cl-set-difference
              (sort (custom-available-themes)
@@ -2358,6 +2398,7 @@ DIR/subdir.el がある場合は、それを実行し、DIR下のディレクト
   (interactive)
   (mapc (lambda (th)
           (disable-theme th)) custom-enabled-themes))
+
 (defun rotate-theme (&optional direction)
   (setq available-themes
         (if direction (list-rotate-backward available-themes)
@@ -2368,15 +2409,24 @@ DIR/subdir.el がある場合は、それを実行し、DIR下のディレクト
     (load-theme (car available-themes)))
   (update-fontset (face-attribute 'default :fontset)
                   (car font-sizes) font-specs)
-  (car available-themes))
+  (message "theme=%s" (car available-themes)))
 
-(add-to-list 'rotate-command-set
-             '(rotate-theme . "Custom Theme"))
+(defun rotate-theme-to (target)
+  (when (member target available-themes)
+    (setq available-themes (list-rotate-to available-themes target))
+    (reset-theme)
+    (load-theme (car available-themes))))
 
+;; My favorite themes
+(global-set-key (kbd "C-c M-b") (command (rotate-theme-to 'light-blue)))
+
+(lazyload () "smartrep"
+  (smartrep-define-rotate-key my-rotate-keymap "t"
+    (rotate-theme) (rotate-theme -1)))
 
 
 
-;;;; global prefix 一覧
+;;; global prefix 一覧
 ;; Prefixの詳細は、<prefix> <help> (F1キー) で確認可能。
 ;; | 非モード型elisp     | Default   | 変更  |
 ;; |---------------------+-----------+-------|
@@ -2407,7 +2457,7 @@ DIR/subdir.el がある場合は、それを実行し、DIR下のディレクト
 ;; | howm                | C-c ,     |       |
 ;; | outline             | C-c @     |       |
 ;;
-;;;; 本ファイルでの設定一覧
+;;; ショートカット一覧
 ;; (M-x parse-init-global-key-settings で生成）
 ;; |--------------+---------------------------------|
 ;; | M-A          | Alt prefix（Windows/Linuxのみ） |
@@ -2415,15 +2465,16 @@ DIR/subdir.el がある場合は、それを実行し、DIR下のディレクト
 ;; | C-c "        | lookup-restart                  |
 ;; | C-c -        | (insert "⿺")                   |
 ;; | C-c /        | lookup-pattern                  |
+;; | C-c *        | mc/markall-like-this            |
 ;; | C-c 0        | (insert "⿰")                   |
 ;; | C-c 9        | (insert "⿹")                   |
 ;; | C-c ;        | orgtbl-comment-mode             |
 ;; | C-c =        | (insert "⿻")                   |
 ;; | C-c ?        | lookup-word                     |
-;; | C-c A        | artist-mode                     |
 ;; | C-c C        | cancel-debug-on-entry           |
 ;; | C-c F        | recentf-open-files              |
-;; | C-c L        | find-library                    |
+;; | C-c L        | org-insert-link-global          |
+;; | C-c O        | org-open-at-point-global        |
 ;; | C-c P        | pages-directory                 |
 ;; | C-c U        | untrace-function                |
 ;; | C-c [        | my-reftex-insert-reference      |
@@ -2431,21 +2482,27 @@ DIR/subdir.el がある場合は、それを実行し、DIR下のディレクト
 ;; | C-c b        | org-iswitchb                    |
 ;; | C-c c        | org-capture                     |
 ;; | C-c d        | debug-on-entry                  |
+;; | C-c g        | gnus                            |
 ;; | C-c i        | ids-edit-mode                   |
 ;; | C-c k        | clean-dmoccur-buffers           |
 ;; | C-c l        | org-store-link                  |
+;; | C-c m        | gnus-msg-mail                   |
 ;; | C-c p        | list-packages                   |
 ;; | C-c r        | trace-function                  |
 ;; | C-c s        | switch-to-buffer                |
 ;; | C-c t        | toggle-debug-on-error           |
 ;; | C-c u        | untrace-all                     |
 ;; | C-c v        | variants-tree                   |
+;; | C-c C-a      | artist-mode                     |
 ;; | C-c M-i      | ~/.emacs.d/init.el              |
-;; | C-c M-l      | ~/.emacs.d/init.el              |
+;; | C-c M-l      | ~/.emacs.d/lookup/init.el       |
+;; | C-c M-m      | *Messages*                      |
+;; | C-c M-s      | *scratch*                       |
 ;; |--------------+---------------------------------|
 ;; | C-x C-b      | ibuffer                         |
 ;; | C-x C-v      | revert-buffer                   |
 ;; | C-x M-f      | find-file-in-dropbox            |
+;; | C-x M-l      | find-library                    |
 ;; | C-x k        | kill-this-buffer                |
 ;; | C-x r K      | kill-rectangle-save             |
 ;; | C-x r t      | string-rectangle                |
@@ -2464,20 +2521,16 @@ DIR/subdir.el がある場合は、それを実行し、DIR下のディレクト
 ;; | M-;          | eval-region                     |
 ;; | M-A          | <MacOS> Lookup Man page         |
 ;; | M-B (X)      | <MacOS> Pass files to bluetooth |
-;; | M-B          | (rotate-command-set t)          |
 ;; | M-D          | <MacOS> Lookup Dictionary       |
 ;; | M-E          | bookmark-edit-annotation        |
 ;; | M-F          | <MacOS> Spotlight Search (X)    |
-;; | M-F          | rotate-command-set              |
 ;; | M-H          | my-howm-concatenate-all-isearch |
 ;; | M-I          | variants-insert                 |
 ;; | M-J          | <MacOS> Complete Citation       |
 ;; | M-K          | <MacOS> Complete Cite Key       |
 ;; | M-L          | <MacOS> Google Search           |
 ;; | M-M          | <MacOS> Lookup Man page         |
-;; | M-N          | rotate-command-run              |
 ;; | M-O          | (other-window -1)               |
-;; | M-P          | (rotate-command-run t)          |
 ;; | M-Q          | (fill-paragraph 1)              |
 ;; | M-S-SPC      | toggle-input-method             |
 ;; | M-X          | <helm-command-map>              |
@@ -2488,14 +2541,15 @@ DIR/subdir.el がある場合は、それを実行し、DIR下のディレクト
 ;; | M-h          | <MacOS> Hide Window             |
 ;; | M-l          | bury-buffer                     |
 ;; | M-o          | my-other-window                 |
+;; | M-r          | my-rotate-keymap                |
 ;; | M-s g        | grep                            |
 ;; |--------------+---------------------------------|
 ;; | C-;          | helm-for-files                  |
 ;; | C-M-;        | helm-recentf                    |
 ;; | C-o          | toggle-input-method             |
 ;; | C-:          | bbdb                            |
-;; | C-<          | transparency-decrease           |
-;; | C->          | transparency-increase           |
+;; | C-<          | mc/mark-previous-like-this      |
+;; | C->          | mc/mark-next-like-this          |
 ;; | C-?          | transparency-set-value          |
 ;; |              | (overridden by undo-tree-redo)  |
 ;; | C-S-p        | shrink-window                   |
@@ -2551,19 +2605,18 @@ DIR/subdir.el がある場合は、それを実行し、DIR下のディレクト
 ;; http://www.masteringemacs.org/articles/2011/02/08/mastering-key-bindings-emacs/
 ;; (Emacs Lisp manual 21.7 Reading Input)
 
-;;;; 外部ライブラリ設定
-
-;;; ac-ja (elpa)
+;;; 外部ライブラリ設定
+;;;; ac-ja (elpa)
 ;; 日本語自動補完
 ;; ホームディレクトリに SKK-JISYO.L のリンクを入れておく。
 
-;;; ac-js2 (elpa)
+;;;; ac-js2 (elpa)
 ;; js2-mode に自動的にフックされる。
 
-;;; ac-math (elpa)
+;;;; ac-math (elpa)
 ;; (add-to-list 'ac-modes 'latex-mode)
 
-;;; ace-jump-mode (elpa)
+;;;; ace-jump-mode (elpa)
 ;; 画面中で高速に指定した場所に移動する。
 (when (require 'ace-jump-mode nil t)
   (defun add-keys-to-ace-jump-mode (prefix c &optional mode)
@@ -2578,7 +2631,7 @@ DIR/subdir.el がある場合は、それを実行し、DIR下のディレクト
   ;;(loop for c from ?0 to ?9 do (add-keys-to-ace-jump-mode "A-M-" c 'word))
   ;;(loop for c from ?a to ?z do (add-keys-to-ace-jump-mode "A-M-" c 'word)))
 
-;;; ack-and-a-half (elpa)
+;;;; ack-and-a-half (elpa)
 ;; http://technosorcery.net/blog/2011/04/02/a-better-emacs-front-end-to-ack/
 (when (setq ack-and-a-half-executable
             (or (executable-find "ack")
@@ -2590,27 +2643,27 @@ DIR/subdir.el がある場合は、それを実行し、DIR下のディレクト
     (defalias 'ack-find-file 'ack-and-a-half-find-file)
     (defalias 'ack-find-file-same 'ack-and-a-half-find-file-same)))
 
-;;; all-ext (elpa)
+;;;; all-ext (elpa)
 (lazyload () "all"
   (require 'all-ext nil t))
 
-;;; alpha (elpa)
+;;;; alpha (elpa)
 ;; 透明度は90%に設定しておく。
 ;; (global-set-key (kbd "C-?") 'transparency-set-value)
 ;; the two below let for smooth transparency control
-;; (global-set-key (kbd "C->") 'transparency-increase)
-;; (global-set-key (kbd "C-<") 'transparency-decrease)
+(global-set-key (kbd "M-C->") 'transparency-increase)
+(global-set-key (kbd "M-C-<") 'transparency-decrease)
 (when (require 'alpha nil t)
   (transparency-set-value 90))
 
-;;; anaphora (elpa)
+;;;; anaphora (elpa)
 ;; anaphoric macro は便利だが、これでelispコードを書くと、anaphoraがな
 ;; い環境で動作しなくなる。
 ; (require 'anaphora nil t)
 
-;;; ansi (elpa)
+;;;; ansi (elpa)
 
-;;; anthy
+;;;; anthy
 (when (and (or (eq window-system 'x) (null window-system))
            (locate-library "anthy")
            (executable-find "anthy-agent")
@@ -2634,31 +2687,31 @@ DIR/subdir.el がある場合は、それを実行し、DIR下のディレクト
 ;;   ("f[" . "ば") ("v[" . "び") ("2[" . "ぶ") ("^[" . "べ") ("-[" . "ぼ")
 ;;   ("f]" . "ぱ") ("v]" . "ぴ") ("2]" . "ぷ") ("^]" . "ぺ") ("-]" . "ぽ")))
 
-;;; asn1-mode
+;;;; asn1-mode
 ;(autoload 'asn1-mode "asn1" "Major mode to edit ASN.1/GDMO files." t )
 ;(add-to-list 'auto-mode-alist '("\\.mo$" . asn1-mode))
 
-;;; AUCTeX (elpa)
+;;;; AUCTeX (elpa)
 ;; http://oku.edu.mie-u.ac.jp/~okumura/texfaq/auctex.html
 
-;;; auto-compile (elpa)
+;;;; auto-compile (elpa)
 ;; elisp を保存する際に自動的にコンパイルする。
 (and (functionp 'auto-compile-mode)
      (add-hook 'emacs-lisp-mode-hook 'auto-compile-mode))
 
-;;; auto-complete (elpa)
+;;;; auto-complete (elpa)
 ;; http://cx4a.org/software/auto-complete/manual.ja.html
 (when (require 'auto-complete nil t)
   (require 'auto-complete-config)
   ;; (add-to-list 'ac-dictionary-directories (expand-file-name "dict" pdir))
   (ac-config-default))
 
-;;; auto-save-buffers
+;;;; auto-save-buffers
 (defun auto-save-file-name-p (filename)
   (or (string-match "^#.*#$" filename)
       (string-match "\\.passwd$" filename)))
 
-;;; bbdb (elpa)
+;;;; bbdb (elpa)
 ;; 前準備
 ;; BBDB での名前のソーティングを日本語ベースにする（kakasiを使用）
 ;; 全ての日本語（半角カナ含む）を「ひらがな」に直す関数
@@ -2690,9 +2743,11 @@ DIR/subdir.el がある場合は、それを実行し、DIR下のディレクト
           (set-buffer old-buffer)))))
 
 (lazyload ((bbdb "C-:")  bbdb-create) "bbdb-com"
-  (setq bbdb-pop-up-window-size 0.2) ;; 0.5
+  (setq bbdb-message-pop-up 'horiz) ;; 'horizでサマリバッファの横に出る。
+  (setq bbdb-pop-up-window-size 0.2) ;; 0.5 / 4
   (setq bbdb-file "~/.emacs.d/.bbdb.gpg")
   (setq bbdb-message-mail-as-name nil)
+  (setq bbdb-phone-style nil) ;; NANP (north american numbering plan) は使用しない。
   (setq bbdb-default-country "") ;; Japan, Emacs, etc
   ;; 日本の〒番号フォーマットを追加
   (add-to-list 'bbdb-legal-postcodes "^〒?[0-9]\\{3\\}-[0-9]\\{4\\}$")
@@ -2820,7 +2875,7 @@ DIR/subdir.el がある場合は、それを実行し、DIR下のディレクト
                   " " 'display
                   (create-image (car fnames) nil nil :height 100))))))
 
-;;; bookmark+ (elpa)
+;;;; bookmark+ (elpa)
 ;; タグ付き、
 ;; C-x pm (rm) … bookmark-set （名前を入力）
 ;; C-x pg (rb) … bookmark-jump
@@ -2837,32 +2892,32 @@ DIR/subdir.el がある場合は、それを実行し、DIR下のディレクト
   (setq bmkp-last-as-first-bookmark-file "~/.emacs.d/bookmarks")
   (setq bmkp-bmenu-state-file "~/.emacs.d/.emacs-bmk-bmenu-state.el"))
 
-;;; browse-kill-ring (elpa)
+;;;; browse-kill-ring (elpa)
 ;; helm-kill-rings を使うので不要。
 
-;;; browse-url-dwim (elpa)
+;;;; browse-url-dwim (elpa)
 ;; Context-sensitive external browse URL
 
-;;; c-eldoc (elpa)
+;;;; c-eldoc (elpa)
 (when (functionp 'c-turn-on-eldoc-mode)
   (add-hook 'c-mode-hook 'c-turn-on-eldoc-mode))
 
-;;; caml (elpa)
+;;;; caml (elpa)
 
-;;; calfw (elpa)
+;;;; calfw (elpa)
 
-;;; calfw-gcal (elpa)
+;;;; calfw-gcal (elpa)
 
-;;; cdlatex
+;;;; cdlatex
 (when (functionp 'turn-on-cdlatex)
   (add-hook 'LaTeX-mode-hook 'turn-on-cdlatex)
   (add-hook 'latex-mode-hook 'turn-on-cdlatex))
 ;; org-mode でも、M-x org-cdlatex-mode で利用可能。
 
-;;; clojure-mode (elpa)
+;;;; clojure-mode (elpa)
 ;; http://github.com/jochu/clojure-mode
 
-;;; color-moccur (elpa)
+;;;; color-moccur (elpa)
 ;; http://www.bookshelf.jp/soft/meadow_49.html#SEC669
 ;; replace.el list-matching-lines → occur
 ;;            → color-moccur
@@ -2900,57 +2955,15 @@ DIR/subdir.el がある場合は、それを実行し、DIR下のディレクト
   ;;(define-key Buffer-menu-mode-map "O" 'Buffer-menu-moccur))
   )
 
-;;; color-theme (elpa)
-;; Emacs 24 theme に移行するため使用中止。
-;;(when (require 'color-theme nil t)
-;;  ;; 全てのELPAのcolor-themeを読み込む。
-;;  ;; (color-theme-actress は古いyasnippetを使い、エラーを起こすから使用不可。)
-;;  (fset 'color-theme-snapshot (color-theme-make-snapshot))
-;;  (dolist (dir load-path)
-;;    (when (file-directory-p dir)
-;;      (dolist (file (file-name-all-completions "color-theme-" dir))
-;;        (when (string-match "^\\(.+\\)-autoloads.el" file)
-;;          (let ((theme (match-string 1 file)))
-;;            (unless (featurep (intern theme))
-;;              ;; provide していないテーマも多いので require でなく load する。
-;;              (load-library theme)))))))
-;;  (color-theme-initialize)
-;;  ;; デフォルトのカラーテーマ
-;;  ;;(color-theme-lawrence)
-;;
-;;  ;; テーマを色々と変更できるようにする。
-;;  (defvar color-theme-set
-;;    (set-difference
-;;     (sort
-;;      (cdr (cdr (mapcar 'car color-themes)))
-;;      (lambda (x y) (string< (symbol-name y) (symbol-name x) )))
-;;     '(;; 見にくい、または使いたくないthemeをここに書く。
-;;       color-theme-mistyday
-;;       color-theme-emacs-nw
-;;       color-theme-gnome
-;;       )))
-;;
-;;  (defun rotate-color-theme (&optional direction)
-;;    (color-theme-snapshot)
-;;    (setq color-theme-set
-;;          (if direction (list-rotate-backward color-theme-set)
-;;            (list-rotate-forward color-theme-set)))
-;;    (let ((color-theme (car color-theme-set)))
-;;      (if (functionp color-theme) (funcall color-theme))
-;;      color-theme))
-;;
-;;  (add-to-list 'rotate-command-set
-;;               '(rotate-color-theme . "Color Theme") t))
-
-;;; codepage 51932 設定
+;;;; codepage 51932 設定
 (require 'cp5022x nil t)
 (when (coding-system-p 'cp51932)
   (define-coding-system-alias 'euc-jp 'cp51932))
 
-;;; ctable (elpa)
+;;;; ctable (elpa)
 ;; Table component for Emacs Lisp
 
-;;; cygwin-mount (elpa)
+;;;; cygwin-mount (elpa)
 ;; cygwin風のファイル名をWindows風に加えて使えるようにする。
 (when (equal system-type 'windows-nt)
   (lazyload () "cygwin-mount"
@@ -2958,17 +2971,17 @@ DIR/subdir.el がある場合は、それを実行し、DIR下のディレクト
           (concat (getenv "CYGWIN_DIR") "\\bin"))
     (cygwin-mount-activate)))
 
-;;; dabbrev-ja
+;;;; dabbrev-ja
 ;; 使用中止
 
-;;; dash (elpa)
+;;;; dash (elpa)
 ;; !cons, !cdr, -each, -each-while, -dotimes, -map, etc.
 
-;;; deferred (elpa)
+;;;; deferred (elpa)
 
-;;; dict-tree (elpa)
+;;;; dict-tree (elpa)
 
-;;; dired+ (elpa)
+;;;; dired+ (elpa)
 (lazyload () "dired"
   (when (require 'dired+ nil t)
     ;; dired+が頻用キーを奪うのを無効化。
@@ -2980,20 +2993,23 @@ DIR/subdir.el がある場合は、それを実行し、DIR下のディレクト
   (define-key dired-mode-map "\M-o" nil)
   (define-key dired-mode-map "\C-\M-o" 'dired-omit-mode))
 
-;;; doc-mode (elpa)
+;;;; doc-mode (elpa)
 
-;;; doxymacs
+;;;; doxymacs
 ;; doxygen mode for emacs.
 ;;(if (locate-library "doxymacs")
 ;;    (require 'doxymacs))
 
-;;; durendal (elpa)
+;;;; durendal (elpa)
 ;; slime-clj が必要。
 ;; A bucket of tricks for Clojure and Slime.
 ;(when (require 'durendal nil t)
 ;  (durendal-enable))
 
-;;; ebib (elpa)
+;;;; ew2m (elpa)
+(when (require 'e2wm nil t)
+  (global-set-key (kbd "M-+") 'e2wm:start-management))
+;;;; ebib (elpa)
 (lazyload ((ebib "C-x M-b")) "ebib"
   (setq ebib-rc-file "~/.emacs.d/ebibrc.el"
         ebib-preload-bib-search-dirs my-bibtex-directories
@@ -3010,21 +3026,21 @@ DIR/subdir.el がある場合は、それを実行し、DIR下のディレクト
   (ebib-key index "p" ebib-prev-entry)
   (ebib-key index "N" ebib-search-next))
 
-;;; edbi (elpa)
+;;;; edbi (elpa)
 ;; Emacs Database Interface
 
-;;; elscreen
+;;;; elscreen
 ;;(setq elscreen-prefix-key "\C-c\C-c") ; Old copy-to-register
 ;;(require 'elscreen nil t)
 
-;;; ess (elpa)
+;;;; ess (elpa)
 ;; Emacsの強力なRフロントエンド
 ;; org-babel の ob-R で使用。
 
-;;; esxml (elpa)
+;;;; esxml (elpa)
 ;; XML/XHTML の動的生成
 
-;;; evernote-mode
+;;;; evernote-mode
 ;; evernote-mode は、autoload時 に ruby へのアクセスをして（お行儀が悪
 ;; い）、rubyがインストールされていない環境では回避不可なエラーを出すの
 ;; で当面は利用中止。
@@ -3043,26 +3059,12 @@ DIR/subdir.el がある場合は、それを実行し、DIR下のディレクト
 ;;  (global-set-key "\C-cep" 'evernote-post-region)
 ;;  (global-set-key "\C-ceb" 'evernote-browser))
 
-;;; flymake-css (elpa)
-
-;;; flymake-csslint (elpa)
-
-;;; flymake-jslint (elpa)
-
-;;; flymake-ruby (elpa)
+;;;; flymake-ruby (elpa)
 ;; M-x flymake-ruby-load
 (lazyload () "ruby-mode"
   (add-hook 'ruby-mode-hook 'flymake-ruby-load))
 
-;;; flymake-sass (elpa)
-
-;;; fold-dwim (elpa)
-;;; fold-dwim-org (elpa)
-;; outline-minor-mode に、org-cylcle を追加すれば十分用を足せる。
-
-;;; font-utils (elpa)
-
-;;; frame-cmds (elpa)
+;;;; frame-cmds (elpa)
 (lazyload (frame-to-right) "frame-cmds"
   (defun frame-to-right ()
     "現在のフレームの大きさを全画面の半分にして右に配置する。"
@@ -3073,24 +3075,24 @@ DIR/subdir.el がある場合は、それを実行し、DIR下のディレクト
     (call-interactively
      'move-frame-to-screen-right)))
 
-;;; graphviz-dot-mode (elpa)
+;;;; graphviz-dot-mode (elpa)
 
-;;; gtags (GNU Global) (elpa)
+;;;; gtags (GNU Global) (elpa)
 (setq gtags-suggested-key-mapping t)
 (when (functionp 'gtags-mode)
   (add-hook 'c-mode-hook
             (lambda ()
               (gtags-mode t))))
 
-;;; haml-mode (elpa)
+;;;; haml-mode (elpa)
 ;; HTMLやそのテンプレートをより見やすい構文で扱う。
 ;; RoRやmerbで扱える。
 
-;;; haskell-mode (elpa)
+;;;; haskell-mode (elpa)
 ;; Haskell の関数名を、実際の記号に置換するfont-lock
 (setq haskell-font-lock-symbols 'unicode)
 
-;;; helm (elpa)
+;;;; helm (elpa)
 ;; * 解説等
 ;;   - https://github.com/emacs-helm/helm/wiki
 ;;   - http://d.hatena.ne.jp/syohex/20121207/1354885367
@@ -3106,16 +3108,23 @@ DIR/subdir.el がある場合は、それを実行し、DIR下のディレクト
 (defvar helm-command-map) ;; compile-error 避け
 (when (and (require 'helm-config nil t)
            (require 'helm nil t))
-  ;(require 'helm-migemo nil t)
+  ;;(require 'helm-migemo nil t)
   (global-set-key (kbd "M-X") helm-command-map) ; <hcm>=helm-command-map
   (global-set-key (kbd "C-;") 'helm-for-files) ; <hcm> f
   (global-set-key (kbd "C-M-;") 'helm-recentf) ; <hcm> C-c f
   (global-set-key (kbd "C-M-y") 'helm-show-kill-ring) ; <hcm> M-y
   ;; Infoファイルへジャンプ
   (define-key helm-command-map (kbd "h e") 'helm-info-elisp)
-  (define-key helm-command-map (kbd "h c") 'helm-info-cl))
+  (define-key helm-command-map (kbd "h c") 'helm-info-cl)
+  (define-key helm-command-map (kbd "h o") 'helm-info-org)
+  ;; helm-google-suggest
+  (setq helm-google-suggest-use-curl-p (executable-find "curl"))
+  (setq helm-google-suggest-search-url
+        "http://www.google.co.jp/search?hl=ja&num=100&as_qdr=y5&lr=lang_ja&ie=utf-8&oe=utf-8&q=")
+  (setq helm-google-suggest-url
+        "http://google.co.jp/complete/search?ie=utf-8&oe=utf-8&hl=ja&output=toolbar&q=")
+  )
 (global-set-key (kbd "C-z") help-map) ; 復旧
-;;
 ;; * helm で quail を使うには
 ;;   helm は、override-keymaps を設定するがこれが設定されていると
 ;;   quail はキーイベントを素通ししてしまうので使えない。以下で修正。
@@ -3137,46 +3146,46 @@ DIR/subdir.el がある場合は、それを実行し、DIR下のディレクト
 ;;      (quail-setup-overlays (quail-conversion-keymap))
 ;;      (let ((modified-p (buffer-modified-p))
 
-;;; helm-c-moccur (elpa)
+;;;; helm-c-moccur (elpa)
 (lazyload () "helm-config"
   (when (require 'color-moccur nil t)
     (require 'helm-c-moccur nil t)
     ;; <hcm> m で helm-occur
     (define-key helm-command-map "o" 'helm-c-moccur-occur-by-moccur)))
 
-;;; helm-c-yasnippet (elpa)
+;;;; helm-c-yasnippet (elpa)
 (lazyload () "helm-config"
   (require 'helm-c-yasnippet nil t)
   (define-key helm-command-map "y" 'helm-c-yas-complete))
 
-;;; helm-descbinds (elpa)
+;;;; helm-descbinds (elpa)
 ;; errorが起きるので利用中止。
 ;;(when (require 'helm-descbinds nil t)
 ;;  (define-key helm-command-map "d" 'helm-descbinds))
 
-;;; helm-git-find-files (elpa)
+;;;; helm-git-find-files (elpa)
 (lazyload () "helm-config"
   (require 'helm-git-find-files nil t)
   (define-key helm-command-map "g" 'helm-git-find-files))
 
-;;; helm-gtags (elpa)
+;;;; helm-gtags (elpa)
 (lazyload () "helm-config"
   (require 'helm-gtags nil t)
   (define-key helm-command-map "\M-t" 'helm-gtags-select))
 
-;;; helm-themes (elpa)
+;;;; helm-themes (elpa)
 ;; 旧テーマ解除機能がないため使いにくいので使用中止。
 ;;(when (require 'helm-themes nil t)
 ;;  (define-key helm-command-map "\M-t" 'helm-gtags-select))
 
-;;; hiwin
+;;;; hiwin
 ;; http://d.hatena.ne.jp/ksugita0510/20111223/p1
 ;; 現在のウィンドウをハイライトする。
 ;; 行をハイライトすれば、それでアクティブな画面が分かりやすいのでこれは不要か。
 ;;(require 'hiwin nil t)
 ;;(hiwin-activate) ;; (hiwin-deactivate)
 
-;;; howm
+;;;; howm
 ;; haskell-mode との衝突に注意。haskell-mode のあとで、howmを読み込むこと。
 (setq howm-directory "~/Dropbox/howm/")
 (lazyload (howm-list-all
@@ -3215,19 +3224,19 @@ DIR/subdir.el がある場合は、それを実行し、DIR下のディレクト
           (set-buffer (org-capture-target-buffer file)))))
      "* %t\n**%?"))))
 
-;;; htmlize
+;;;; htmlize
 ;; htmlfontify があるがこちらが便利。
 ;;(setq htmlize-output-type 'font)
 ;;(setq htmlize-convert-nonascii-to-entities nil)
 ;;(setq htmlize-html-charset 'utf-8)
 
-;;; hfyview
+;;;; hfyview
 ;; htmlfontify を使って、バッファをブラウザで開く。（印刷向け）
 ;; commands `hfyview-buffer', `hfyview-region', `hfyview-frame'
 (lazyload (hfyview-buffer hfyview-region hfyview-frame) "hfyview")
 
-;;; IIMECF
-;;(setq iiimcf-server-control-hostlist 
+;;;; IIMECF
+;;(setq iiimcf-server-control-hostlist
 ;;      (list (concat "/tmp/.iiim-" (user-login-name) "/:1.0")))
 ;;(when nil ;(and (= 0 (shell-command
 ;;          ;          (concat
@@ -3275,7 +3284,7 @@ DIR/subdir.el がある場合は、それを実行し、DIR下のディレクト
 ;;  ;;(iiimp-debug)
 ;;  )
 
-;;; imaxima
+;;;; imaxima
 ;; breqn.sty が必要なので注意すること。
 (when (and (locate-library "imath")
            (executable-find "maxima")
@@ -3283,53 +3292,64 @@ DIR/subdir.el がある場合は、それを実行し、DIR下のディレクト
   (autoload 'imaxima "imaxima" "Image support for Maxima." t)
   (autoload 'imath-mode "imath" "Interactive Math minor mode." t))
 
-;;; image+ (elpa)
+;;;; image+ (elpa)
 ;; 画像の拡大・縮小（要ImageMagick）
 
-;;; inf-ruby (elpa)
+;;;; inf-ruby (elpa)
 ;; M-x run-ruby
 
-;;; japanese-holidays
+;;;; japanese-holidays
 (eval-after-load "calendar"
   '(load-library "japanese-holidays"))
 
-;;; jd-el
+;;;; jd-el
 ;; http://julien.danjou.info/google-maps-el.html
 ;;(when (locate-library "google-maps")
 ;;  (autoload 'google-maps "google-maps" "" t))
 
-;;; js2-mode (elpa)
-;; mooz/js2-mode が良い。
+;;;; js2-mode (elpa)
+(lazyload ((auto-mode-alist '("\\.js$" . js2-mode))) "js2-mode"
+  ;(setq js2-consistent-level-indent-inner-bracket-p 1)
+  ;(add-hook 'js2-mode-hook
+  ;          '(lambda ()
+  ;             (js2-indent-line js2-basic-offset) ))
+  ;(add-hook 'js2-mode-hook
+  ;          '(lambda ()
+  ;             (local-set-key (kbd "RET") 'reindent-then-newline-and-indent)))
+  ;; 後で確認
+  ;(when (locate-library "smart-tabs-mode")
+  ;  (add-hook js2-mode-hook 'smart-tabs-advice)
+  )
 
-;;; js-comint (elpa)
+;;;; js-comint (elpa)
 (setq inferior-js-program-command
       (or (executable-find "js")
           (executable-find "rhino")))
 
-;;; keisen-mule
-;; 罫線描画モードだが、現在は異常が発生するので使うのは見合わせる。
+;;;; keisen-mule
+;; 罫線描画モード。Emacs 22以降は利用不可能。
 ;;(when nil ; (locate-library "keisen-mule")
 ;;  (if window-system
 ;;      (autoload 'keisen-mode "keisen-mouse" "MULE 版罫線モード + マウス" t)
 ;;    (autoload 'keisen-mode "keisen-mule" "MULE 版罫線モード" t)))
 
-;;; kill-summary
+;;;; kill-summary
 ;; Emacs 22 からは、truncate-string を、truncate-string-to-width に変更。
 ;;(when (locate-library "kill-summary")
 ;;  (if (functionp 'truncate-string-to-width)
 ;;      (defalias 'truncate-string 'truncate-string-to-width))
 ;;  (autoload 'kill-summary "kill-summary" nil t))
 
-;;; less-css-mode (elpa)
+;;;; less-css-mode (elpa)
 
-;;; lilypond-mode
+;;;; lilypond-mode
 (when (locate-library "lilypond-init" t)
   (autoload 'LilyPond-mode "lilypond-mode" "LilyPond Editing Mode" t)
   (add-to-list 'auto-mode-alist '("\\.ly$" . LilyPond-mode))
   (add-to-list 'auto-mode-alist '("\\.ily$" . LilyPond-mode))
   (add-hook 'LilyPond-mode-hook (lambda () (turn-on-font-lock))))
 
-;;; list-register
+;;;; list-register
 ;; レジスタを見やすく一覧表示。
 ;;(when (locate-library "list-register")
 ;;  (autoload 'my-jump-to-register "list-register" "list-register." t)
@@ -3339,7 +3359,7 @@ DIR/subdir.el がある場合は、それを実行し、DIR下のディレクト
 ;;  (global-set-key "\C-ci" 'list-register)
 ;;  )
 
-;;; lookup
+;;;; lookup
 ;; Emacs終了時にLookupでエラーが出る場合は、
 ;;   (remove-hook 'kill-emacs-hook 'lookup-exit)
 ;; を実行する。
@@ -3355,11 +3375,11 @@ DIR/subdir.el がある場合は、それを実行し、DIR下のディレクト
                     :protocol "lookup"
                     :function lookup-word))))
 
-;;; lua-mode (elpa)
+;;;; lua-mode (elpa)
 
-;;; mac-print-mode.el
+;;;; mac-print-mode.el
 
-;;; MacUIM (1.6.2)
+;;;; MacUIM (1.6.2)
 ;; http://code.google.com/p/macuim/
 ;; Macintosh Only
 (let ((uim-el "/Library/Frameworks/UIM.framework/Versions/Current/share/emacs/site-lisp/uim-el")
@@ -3384,7 +3404,7 @@ DIR/subdir.el がある場合は、それを実行し、DIR下のディレクト
 ;; 動かない場合がある。(uim-im-alistが空。)
 ;; その場合は、MacUIMを再度インストールすること。
 
-;;; magit (elpa)
+;;;; magit (elpa)
 ;; git のマージの方法
 ;; git remote add -f 2SC1815J git://github.com/2SC1815J/aozora-fix.git
 ;; git checkout -b 2SC1815J/fix
@@ -3394,7 +3414,7 @@ DIR/subdir.el がある場合は、それを実行し、DIR下のディレクト
 ;; git push origin fix
 (lazyload ((magit-status "M-g s")) "magit")
 
-;;; Malabar
+;;;; Malabar
 ;; （$ git clone https://github.com/espenhw/malabar-mode.git）
 ;; 上記は2012年現在、メンテナンスされていない。
 ;; $ git clone https://github.com/buzztaiki/malabar-mode
@@ -3429,9 +3449,9 @@ DIR/subdir.el がある場合は、それを実行し、DIR下のディレクト
                    (add-hook 'after-save-hook 'malabar-compile-file-silently
                              nil t))))))
 
-;;; markchars (elpa)
+;;;; markchars (elpa)
 
-;;; markdown-mode (elpa)
+;;;; markdown-mode (elpa)
 ;; 詳細は http://jblevins.org/projects/markdown-mode/
 ;; GitHub Flavored Markdown Mode (gfm-mode) にする。
 (when (executable-find "multimarkdown")
@@ -3439,14 +3459,14 @@ DIR/subdir.el がある場合は、それを実行し、DIR下のディレクト
     (setq markdown-command "multimarkdown"))
   (add-to-list 'auto-mode-alist '("\\.md$" . gfm-mode)))
 
-;;; mediawiki (elpa)
+;;;; mediawiki (elpa)
 ;; リンクや文字修飾などのMediaWikiを編集するための便利機能が多数。
 ;; M-x mediawiki-mode
 ;; M-x mediawiki-open
 ;; M-x mediawiki-draft
 
-;;; migemo
-;;; cmigemo search
+;;;; migemo
+;;;; cmigemo search
 ;; https://github.com/Hideyuki-SHIRAI/migemo-for-ruby1.9
 ;; 上記の migemo.el を利用する。
 ;; ($ sudo apt-get install mercurial)
@@ -3507,15 +3527,15 @@ DIR/subdir.el がある場合は、それを実行し、DIR下のディレクト
   ;    '(require 'kogiku)))
   (migemo-init))
 
-;;; mic-paren (elpa)
+;;;; mic-paren (elpa)
 ;; show-paren の拡張
 ;; エラーが頻発するので使用中止。
 ;;(when (functionp 'paren-activate)
 ;;  (paren-activate))
 
-;;; mmm-mode (elpa)
+;;;; mmm-mode (elpa)
 
-;;; mode-info
+;;;; mode-info
 ;; ruby reference manual などは別途取得する。
 ;; emacs 23 で、 make install-index すると、
 ;; /usr/local/share/emacs/23.0.60/etc/mode-info/ にインデックスファイルが入る。
@@ -3535,7 +3555,7 @@ DIR/subdir.el がある場合は、それを実行し、DIR下のディレクト
 ;;      (require 'mi-config)
 ;;      (require 'mi-fontify))))
 
-;;; moz
+;;;; moz
 ;; MozRepl との連携
 ;; C-c C-s: open a MozRepl interaction buffer and switch to it
 ;; C-c C-l: save the current buffer and load it in MozRepl
@@ -3547,7 +3567,7 @@ DIR/subdir.el がある場合は、それを実行し、DIR下のディレクト
   (defun javascript-custom-setup ()
     (moz-minor-mode 1)))
 
-;;; mozc
+;;;; mozc
 (when (and (not (equal window-system 'mac))
            (or (require 'mozc "/usr/share/emacs/site-lisp/emacs-mozc/mozc.elc" t)
                (require 'mozc "/usr/share/emacs/site-lisp/emacs-mozc/mozc.el" t)
@@ -3555,7 +3575,7 @@ DIR/subdir.el がある場合は、それを実行し、DIR下のディレクト
            (executable-find "mozc_emacs_helper"))
   (setq default-input-method 'japanese-mozc))
 
-;;; multi-term (elpa)
+;;;; multi-term (elpa)
 ;; (1) たくさんのバッファを同時に開くことができる。
 ;; (2) zshの補完機能とshell の標準出力編集機能を同時に使うことができる。
 ;; ただし、独自の`eterm-color'と呼ばれるターミナルを使うので、以下のコ
@@ -3578,21 +3598,23 @@ DIR/subdir.el がある場合は、それを実行し、DIR下のディレクト
            (add-to-list 'term-unbind-key-list "M-f"))))
 (defalias 'mt 'multi-term)
 
-;;; multiple-cursors (elpa)
+;;;; multiple-cursors (elpa)
 ;; カーソルを分身させ同時に同じ環境で編集できる。
 ;; - Emacsでリファクタリングに超絶便利なmark-multiple
 ;;   http://d.hatena.ne.jp/tuto0621/20121205/1354672102
 ;;   http://emacsrocks.com/e13.html
-;;   mark-multiple → multiple-cursors
 (require 'multiple-cursors nil t)
+(global-set-key (kbd "C->") 'mc/mark-next-like-this)
+(global-set-key (kbd "C-<") 'mc/mark-previous-like-this)
+(global-set-key (kbd "C-c *") 'mc/mark-all-like-this)
 
-;;; nav
+;;;; nav
 ;; http://d.hatena.ne.jp/wocota/20091001/1254411232
 ;; ディレクトリナビゲータ
 (when (locate-library "nav")
   (autoload 'nav-toggle "nav" "nav" t nil))
 
-;;; navi
+;;;; navi
 ;; navi はバッファの概略を表示するパッケージ。
 ;; outline-mode で代替できるので不要。
 ;(when (locate-library "navi")
@@ -3603,7 +3625,7 @@ DIR/subdir.el がある場合は、それを実行し、DIR下のディレクト
 ;    (interactive)
 ;    (navi (buffer-name))))
 
-;;; navi2ch
+;;;; navi2ch
 ;; * インストール
 ;;   % cp *.el *.elc ~/.emacs.d/site-lisp/navi2ch/
 ;;   % cp icons/* ~/.emacs.d/etc/navi2ch/icons
@@ -3634,34 +3656,36 @@ DIR/subdir.el がある場合は、それを実行し、DIR下のディレクト
              (locate-library "navi2ch-oyster-setup.el.gpg"))
     (load-library "my-navi2ch-oyster-setup.el.gpg")))
 
-;;; nethack
+;;;; nethack
 (when (executable-find "jnethack")
   (lazyload (nethack) "nethack"
     (add-to-list 'process-coding-system-alist
                  '("nethack" euc-jp . euc-jp))
     (setq nethack-program "jnethack")))
 
-;;; nxhtml-mode
+;;;; nxhtml-mode
 ;; 本ディレクトリには".nosearch"があるので、本来は読み込めない。
 ;(when (locate-library "nxhtml/autostart")
 ;  (load-library "nxhtml/autostart"))
 
-;;; nyan-mode (elpa)
+;;;; nyan-mode (elpa)
 
-;;; oneliner
+;;;; oneliner
 ; http://oneliner-elisp.sourceforge.net
 ;(require 'oneliner nil t)
 
-;;; org/org
+;;;; org/org
 ;;
-;; - 基本記法
+;; * 基本記法
 ;;   *bold*, /italic/, _underlined_, =code=, ~verbatim~,  +strike-through+.
 ;;   [[link][title]] [[*link in org-file]]
-;; - スケジュール設定
+;; * スケジュール設定
 ;;   C-c C-d (org-deadline)
 ;;   C-c C-s (org-schedule)
 ;;   C-'     (org-cycle-agenda-files)
-;; - org-mode の ELPA版・Emacs標準添付版のパスを削除する。
+;; * Easy Templates (snippets)
+;;   行頭で `<' `<TAB>' `s' 等。 org-structure-template-alist 参照
+;; * org-mode の ELPA版・Emacs標準添付版のパスを削除する。
 ;;  （contrib に含まれているツールをつかうため。）
 (setq load-path
       (cl-delete-if (lambda (x) (or (string-match "/elpa/org-20" x)
@@ -3675,6 +3699,9 @@ DIR/subdir.el がある場合は、それを実行し、DIR下のディレクト
 (global-set-key (kbd "C-c c") 'org-capture)
 (global-set-key (kbd "C-c a") 'org-agenda)
 (global-set-key (kbd "C-c b") 'org-iswitchb)
+;; [[info:org#External links][org link]]
+(global-set-key (kbd "C-c O") 'org-open-at-point-global)
+(global-set-key (kbd "C-c L") 'org-insert-link-global)
 ;;
 ;; org-mode で使用する数学記号パッケージの一覧
 ;; 一覧は http://milde.users.sourceforge.net/LUCR/Math/unimathsymbols.pdf 参照
@@ -3688,7 +3715,7 @@ DIR/subdir.el がある場合は、それを実行し、DIR下のディレクト
   (define-key org-mode-map "\C-c\M-o" 'org-open-at-point)
   ;; #+STARTUP: indent 相当。自動的にインデントする。必須。
   (setq org-startup-indented t)
-  (setq org-directory "~/Dropbox/org/")
+  (setq org-directory "~/org/")
   ;; テンプレートについては、すでに org-structure-template-alist で定義
   ;; されている。
   (setq org-hide-leading-stars t)
@@ -3727,29 +3754,38 @@ DIR/subdir.el がある場合は、それを実行し、DIR下のディレクト
   ;; org-clock
   (org-clock-persistence-insinuate))
 
-;;; org/org-agenda
+;;;; org/org-agenda
 
-;;; org/org-capture
+;;;; org/org-capture
 (lazyload () "org-capture"
   ;; http://orgmode.org/manual/Capture-templates.html#Capture-templates
   (setq org-capture-templates
-        '(("w" "仕事" entry
+        '(("w" "work/今日の仕事" entry
            (file+headline "work/work.org.txt" "今日の仕事")
+           "** TODO %?\n   %i\n   %a\n   %t")
+          ("i" "work/調査・確認" entry
+           (file+headline "work/work.org.txt" "調査・確認")
+           "** TODO %?\n   %i\n   %a\n   %t")
+          ("s" "今日の作業" entry
+           (file+headline "home/home.org.txt" "今日の作業")
            "** TODO %?\n   %i\n   %a\n   %t")
           ("i" "アイデア" entry
            (file+headline "home/home.org.txt" "アイデア")
            "** %?\n   %i\n   %a\n   %t")
-          ("f" "備忘録" entry
-           (file+headline "home/home.org.txt" "備忘録")
-           "** TODO %?\n   %i\n   %a\n   %t")
           ("b" "本" entry
-           (file+headline "home/home.org.txt" "気になる本")
+           (file+headline "home/home.org.txt" "本")
            "** %?\n")
           ("k" "買い物" entry
            (file+headline "home/home.org.txt" "買い物")
            "** TODO %?\n")
           ("e" "Emacs" entry
            (file+headline "home/home.org.txt" "Emacs")
+           "** %?\n")
+          ("l" "Lookup" entry
+           (file+headline "home/home.org.txt" "Lookup")
+           "*** %?\n")
+          ("j" "JavaScript" entry
+           (file+headline "home/home.org.txt" "JavaScript")
            "** %?\n")
           ("k" "文字・言語" entry
            (file+headline "home/home.org.txt" "文字・言語")
@@ -3758,7 +3794,7 @@ DIR/subdir.el がある場合は、それを実行し、DIR下のディレクト
            (file+headline "home/home.org.txt" "Twitter")
            "\n- %?\n\n" :prepend t))))
 
-;;; org/org-clock.el
+;;;; org/org-clock.el
 ;; C-c C-x C-i     (org-clock-in)
 ;; C-c C-x C-o     (org-clock-out) ;; C-o が衝突するためM-oに変更
 ;; C-c C-x C-x     (org-clock-in-last)
@@ -3780,7 +3816,7 @@ DIR/subdir.el がある場合は、それを実行し、DIR下のディレクト
       (replace-match "\\1\\2\\3")
       (goto-char (point-at-bol)))))
 
-;;; org/org-feed
+;;;; org/org-feed
 ;; RSSリーダ
 ;; M-x org-feed-update-all
 ;; M-x org-feed-update
@@ -3788,7 +3824,7 @@ DIR/subdir.el がある場合は、それを実行し、DIR下のディレクト
 (lazyload () "org-feed"
   (setq org-feed-retrieve-method 'wget) ; wget でフィードを取得
   ;; テンプレート
-  (setq org-feed-default-template "\n* %h\n  - %U\n  - %a  - %description") 
+  (setq org-feed-default-template "\n* %h\n  - %U\n  - %a  - %description")
   ;; フィードのリストを設定する。
   (setq my-org-feeds-file (expand-file-name "feeds.org" org-directory))
   (setq org-feed-alist
@@ -3798,7 +3834,7 @@ DIR/subdir.el がある場合は、それを実行し、DIR下のディレクト
            ,my-org-feeds-file
            "Slashdot" ))))
 
-;;; org/org-protocol
+;;;; org/org-protocol
 ;; 設定方法：(http://orgmode.org/worg/org-contrib/org-protocol.html)
 ;; - MacOSX … EmacsClient.app をインストール、単独起動して、ダイアログ
 ;;             ボックスが出ている間に編集メニューから「スクリプトの編集」
@@ -3808,7 +3844,7 @@ DIR/subdir.el がある場合は、それを実行し、DIR下のディレクト
 ;; org-protocol-store-link （選択リンクをブックマークとしてコピー）
 (lazyload (org-protocol-create) "org-protocol")
 
-;;; org/ob
+;;;; org/ob
 ;; ソースコードの編集は C-c '
 ;; C-c で評価し、結果は #+RESULTに置かれる。
 (lazyload () "org"
@@ -3846,7 +3882,7 @@ DIR/subdir.el がある場合は、それを実行し、DIR下のディレクト
      ,@(and (executable-find "sqlite")
             '((sqlite . t))))))
 
-;;; org/ob-ditaa
+;;;; org/ob-ditaa
 (let ((ditaa "~/.emacs.d/program/jditaa.jar"))
     ;; Macの場合は必ず export JAVA_TOOL_OPTIONS=-Dfile.encoding=UTF-8
     ;; を実行すること。
@@ -3856,10 +3892,10 @@ DIR/subdir.el がある場合は、それを実行し、DIR下のディレクト
       (lazyload () "org"
         (add-to-list 'org-babel-load-languages '(ditaa . t)))))
 
-;;; org/ox
+;;;; org/ox
 ;; html (deck/s5/md) → (pandoc)
-;; odt (odf) → (pandoc) 
-;; latex (beamer) → (pandoc) 
+;; odt (odf) → (pandoc)
+;; latex (beamer) → (pandoc)
 ;; icalendar
 ;; taskjuggler
 ;; (pandoc) → docbook, latex, mediawiki, etc. etc...
@@ -3867,17 +3903,17 @@ DIR/subdir.el がある場合は、それを実行し、DIR下のディレクト
 (lazyload () "ox"
   (add-hook 'org-export-before-processing-hook 'remove-newlines-at-cjk-text))
 
-;;; org/ox-html
+;;;; org/ox-html
 ;; org-html-head
 ;; (setq org-html-head "<link rel='stylesheet' type='text/css' href='style.css' />")
 ;; org-html-head-extra
 ;; org-html-preamble-format
 ;; org-html-postamble-format
 
-;;; org/ox-ical
+;;;; org/ox-ical
 ;; M-x org-icalendar-combine-agenda-files
 
-;;; org/ox-latex
+;;;; org/ox-latex
 ;;
 ;; ソースコードに色を付ける方法 ::
 ;; org-export-latex-packages-alistに、"listings" と "color" が含まれる
@@ -3910,7 +3946,7 @@ DIR/subdir.el がある場合は、それを実行し、DIR下のディレクト
 
   (defun my-org-export-latex-setup (latex)
     (interactive
-     (list (intern (completing-read "engine for org-latex=? " 
+     (list (intern (completing-read "engine for org-latex=? "
                                     '("luatex" "xetex" "euptex")))))
     ;; すべてのLaTeX出力に共通なパッケージ
     (setq
@@ -3940,25 +3976,25 @@ DIR/subdir.el がある場合は、それを実行し、DIR下のディレクト
        ;; ("" "tabulary" t)
        ("" "multicol" t)
        ;; その他のデフォルトで使用するLaTeX設定
-       ,(join-string
-         "\\tolerance=1000"
-         "\\providecommand{\\alert}[1]{\\textbf{#1}}"
-         "\\fvset{xleftmargin=2em}")
+       ,(concat
+         "\\tolerance=1000\n"
+         "\\providecommand{\\alert}[1]{\\textbf{#1}}\n"
+         "\\fvset{xleftmargin=2em}\n")
        ;; XeTeXの場合、1.9999 以降は IVSが使えるので、これらに glue が
        ;; 入らないよう、キャラクタクラスを 256 にする。
        ,(when (equal latex 'xetex)
-          (join-string
-           "\\setjamainfont{HanaMinA}"
-           "\\XeTeXcharclass\"E0100=256"
-           "\\XeTeXcharclass\"E0101=256"
-           "\\XeTeXcharclass\"E0102=256"
-           "\\XeTeXcharclass\"E0103=256"
-           "\\XeTeXcharclass\"E0104=256"
-           "\\XeTeXcharclass\"E0105=256"
-           "\\XeTeXcharclass\"E0106=256"
-           "\\XeTeXcharclass\"E0107=256"
-           "\\XeTeXcharclass\"E0108=256"
-           "\\XeTeXcharclass\"E0109=256"))))
+          (concat
+           "\\setjamainfont{HanaMinA}\n"
+           "\\XeTeXcharclass\"E0100=256\n"
+           "\\XeTeXcharclass\"E0101=256\n"
+           "\\XeTeXcharclass\"E0102=256\n"
+           "\\XeTeXcharclass\"E0103=256\n"
+           "\\XeTeXcharclass\"E0104=256\n"
+           "\\XeTeXcharclass\"E0105=256\n"
+           "\\XeTeXcharclass\"E0106=256\n"
+           "\\XeTeXcharclass\"E0107=256\n"
+           "\\XeTeXcharclass\"E0108=256\n"
+           "\\XeTeXcharclass\"E0109=256\n"))))
 
     ;; 一部のLaTeX出力に特有のパッケージ（Beamerで使わないパッケージ）
     (setq
@@ -4060,7 +4096,7 @@ Allows use of the fancyvrb latex package."
   (add-to-list 'org-export-filter-final-output-functions
                'org-latex-filter-bigtabular))
 
-;;; org/ox-odt.el
+;;;; org/ox-odt.el
 ;; 出力されたodt を、MacのTextEditで開くとぐちゃぐちゃになる。
 ;; → Windows で開く。
 ;; → pandoc -o XXX.docx XXX.odt で変換する。
@@ -4073,10 +4109,99 @@ Allows use of the fancyvrb latex package."
 ;;     (if (file-directory-p style-dir)
 ;;         (setq org-odt-styles-dir style-dir))))
 
-;;; org/ox-texinfo
+;;;; org/ox-publish
+(lazyload () "ox-publish"
+  ;;
+  ;; ePub3 publishing
+  ;;
+  ;;         :org-sitemap-function
+  ;; +------------+         +--------------+
+  ;; | org-files  +-------->| sitemap.org  |
+  ;; +------+-----+         +------+-------+
+  ;;        | :publishing-function |
+  ;;        v                      v
+  ;; +------------+         +--------------+
+  ;; | html-files |         | sitemap.html |
+  ;; +------+-----+         +------+-------+
+  ;;        | :completion-function |
+  ;;        |    +-----------+     |
+  ;;        +--->| genpub.rb |<----+
+  ;;             +-----+-----+
+  ;;                   |
+  ;;                   v
+  ;;             +-----------+
+  ;;             | ePub file |
+  ;;             +-----------+
+  ;;
+  (setq org-publish-project-alist
+        ;; Sample ePUB3 publication project
+        '(("epub3-sample"
+           :base-directory "~/Dropbox/lessons/org-mode/publish/"
+           :base-extension "org"
+           :publishing-function org-html-publish-to-html
+           :publishing-directory "~/Dropbox/Public/org-publish/"
+           :auto-sitemap t
+           :sitemap-title "タイトルのテスト"
+           :sitemap-subtitle "サブタイトルのテスト"
+           :sitemap-filename "sitemap.org"
+           :with-author "山田 太郎 "
+           :with-author-reading "やまだ たろう"
+           :section-numbers nil
+           :with-toc nil
+           ;;:preparation-function my-org-publish-prep-function
+           :completion-function my-org-publish-epub3-function)))
+
+  (defun my-org-publish-epub3-function ()
+    (let* ((plist (symbol-value 'project-plist))
+           (publishing-directory (plist-get plist :publishing-directory))
+           (default-directory publishing-directory))
+      (with-temp-file (expand-file-name
+                       "generate.rb" publishing-directory)
+        (insert (my-org-publish-gepub-script plist)))
+      (message "now publishing epubs in %s..." default-directory)))
+
+  (defun my-org-publish-gepub-script (plist)
+    (cl-flet ((\, (key) (plist-get plist key)))
+      (let* ((sitemap-html (concat (file-name-sans-extension ,:sitemap-filename) ".html"))
+             (content-files
+              (nreverse
+              (with-temp-buffer
+                (insert-file-contents sitemap-html)
+                (loop while (re-search-forward "<li><a href=\"\\(.+\\)\">" nil t)
+                      collect (match-string 1))))))
+        (concat
+         "require 'gepub'\n"
+         "builder = GEPUB::Builder.new {\n"
+         "  language 'ja'\n"
+         "  unique_identifier 'http:/example.jp/bookid_in_url', 'BookID', 'URL'\n"
+         "  title '" ,:sitemap-title "'\n"
+         (when ,:sitemap-subtitle
+           (concat "  subtitle '" ,:sitemap-subtitle "'\n"))
+         "  creator '" ,:with-author "'\n"
+         "  contributors ''\n"
+         "  date '" (format-time-string "%Y-%m-%dT%T") "Z'\n"
+         "  #cover_image 'img/cover.jpg'\n"
+         "  resources(:workdir => '.') {\n"
+         "    nav '" sitemap-html "'\n"
+         "    ordered {\n"
+         (mapconcat
+          (lambda (file)
+            (concat "      file '" file "'\n"))
+          content-files "")
+         "    }\n"
+         "  }\n"
+         "}\n"
+         "epubname = File.join(File.dirname(__FILE__), 'sample.epub')\n"
+         "builder.generate_epub(epubname)\n")))))
+
+;;;; org/ox-taskjuggler
+(lazyload () "ox-taskjuggler"
+  (setq org-taskjuggler-reports-directory
+        (expand-file-name "~/org/tj-reports")))
+;;;; org/ox-texinfo
 (lazyload (org-texinfo-export-to-texinfo) "ox-texinfo")
 
-;;; org/contrib/org-bibtex-extras
+;;;; org/contrib/org-bibtex-extras
 (lazyload () "org-bibtex-extras"
   (setq obe-bibtex-file nil)
   (add-hook 'org-export-before-parsing-hook
@@ -4084,51 +4209,60 @@ Allows use of the fancyvrb latex package."
               (when (equal org-export-current-backend 'html)
                 (obe-html-export-citations)))))
 
-;;; org/contrib/ox-deck
+;;;; org/contrib/org-contacts
+(lazyload () "org-contacts"
+  (add-to-list
+   'org-capture-templates
+   `("c" "Contacts" entry (file "~/org/contacts.org")
+     ,(concat "* %(org-contacts-template-name)\n"
+              ":PROPERTIES:\n"
+              ":EMAIL: %(org-contacts-template-email)\n"
+              ":END:"))))
+;;;; org/contrib/ox-deck
 (lazyload (org-deck-export-as-html org-deck-export-to-html) "ox-deck"
-  (setq org-deck-directories (list (expand-file-name "~/Dropbox/cvs/deck.js"))
+  (setq org-deck-directories (list (expand-file-name "~/Dropbox/Public/deck.js"))
          org-deck-base-url (concat "file:" (car org-deck-directories))))
         ;;org-deck-base-url "http://imakewebthings.com/deck.js"))
 
-;;; org-octopress
+;;;; org-octopress (elpa)
 ;; TODO 画像等の static file への対応
 (lazyload (org-octopress) "org-octopress"
   (setq org-octopress-directory-top       "~/Dropbox/cvs/octopress/source"
         org-octopress-directory-posts     "~/Dropbox/cvs/octopress/source/_posts"
-        org-octopress-directory-org-top   "~/Dropbox/org/octopress"
-        org-octopress-directory-org-posts "~/Dropbox/org/octopress/blog"
-        org-octopress-setup-file          "~/Dropbox/org/octopress.org"))
+        org-octopress-directory-org-top   "~/org/octopress"
+        org-octopress-directory-org-posts "~/org/octopress/blog"
+        org-octopress-setup-file          "~/org/octopress.org"))
 
-;;; org-table-comment (elpa)
+;;;; org-table-comment (elpa)
 ;; orgtbl-mode では対応できない 非ブロックコメント形式のプログラム言語
 ;; でのテーブル入力を実現。
 ;; コメントヘッダを入力後、M-x orgtbl-comment-mode
 (global-set-key (kbd "C-c ;") 'orgtbl-comment-mode)
 
-;;; osx-osascript
+;;;; osx-osascript
 (when (locate-library "osx-osascript")
   (autoload 'osascript-run-str "osx-osascript" "Run the osascript STR."))
 
-;;; outline-magic
+;;;; outline-magic
 ;; TABの操作を全て奪われるので使用中止。
 
-;;; pandoc-mode (elpa)
+;;;; pandoc-mode (elpa)
 ;; M-x pandoc-minor-mode
 
-;;; paredit-mode (elpa)
+;;;; paredit-mode (elpa)
 ;; 非常に重くなるので必要な場面以外は使ってはいけない。
 
-;;; php-mode (elpa)
+;;;; php-mode (elpa)
 
-;;; powerline (elpa)
+;;;; powerline (elpa)
 ;; http://hico-horiuchi.com/wiki/doku.php?id=emacs:powerline
 ;; 美麗なmodelineとの触れ込みだが、仮名漢字変換が表示できないので使用しない。
 
-;;; powershell (elpa)
+;;;; powershell (elpa)
 ;; http://blogs.msdn.com/b/powershell/archive/2008/04/15/powershell-running-inside-of-emacs.aspx
 (autoload 'powershell "powershell" "Run powershell as a shell within emacs." t)
 
-;;; popwin (elpa)
+;;;; popwin (elpa)
 (when (require 'popwin nil t)
   (popwin-mode 1)
   (setq popwin:popup-window-width 24
@@ -4140,9 +4274,9 @@ Allows use of the fancyvrb latex package."
 ;(eval-after-load "popwin"
 ;  (setq display-buffer-function 'popwin:display-buffer))
 
-;;; python-mode (elpa)
+;;;; python-mode (elpa)
 
-;;; rect-mark (elpa)
+;;;; rect-mark (elpa)
 ;; 矩形選択を便利にする
 (when (locate-library "rect-mark-autoloads")
   (define-key ctl-x-map "r\C-@" 'rm-set-mark)
@@ -4151,14 +4285,14 @@ Allows use of the fancyvrb latex package."
   (define-key ctl-x-map "r\C-w" 'rm-kill-region)
   (define-key ctl-x-map "r\M-w" 'rm-kill-ring-save))
 
-;;; regexp-lock
+;;;; regexp-lock
 ;; 正規表現の \\(....\\) に対応番号を付与する elisp
 (when (locate-library "regexp-lock")
   (lazyload () "lisp-mode"
     (require 'regexp-lock)
     (add-hook 'emacs-lisp-mode-hook 'turn-on-regexp-lock-mode)))
 
-;;; riece
+;;;; riece
 ;; ;; irc.w3.org 6665
 ;; チャンネルに入る ・C-c j
 ;; 次のチャンネルへ移動 ・C-c >
@@ -4174,7 +4308,7 @@ Allows use of the fancyvrb latex package."
           ; :nickname "kawabata" :username "kawabata")
           )))
 
-;;; rnc-mode (elpa)
+;;;; rnc-mode (elpa)
 ;; http://www.pantor.com
 (lazyload ((auto-mode-alist '("\\.rnc\\'" . rnc-mode))) "rnc-mode"
   (setq rnc-indent-level 2) ;; trangの出力にあわせる。
@@ -4183,24 +4317,24 @@ Allows use of the fancyvrb latex package."
       (setq rnc-enable-flymake t
             rnc-jing-jar-file jing))))
 
-;;; rainbow-delimiters (elpa)
+;;;; rainbow-delimiters (elpa)
 ;; ネストしたカッコを色違いで表示する。
 (when (require 'rainbow-delimiters nil t)
   (global-rainbow-delimiters-mode))
 
-;;; rainbow-mode (elpa)
+;;;; rainbow-mode (elpa)
 ;; CSSなどの色指定をその色で表示する。
 (when (functionp 'rainbow-mode)
   (add-hook 'css-mode-hook
             (lambda () (rainbow-mode +1))))
 
-;;; rcode-tools
+;;;; rcode-tools
 ;;(when (locate-library "rcodetools")
 ;;  (eval-after-load 'ruby-mode
 ;;    '(progn (require 'rcodetools)
 ;;            (require 'anything-rcodetools))))
 
-;;; rd-mode / rd-mode-plus
+;;;; rd-mode / rd-mode-plus
 ;;(if (locate-library "rd-mode-plus")
 ;;    (autoload 'rd-mode "rd-mode-plus")
 ;;  (if (locate-library "rd-mode")
@@ -4215,9 +4349,9 @@ Allows use of the fancyvrb latex package."
 ;;     (defvar rd-mode-hook nil)          ; =endの“...”への置換防止
 ;;     (add-hook 'rd-mode-hook 'rd-show-other-block-all)))
 
-;;; recursive-narrow (elpa)
+;;;; recursive-narrow (elpa)
 
-;;; rsense (elpa)
+;;;; rsense (elpa)
 ;; Rubyのための開発援助ツール.
 ;;(defvar rsense-home (expand-file-name "~/src/rsense-0.3"))
 ;;(when (file-directory-p rsense-home)
@@ -4230,27 +4364,28 @@ Allows use of the fancyvrb latex package."
 ;;            (lambda ()
 ;;              (local-set-key (kbd "C-c .") 'ac-complete-rsense))))
 
-;;; ruby-mode (elpa)
+;;;; ruby-mode (elpa)
 (add-to-list 'auto-mode-alist '("Rakefile" . ruby-mode))
 
-;;; rust-mode (elpa)
+;;;; rust-mode (elpa)
 
-;;; sawfish-mode
-;;(when (locate-library "sawfish")
-;;  (autoload 'sawfish-mode "sawfish")
-;;  (add-to-list 'auto-mode-alist '("\\.jl$" . sawfish-mode)))
-
-;;; sense-region
+;;;; sense-region
 ;;(when (locate-library "sense-region")
 ;;  (autoload 'sense-region-toggle "sense-region"))
 
-;;; setup-cygwin
+;;;; setup-cygwin
 ;; Windows用のシンボリックリンクの設定など
 (when (equal system-type 'windows-nt)
-  (require 'setup-cygwin nil t)
-)
+  (require 'setup-cygwin nil t))
+;;;; setup-slime-js
+;; https://raw.github.com/magnars/.emacs.d/master/setup-slime-js.el
+(lazyload (slime-js-jack-in-node slime-js-jack-in-browser) "setup-slime-js"
+  (global-set-key [f5] 'slime-js-reload)
+  (add-hook 'js2-mode-hook
+          (lambda ()
+            (slime-js-minor-mode 1))))
 
-;;; session (elpa)
+;;;; session (elpa)
 ;; http://emacs-session.sourceforge.net/
 ;; 終了時にヒストリ関連の変数を保存
 ;; 標準の"desktop"（バッファリストなどを保存）と併用。
@@ -4275,7 +4410,7 @@ Allows use of the fancyvrb latex package."
   ;;(setq desktop-globals-to-save '(desktop-missing-file-warning))
   )
 
-;;; shell-toggle
+;;;; shell-toggle
 (when (locate-library "shell-toggle")
   (autoload 'shell-toggle "shell-toggle"
     "Toggles between the *shell* buffer and whatever buffer you are editing."
@@ -4284,7 +4419,7 @@ Allows use of the fancyvrb latex package."
     "Pops up a shell-buffer and insert a \"cd <file-dir>\" command." t)
   (global-set-key (kbd "M-c") 'shell-toggle-cd))
 
-;;; SKK
+;;;; SKK
 ;;(setq skk-user-directory (concat user-emacs-directory "/skk/"))
 ;;(eval-after-load 'skk
 ;;  '(progn
@@ -4297,10 +4432,12 @@ Allows use of the fancyvrb latex package."
 ;;     ;;(setq skk-show-inline 'vertical)
 ;;     ))
 
-;;; slime  (elpa)
-;; Superior Lisp Interaction Mode for Emacs
+;;;; slime (slime-repl)
+;; ELPA版は slime-repl が動かないのでCVS版を使う。
+;; % cvs -d :pserver:anonymous:anonymous@common-lisp.net:/project/slime/cvsroot co slime
+;; - slime-repl は contrib に入っている。
 
-;;; smartchr
+;;;; smartchr
 (when (require 'smartchr nil t)
   (lazyload () "ruby-mode"
     (define-key ruby-mode-map (kbd "{") (smartchr '("{" "do |`!!'| end" "{|`!!'| }" "{{")))
@@ -4308,18 +4445,32 @@ Allows use of the fancyvrb latex package."
     (define-key ruby-mode-map (kbd "%") (smartchr '("%" "%%" "%{`!!'}")))
     (define-key ruby-mode-map (kbd "W") (smartchr '("W" "%w[`!!']" "WW" )))))
 
-;;; smartrep
+;;;; smartrep
 ;; 例：C-c C-n の繰り返しを、C-c C-n C-n ... ですませられるようにする。
+(defmacro smartrep-define-rotate-key (keymap prefix function-1 function-2)
+  (declare (indent 2))
+  `(smartrep-define-key
+       ,keymap ,prefix
+     '(("n" . (lambda () (interactive) ,function-1))
+       ("p" . (lambda () (interactive) ,function-2)))))
 (when (require 'smartrep nil t)
+  ;; already defined tables
+  (lazyload () "outline-minor-mode"
+    (smartrep-define-key
+        outline-minor-mode-map "C-c"
+      '(("C-n" . outline-next-visible-heading)
+        ("C-p" . outline-previous-visible-heading))))
   (lazyload () "org"
     (smartrep-define-key
         org-mode-map "C-c"
-      '(("C-n" . (lambda ()
-                   (outline-next-visible-heading 1)))
-        ("C-p" . (lambda ()
-                   (outline-previous-visible-heading 1)))))))
+      '(("C-n" . outline-next-visible-heading)
+        ("C-p" . outline-previous-visible-heading))))
+  ;; rotate
+  (global-set-key (kbd "M-R") 'move-to-window-line-top-bottom)
+  (global-set-key (kbd "M-r") my-rotate-keymap) ;; move-to-window-line-top-bottom を上書き
+)
 
-;;; smex (elpa)
+;;;; smex (elpa)
 ;; Smart Meta-X
 ;;(when (require 'smex nil t)
 ;;  (smex-initialize)
@@ -4328,36 +4479,23 @@ Allows use of the fancyvrb latex package."
 ;;  ;; This is your old M-x.
 ;;  (global-set-key (kbd "C-c C-c M-x") 'execute-extended-command))
 
-;;; sml-modeline (elpa)
+;;;; sml-modeline (elpa)
 ;;(when (require 'sml-modeline nil t)
 ;;  (sml-modeline-mode t)
 ;;  (if (functionp 'scroll-bar-mode)
 ;;      (scroll-bar-mode nil))
 ;;  )
 
-;;; sorter
+;;;; sorter
 ;; "s" キーで、ファイル名・サイズ・日付・拡張子名順に並び替え。
 ;; dired-listing-switches が、"al" 以外だと動作しないため使用中止。
 ;; 独自に移植。 (dired-rotate-sort) 参照。
 
-;;; stripe-buffer (elpa)
+;;;; stripe-buffer (elpa)
 ;; バッファを縞々模様にする。
 ;; M-x stripe-buffer-mode
 
-;;; swank-clj (elpa)
-;; git://github.com/jochu/swank-clojure.git
-;;(setq swank-clojure-jar-path "/opt/local/share/java/clojure/lib/clojure.jar")
-;;(setq swank-clojure-classpath
-;;      (append '("/opt/local/share/java/clojure/lib/clojure.jar")
-;;              ;; lein install swank-clojure 1.3.0-SNAPSHOT
-;;              ;; でインストールしたmavenディレクトリを指定する。
-;;              (directory-files
-;;               "~/.m2/repository/swank-clojure/swank-clojure/1.3.0-SNAPSHOT/"
-;;               t ".jar$")))
-
-;;; swank-js (elpa)
-
-;;; tabbar (elpa)
+;;;; tabbar (elpa)
 ;; [注意] tabbarはバッファが増えると著しく重くなるので使用中止。
 ;; gnupack の設定を利用。
 ;(when (require 'tabbar nil t)
@@ -4433,14 +4571,14 @@ Allows use of the fancyvrb latex package."
 ;  (add-to-list 'rotate-command-set
 ;               '(rotate-tabbar . "Tabbar") t))
 
-;;; taskjuggler-mode
+;;;; taskjuggler-mode
 ;;(when (locate-library "taskjuggler-mode")
 ;;  (autoload 'taskjuggler-mode "taskjuggler-mode" nil t)
 ;;  (add-to-list 'auto-mode-alist '("\\.tjp\\'" . taskjuggler-mode))
 ;;  (add-to-list 'auto-mode-alist '("\\.tji\\'" . taskjuggler-mode))
 ;;  (add-to-list 'auto-mode-alist '("\\.tjsp\\'" . taskjuggler-mode)))
 
-;;; text-adjust
+;;;; text-adjust
 ;; 1) M-x text-adjust を実行すると文章が整形される.
 ;; 2) 使用可能な関数の概要.
 ;;     text-adjust-codecheck : 半角カナ, 規格外文字を「〓」に置き換える.
@@ -4455,7 +4593,7 @@ Allows use of the fancyvrb latex package."
         (purecopy (concat "[ 　\t]*\\([-!|#%;>*＃" '(#x0b7 #x2022 #x2023 #x2043 #x25e6) "]+[ 　\t]*\\|(?[0-9]+[.)][ \t]*\\)*")))
   (setq adaptive-fill-mode t))
 
-;;; ttcn-mode
+;;;; ttcn-mode
 ;; オリジナルファイルの (kill-all-local-variables) は削除すること。
 ;;(when (locate-library "ttcn3")
 ;;  (autoload 'ttcn-3-mode  "ttcn3" "Mode to edit TTCN-3 files"            t)
@@ -4465,7 +4603,7 @@ Allows use of the fancyvrb latex package."
 ;;  (autoload 'forth-mode   "forth" "Mode to edit gforth files"            t)
 ;;  (autoload 'tm-functions "tm"    "Functions to edit Test Manager files" t))
 
-;;; twittering-mode (elpa)
+;;;; twittering-mode (elpa)
 ;; M-x twit (autoload) で開始
 ;; M-x twittering-icon-mode でアイコン表示
 ;; d … direct message
@@ -4479,19 +4617,31 @@ Allows use of the fancyvrb latex package."
             'twittering-jojo-mode))
 ;; (setq twittering-password "Twitterのパスワード")
 
-;;; typescript
+;;;; typescript
 ;; http://blogs.msdn.com/b/interoperability/archive/2012/10/01/sublime-text-vi-emacs-typescript-enabled.aspx
 (lazyload (typescript-mode (auto-mode-alist '("\\.ts$" . typescript-mode)))
            "TypeScript")
 
-;;; undo-tree (elpa)
+;;;; undo-tree (elpa)
 ;; C-/ : undo
 ;; C-? : redo
 ;; C-x u : show tree (p/n/f/b)
 (when (require 'undo-tree nil t)
   (global-undo-tree-mode))
 
-;;; w32-print
+;;;; unicode-fonts (elpa)
+;; M-x unicode-fonts-setup
+;;(lazyload () "unicode-fonts"
+;;  (defun my-push-font (range &rest fonts)
+;;    (let ((default-fonts (car (alist-get range unicode-fonts-block-font-mapping))))
+;;      (dolist (font fonts)
+;;        (nconc default-fonts (list font)))
+;;      (message "default-fonts=%s" default-fonts)
+;;      (setf (alist-get range unicode-fonts-block-font-mapping)
+;;            (list default-fonts))))
+;;  (my-push-font "CJK Unified Ideographs" "Hiragino Mincho Pro"))
+
+;;;; w32-print
 ;; http://www.bookshelf.jp/soft/meadow_15.html#SEC14
 ;; M-x w32-winprint-print-{buffer,region}-notepad … 早いけど汚い
 ;; M-x w32-winprint-print-{buffer,region}-htmlize … 遅いけど綺麗
@@ -4499,18 +4649,18 @@ Allows use of the fancyvrb latex package."
   (require 'htmlize nil t)
   (require 'w32-winprint nil t))
 
-;;; w32-symlinks
+;;;; w32-symlinks
 (when (and (eq system-type 'windows-nt)
            (require 'w32-symlinks nil t))
   (defvar w32-symlinks-handle-shortcuts)
   (setq w32-symlinks-handle-shortcuts t))
 
-;;; w3m-mode (elpa)
+;;;; w3m-mode (elpa)
 (lazyload () "w3m"
   (when (coding-system-p 'cp51932)
     (add-to-list 'w3m-compatible-encoding-alist '(euc-jp . cp51932))))
 
-;;; web-mode (elpa)
+;;;; web-mode (elpa)
 ;; http://web-mode.org/
 ;; http://fukuyama.co/web-mode
 (lazyload () "web-mode"
@@ -4527,9 +4677,9 @@ Allows use of the fancyvrb latex package."
   (setq web-mode-java-offset   2)
   (setq web-mode-asp-offset    2))
 
-;;; wget (elpa)
+;;;; wget (elpa)
 
-;;; wgrep (elpa)
+;;;; wgrep (elpa)
 ;; You can edit the text in the *grep* buffer after typing C-c C-p.
 ;; After that the changed text is highlighted.
 ;; The following keybindings are defined:
@@ -4546,7 +4696,7 @@ Allows use of the fancyvrb latex package."
 (lazyload () "grep"
   (require 'wgrep nil t))
 
-;;; winhist
+;;;; winhist
 (when (require 'winhist nil t)
   (winhist-mode 1)
   (defun rotate-winhist (arg)
@@ -4554,13 +4704,14 @@ Allows use of the fancyvrb latex package."
     (let ((command (if (null arg) 'winhist-forward 'winhist-backward)))
       (call-interactively command)
       command))
-  (add-to-list 'rotate-command-set
-               '(rotate-winhist . "Window History") t))
+  (lazyload () "smartrep"
+    (smartrep-define-rotate-key my-rotate-keymap "w"
+      (rotate-winhist) (rotate-winhist -1))))
 
-;;; yaml-mode (elpa)
+;;;; yaml-mode (elpa)
 
-;;; yasnippet (elpa)
-;; ・ELPAにはyasnippet（新）とyasnippet-bundle（旧）があるが、 新版を使うこと。
+;;;; yasnippet (elpa)
+;; ・ELPAにはyasnippet（新）とyasnippet-bundle（旧）があるが、 新版を使う。
 ;; ・snippets は、~/.emacs.d/snippets ディレクトリに格納する。
 ;; ・snippets を使うときは、M-x yas-minor-mode
 ;; ・snippets を編集したら、 M-x yas-reload-all でリロード。
@@ -4581,7 +4732,7 @@ Allows use of the fancyvrb latex package."
   ;;(yas-global-mode 1) ; 重いので個々に使う場合のみ。
 )
 
-;;; zencoding-mode (elpa)
+;;;; zencoding-mode (elpa)
 ;; http://www.emacswiki.org/emacs/ZenCoding
 ;; http://fukuyama.co/zencoding
 ;; M-x zencoding-mode で、 "ul#name>li.item*2" C-j で入力。
@@ -4597,32 +4748,30 @@ Allows use of the fancyvrb latex package."
         '("wbr" "object" "source" "area" "param" "option"))
   ;; yasnippetと連携する場合 (キーバインドは自由に)
   (define-key zencoding-mode-keymap (kbd "C-,") 'zencoding-expand-yas))
-;;; zotero
+;;;; zotero
 ;; C-c z prefix.
 
-
-;;;; 個人用ライブラリ
-
-;;; aozora-proc
+;;; 個人用ライブラリ
+;;;; aozora-proc
 (lazyload (aozora-proc aozora-proc-region aozora-proc-buffer) "aozora-proc")
 
-;;; aozora-view
+;;;; aozora-view
 (lazyload (aozora-view) "aozora-view")
 
-;;; Birthdays 誕生日
-(eval-after-load "calendar"
+;;;; Birthdays 誕生日
+(lazyload () "calendar"
   (require 'birthday nil t))
 
-;;; bbdb-export
+;;;; bbdb-export
 (lazyload ((bbdb-export-vcard "C-c V")) "bbdb-export")
 
-;;; BibTeX CiNii検索
+;;;; BibTeX CiNii検索
 (lazyload (bib-cinii-bib-buffer) "bib-cinii")
 
-;;; BibTeX 国会図書館検索
+;;;; BibTeX 国会図書館検索
 (lazyload (bib-ndl-bib-buffer) "bib-ndl")
 
-;;; IDS編集モード
+;;;; IDS編集モード
 ;;(makunbound 'ids-edit-mode)
 (global-set-key (kbd "C-c 0") (command (insert "⿰")))
 (global-set-key (kbd "C-c 1") (command (insert "⿱")))
@@ -4639,22 +4788,23 @@ Allows use of the fancyvrb latex package."
 (global-set-key (kbd "C-c Y") (command (insert "从")))
 (lazyload ((ids-edit-mode "C-c i") (ids-edit-char "M-U")) "ids-edit")
 
-;;; ivs-utils
+;;;; ivs-utils
 (lazyload ((ivs-edit "M-J")) "ivs-utils")
 
-;;; math-symbols
-(lazyload (math-symbols-stylize-region math-insert) "math-symbols"
-  (when (require 'helm nil t)
-    (define-key helm-command-map "M" 'helm-math-symbols)))
+;;;; math-symbols
+(lazyload (math-insert math-symbols-helm) "math-symbols")
+(when (and (locate-library "helm") (locate-library "math-symbols"))
+  (eval-after-load "helm"
+    '(define-key helm-command-map "M" 'math-symbols-helm)))
 
-;;; 異体字入力
+;;;; 異体字入力
 (lazyload ((variants-tree "C-c v")) "variants-tree")
 (lazyload ((variants-insert "M-I")) "variants")
 
-;;; PDF辞書検索
+;;;; PDF辞書検索
 (lazyload ((dict-view-pdf-at-point "M-S-d")) "view-pdf-dict")
 
-;;; view-pdf
+;;;; view-pdf
 ;; `browse-url-browser-function' 変数を拡張して、ローカルファイル上の
 ;; PDFを見れるようにする。lookup等で有用。
 (eval-after-load "browse-url"
@@ -4664,7 +4814,7 @@ Allows use of the fancyvrb latex package."
 
 ;;;; 個人用関数
 
-;;; データ操作
+;;;; データ操作
 
 (defun map-plist (plist func)
   (let (result)
@@ -4691,7 +4841,7 @@ Allows use of the fancyvrb latex package."
         if (funcall (or test 'equal) (cdr cons) key)
         collect (car cons)))
 
-;;; ハッシュテーブル関係
+;;;; ハッシュテーブル関係
 
 (defvar add-value) ;; special variable （構文スコープ対策）
 (defun addhash (key value table &optional append)
@@ -4713,7 +4863,7 @@ Allows use of the fancyvrb latex package."
        (aset char-code-property-table char (plist-remove plist prop))))
    char-code-property-table))
 
-;;; リスト操作
+;;;; リスト操作
 
 (defun combinatorial (head &rest tail)
   "Make a list of a combinatorial of SEQuenceS.
@@ -4733,20 +4883,32 @@ returned."
     (list list)))
 
 (defun list-rotate-forward (ring)
-  "リストを前方向に回転させる。"
+  "リストを前方向に回転させる。破壊的操作。"
   (let ((item (car ring))
         (last (last ring)))
     (setcdr last (list item))
     (cdr ring)))
 
 (defun list-rotate-backward (ring)
-  "リストを後方向に回転させる。"
+  "リストを後方向に回転させる。破壊的操作。"
   (let ((item (car (last ring)))
         (last2 (last ring 2)))
     (setcdr last2 nil)
     (cons item ring)))
 
-;;; テキストプロパティ操作
+(defun list-rotate-to (ring target)
+  "リストを目標場所まで回転させる。破壊的操作。"
+  (if (equal (car ring) target) ring
+    (let ((tail (member target ring))
+          (head ring))
+      (if (null tail)
+          (error "target %s is not a member of ring %s" ring target)
+        (while (not (equal (cadr ring) target))
+          (setq ring (cdr ring)))
+        (setcdr ring nil)
+        (nconc tail head)))))
+
+;;;; テキストプロパティ操作
 
 (defun remove-overlays-region (from to)
   "指定した領域のoverlayを全て除去する。"
@@ -4763,8 +4925,7 @@ returned."
   (interactive)
   (message "%s" (get-char-property (point) 'face)))
 
-;;; その他
-
+;;; その他の関数
 (defun find-file-in-dropbox (&optional filename)
   "FILENAME を DropBox で開く。"
   ;; ffap 機能の活用例。
@@ -4776,7 +4937,7 @@ returned."
   (setq filename (expand-file-name (file-truename filename)))
   (if (string-match "Dropbox/\\(.*\\)$" filename)
       (if (file-directory-p filename)
-          (browse-url (concat "https://www.dropbox.com/home/" 
+          (browse-url (concat "https://www.dropbox.com/home/"
                               (match-string 1 filename)))
         (browse-url (concat "https://www.dropbox.com/revisions/"
                             (match-string 1 filename))))
@@ -4792,7 +4953,7 @@ returned."
              "Find file in DropBox: " (ffap-guesser))))
   (setq filename (expand-file-name (file-truename filename)))
   (if (string-match "Dropbox/Public/\\(.*\\)$" filename)
-          (browse-url (concat "https://dl.dropboxusercontent.com/u/463784/" 
+          (browse-url (concat "https://dl.dropboxusercontent.com/u/463784/"
                               (match-string 1 filename)))
     (message "Not Dropbox Public Directory! %s -- " filename)))
 (global-set-key (kbd "C-x M-F") 'browse-dropbox-public-folder)
@@ -4880,7 +5041,7 @@ same directory as the org-buffer and insert a link to this file."
       (dolist (item result)
         (message "| %s | %s |" (car item) (cdr item))))))
 
-;;; 起動時にオープンする開くファイル
+;;; Startup Files
 (let ((files
        '(
         ;; シェルヒストリを開いておくと、作業中に履歴を簡単に検索でき
@@ -4892,6 +5053,7 @@ same directory as the org-buffer and insert a link to this file."
         (find-file file)
       (message "File `%s' does not exist!" file ))))
 
+;;; Custom Settings & Local Variables
 (custom-set-variables
  ;; custom-set-variables was added by Custom.
  ;; If you edit it by hand, you could mess it up, so be careful.
@@ -4901,7 +5063,8 @@ same directory as the org-buffer and insert a link to this file."
  '(ansi-color-names-vector ["#242424" "#e5786d" "#95e454" "#cae682" "#8ac6f2" "#333366" "#ccaa8f" "#f6f3e8"])
  '(ansi-term-color-vector [unspecified "#FFFFFF" "#d15120" "#5f9411" "#d2ad00" #1="#6b82a7" "#a66bab" #1# "#505050"])
  '(bmkp-last-as-first-bookmark-file "~/.emacs.d/bookmarks")
- '(custom-safe-themes (quote ("1a093e45e4c3e86fa5ad1f8003660e7cda4d961cd5d377cee3fee2dad2faf19b" "4dacec7215677e4a258e4529fac06e0231f7cdd54e981d013d0d0ae0af63b0c8" "5e1d1564b6a2435a2054aa345e81c89539a72c4cad8536cfe02583e0b7d5e2fa" "5b6a7f2a00275a5589b14fa23ff1699785d9f7c1722ee9f79ec1b7de92fa0935" "fc7b606c048bff33dd4fc1c1814c46ec24e889cbbf30643e53095015f9361c3a" "a4368d0d9d25d658dadfcf2933a3e38ff6314e482f541f30b79a25a5990d9c31" "f38dd27d6462c0dac285aa95ae28aeb7df7e545f8930688c18960aeaf4e807ed" "fca8ce385e5424064320d2790297f735ecfde494674193b061b9ac371526d059" "159bb8f86836ea30261ece64ac695dc490e871d57107016c09f286146f0dae64" "6cfe5b2f818c7b52723f3e121d1157cf9d95ed8923dbc1b47f392da80ef7495d" "bc2a933966724faef466dee08ede7eb4328894c9b369967688e865215d4f6a4f" "31c6f4997e5af3aca46e98af2e34415f66796da87655be2152274a2244a97007" "1c1e6b2640daffcd23b1f7dd5385ca8484a060aec901b677d0ec0cf2927f7cde" "7252c495b82c37f219f3f308d9353d533a930a69d0c3d0feb44263b4f086ac82" "e9a1226ffed627ec58294d77c62aa9561ec5f42309a1f7a2423c6227e34e3581" "985c570ce713a74e08e8aae8b7a35cf1a4bb89457ac629c5136a6c673af10e6d" "b6f7795c2fbf75baf3419c60ef7625154c046fc2b10e3fdd188e5757e08ac0ec" "d1a574d57027c2bfadde6982455dfce8d27ced3ae4747c1c0313f95d23e96713" "8c5ffc9848db0f9ad4e296fa3cba7f6ea3b0e4e00e8981a59592c99d21f99471" "d677ef584c6dfc0697901a44b885cc18e206f05114c8a3b7fde674fce6180879" "8aebf25556399b58091e533e455dd50a6a9cba958cc4ebb0aab175863c25b9a4" "e16a771a13a202ee6e276d06098bc77f008b73bbac4d526f160faa2d76c1dd0e" "d921083fbcd13748dd1eb638f66563d564762606f6ea4389ea9328b6f92723b7" "085b401decc10018d8ed2572f65c5ba96864486062c0a2391372223294f89460" "936e5cac238333f251a8d76a2ed96c8191b1e755782c99ea1d7b8c215e66d11e" "4ddc42a539280ec21ae202b6c12a4d7ce7d7af8a19e8c344b60b09f1ca1496d5" "d5b63a5da8bf90c7347e5e484dcde0380af010ec130f6f0d132113d807e49e03" "211bb9b24001d066a646809727efb9c9a2665c270c753aa125bace5e899cb523" "ff7a12f1932abcdc754511b5c5c6416e769d7f1a44e64690e2c98433b18bd67e" "bf8d07f24b40cb71bb2ffb56b2df537eda5101cb6c4322ba1741e29290cc260b" "d24e10524bb50385f7631400950ba488fa45560afcadd21e6e03c2f5d0fad194" "6615e5aefae7d222a0c252c81aac52c4efb2218d35dfbb93c023c4b94d3fa0db" "22bf74c2702369cbacc0a2a54afc0719cb06e5bd9db464e55a7f58f117ebd388" "9a60d8bf511d915a08aa16f97bf2c8b11d55a54ef32118424db7d73d9d7d0401" "81e530e0d46ee1bf8cfdd58124cfd0df8c391753d6b29bab929392782a2b2dd2" "fe6330ecf168de137bb5eddbf9faae1ec123787b5489c14fa5fa627de1d9f82b" "8b49009d04730bc5d904e7bb5c7ff733f3f9615c3d6b3446eca0766e6da2bea1" "38c4fb6c8b2625f6307f3dde763d5c61d774d854ecee9c5eb9c5433350bc0bef" "967c58175840fcea30b56f2a5a326b232d4939393bed59339d21e46cf4798ecf" "4e2f5c6280379800d15f7d2a16db8996ab74f1941bc61fbeddbb9baa0969cc60" "15fa54dffe7ef4c91033739a8d2eba0fb897337dffe1f98b0629978183690c42" "998e84b018da1d7f887f39d71ff7222d68f08d694fe0a6978652fb5a447bdcd2" "3dd173744ae0990dd72094caef06c0b9176b3d98f0ee5d822d6a7e487c88d548" "d63be37656ec4837b98780d9144239a7898bd6e3511583a8bc2c634c16687f36" "eead1779f4b497bf3df2f66b9209782c4d8cb896f3a45de049dc4218311b9e3b" "246a51f19b632c27d7071877ea99805d4f8131b0ff7acb8a607d4fd1c101e163" "1f31a5f247d0524ef9c051d45f72bae6045b4187ed7578a7b1f8cb8758f92b60" "75d4ccc5e912b93f722e57cca3ca1a15e079032cd69fd9bc67268b4c85639663" "e53cc4144192bb4e4ed10a3fa3e7442cae4c3d231df8822f6c02f1220a0d259a" "de2c46ed1752b0d0423cde9b6401062b67a6a1300c068d5d7f67725adc6c3afb" "f41fd682a3cd1e16796068a2ca96e82cfd274e58b978156da0acce4d56f2b0d5" "978ff9496928cc94639cb1084004bf64235c5c7fb0cfbcc38a3871eb95fa88f6" "41b6698b5f9ab241ad6c30aea8c9f53d539e23ad4e3963abff4b57c0f8bf6730" "405fda54905200f202dd2e6ccbf94c1b7cc1312671894bc8eca7e6ec9e8a41a2" "ae8d0f1f36460f3705b583970188e4fbb145805b7accce0adb41031d99bd2580" "51bea7765ddaee2aac2983fac8099ec7d62dff47b708aa3595ad29899e9e9e44" "1affe85e8ae2667fb571fc8331e1e12840746dae5c46112d5abb0c3a973f5f5a" "9bac44c2b4dfbb723906b8c491ec06801feb57aa60448d047dbfdbd1a8650897" "50ceca952b37826e860867d939f879921fac3f2032d8767d646dd4139564c68a" "0449a71c940c57f767774e30d7bf28b64456f431510d8cde29e86657a2602df6")))
+ '(custom-safe-themes (quote ("77bd459212c0176bdf63c1904c4ba20fce015f730f0343776a1a14432de80990" "941f66b99a5db394cff3845c282e73d8b75fddf73df347d0245c8d286c1cdb27" "5f7044d9fc9c9c9d56508ac8217483c8358a191599448859640ce80be92acbd6" "1a093e45e4c3e86fa5ad1f8003660e7cda4d961cd5d377cee3fee2dad2faf19b" "4dacec7215677e4a258e4529fac06e0231f7cdd54e981d013d0d0ae0af63b0c8" "5e1d1564b6a2435a2054aa345e81c89539a72c4cad8536cfe02583e0b7d5e2fa" "5b6a7f2a00275a5589b14fa23ff1699785d9f7c1722ee9f79ec1b7de92fa0935" "fc7b606c048bff33dd4fc1c1814c46ec24e889cbbf30643e53095015f9361c3a" "a4368d0d9d25d658dadfcf2933a3e38ff6314e482f541f30b79a25a5990d9c31" "f38dd27d6462c0dac285aa95ae28aeb7df7e545f8930688c18960aeaf4e807ed" "fca8ce385e5424064320d2790297f735ecfde494674193b061b9ac371526d059" "159bb8f86836ea30261ece64ac695dc490e871d57107016c09f286146f0dae64" "6cfe5b2f818c7b52723f3e121d1157cf9d95ed8923dbc1b47f392da80ef7495d" "bc2a933966724faef466dee08ede7eb4328894c9b369967688e865215d4f6a4f" "31c6f4997e5af3aca46e98af2e34415f66796da87655be2152274a2244a97007" "1c1e6b2640daffcd23b1f7dd5385ca8484a060aec901b677d0ec0cf2927f7cde" "7252c495b82c37f219f3f308d9353d533a930a69d0c3d0feb44263b4f086ac82" "e9a1226ffed627ec58294d77c62aa9561ec5f42309a1f7a2423c6227e34e3581" "985c570ce713a74e08e8aae8b7a35cf1a4bb89457ac629c5136a6c673af10e6d" "b6f7795c2fbf75baf3419c60ef7625154c046fc2b10e3fdd188e5757e08ac0ec" "d1a574d57027c2bfadde6982455dfce8d27ced3ae4747c1c0313f95d23e96713" "8c5ffc9848db0f9ad4e296fa3cba7f6ea3b0e4e00e8981a59592c99d21f99471" "d677ef584c6dfc0697901a44b885cc18e206f05114c8a3b7fde674fce6180879" "8aebf25556399b58091e533e455dd50a6a9cba958cc4ebb0aab175863c25b9a4" "e16a771a13a202ee6e276d06098bc77f008b73bbac4d526f160faa2d76c1dd0e" "d921083fbcd13748dd1eb638f66563d564762606f6ea4389ea9328b6f92723b7" "085b401decc10018d8ed2572f65c5ba96864486062c0a2391372223294f89460" "936e5cac238333f251a8d76a2ed96c8191b1e755782c99ea1d7b8c215e66d11e" "4ddc42a539280ec21ae202b6c12a4d7ce7d7af8a19e8c344b60b09f1ca1496d5" "d5b63a5da8bf90c7347e5e484dcde0380af010ec130f6f0d132113d807e49e03" "211bb9b24001d066a646809727efb9c9a2665c270c753aa125bace5e899cb523" "ff7a12f1932abcdc754511b5c5c6416e769d7f1a44e64690e2c98433b18bd67e" "bf8d07f24b40cb71bb2ffb56b2df537eda5101cb6c4322ba1741e29290cc260b" "d24e10524bb50385f7631400950ba488fa45560afcadd21e6e03c2f5d0fad194" "6615e5aefae7d222a0c252c81aac52c4efb2218d35dfbb93c023c4b94d3fa0db" "22bf74c2702369cbacc0a2a54afc0719cb06e5bd9db464e55a7f58f117ebd388" "9a60d8bf511d915a08aa16f97bf2c8b11d55a54ef32118424db7d73d9d7d0401" "81e530e0d46ee1bf8cfdd58124cfd0df8c391753d6b29bab929392782a2b2dd2" "fe6330ecf168de137bb5eddbf9faae1ec123787b5489c14fa5fa627de1d9f82b" "8b49009d04730bc5d904e7bb5c7ff733f3f9615c3d6b3446eca0766e6da2bea1" "38c4fb6c8b2625f6307f3dde763d5c61d774d854ecee9c5eb9c5433350bc0bef" "967c58175840fcea30b56f2a5a326b232d4939393bed59339d21e46cf4798ecf" "4e2f5c6280379800d15f7d2a16db8996ab74f1941bc61fbeddbb9baa0969cc60" "15fa54dffe7ef4c91033739a8d2eba0fb897337dffe1f98b0629978183690c42" "998e84b018da1d7f887f39d71ff7222d68f08d694fe0a6978652fb5a447bdcd2" "3dd173744ae0990dd72094caef06c0b9176b3d98f0ee5d822d6a7e487c88d548" "d63be37656ec4837b98780d9144239a7898bd6e3511583a8bc2c634c16687f36" "eead1779f4b497bf3df2f66b9209782c4d8cb896f3a45de049dc4218311b9e3b" "246a51f19b632c27d7071877ea99805d4f8131b0ff7acb8a607d4fd1c101e163" "1f31a5f247d0524ef9c051d45f72bae6045b4187ed7578a7b1f8cb8758f92b60" "75d4ccc5e912b93f722e57cca3ca1a15e079032cd69fd9bc67268b4c85639663" "e53cc4144192bb4e4ed10a3fa3e7442cae4c3d231df8822f6c02f1220a0d259a" "de2c46ed1752b0d0423cde9b6401062b67a6a1300c068d5d7f67725adc6c3afb" "f41fd682a3cd1e16796068a2ca96e82cfd274e58b978156da0acce4d56f2b0d5" "978ff9496928cc94639cb1084004bf64235c5c7fb0cfbcc38a3871eb95fa88f6" "41b6698b5f9ab241ad6c30aea8c9f53d539e23ad4e3963abff4b57c0f8bf6730" "405fda54905200f202dd2e6ccbf94c1b7cc1312671894bc8eca7e6ec9e8a41a2" "ae8d0f1f36460f3705b583970188e4fbb145805b7accce0adb41031d99bd2580" "51bea7765ddaee2aac2983fac8099ec7d62dff47b708aa3595ad29899e9e9e44" "1affe85e8ae2667fb571fc8331e1e12840746dae5c46112d5abb0c3a973f5f5a" "9bac44c2b4dfbb723906b8c491ec06801feb57aa60448d047dbfdbd1a8650897" "50ceca952b37826e860867d939f879921fac3f2032d8767d646dd4139564c68a" "0449a71c940c57f767774e30d7bf28b64456f431510d8cde29e86657a2602df6")))
+ '(debug-on-quit nil)
  '(fci-rule-character-color "#d9d9d9")
  '(fci-rule-color "#d9d9d9")
  '(frame-brackground-mode (quote dark))
@@ -4914,7 +5077,7 @@ same directory as the org-buffer and insert a link to this file."
  '(main-line-separator-style (quote chamfer))
  '(powerline-color1 "#1e1e1e")
  '(powerline-color2 "#111111")
- '(safe-local-variable-values (quote ((eval when (fboundp (quote fold-dwim-org/minor-mode)) (fold-dwim-org/minor-mode 1)) (outline-minor-mode . t) (coding-system . utf-8))))
+ '(safe-local-variable-values (quote ((eval hide-sublevels 5) (mangle-whitespace . t) (require-final-newline . t) (eval hide-region-body (point-min) (point-max)) (outline-minor-mode . t) (coding-system . utf-8))))
  '(session-use-package t nil (session))
  '(vc-annotate-background "#d4d4d4")
  '(vc-annotate-color-map (quote ((20 . "#437c7c") (40 . "#336c6c") (60 . "#205070") (80 . "#2f4070") (100 . "#1f3060") (120 . "#0f2050") (140 . "#a080a0") (160 . "#806080") (180 . "#704d70") (200 . "#603a60") (220 . "#502750") (240 . "#401440") (260 . "#6c1f1c") (280 . "#935f5c") (300 . "#834744") (320 . "#732f2c") (340 . "#6b400c") (360 . "#23733c"))))
@@ -4934,6 +5097,8 @@ same directory as the org-buffer and insert a link to this file."
 (put 'upcase-region 'disabled nil)
 
 ;; Local Variables:
-;; outline-regexp: "^;;;+"
 ;; outline-minor-mode: t
+;; require-final-newline: t
+;; time-stamp-pattern: "10/Modified:\\\\?[ \t]+%:y-%02m-%02d\\\\?\n"
+;; eval: (hide-sublevels 5)
 ;; End:
