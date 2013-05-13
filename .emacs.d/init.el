@@ -2,7 +2,7 @@
 ;;; For Emacs 24.3 / 24.3.50 (Windows, MacOSX, Linux)
 
 ;; Author: KAWABATA, Taichi <kawabata.taichi_at_gmail.com>
-;; Modified: 2013-05-12
+;; Modified: 2013-05-14
 ;; URL: https://github.com/kawabata/dotfiles/
 
 ;;;; Installation Note:
@@ -12,7 +12,7 @@
 ;;    % sudo apt-get install emacs-snapshot
 ;;    % emacs-snapshot
 ;; - Macintosh
-;;   Yamamoto Patch
+;;   Yamamoto Patch (comp.emacs.gnus)
 ;;   (git://github.com/railwaycat/emacs-mac-port)
 ;; - Windows
 ;;   GnuPack
@@ -50,7 +50,7 @@
             (symbol `((autoload ',func ,lib nil t)))
             (list
              (if (and (boundp (car func)) (consp (symbol-value (car func))))
-               `((add-to-list ',(car func) ,(cadr func)))
+                 `((add-to-list ',(car func) ,(cadr func)))
                `((autoload ',(car func) ,lib nil t)
                  (global-set-key (kbd ,(cadr func)) ',(car func)))))))
         funcs)
@@ -74,7 +74,6 @@
 (defvar my-rotate-keymap (make-sparse-keymap))
 
 ;;; Emacs標準設定
-
 ;;;; alloc.c
 ;;(setq gc-cons-threshold 8000000)
 
@@ -1004,6 +1003,21 @@ DIR/subdir.el がある場合は、それを実行し、DIR下のディレクト
 ;; | no_PROXY                 | url/url.el, url/url.el                         |
 ;; | winbootdir               | dos-w32.el                                     |
 
+;;;; epg.el
+;; マニュアル
+;; - http://www.gnu.org/software/emacs/manual/html_mono/epa.html
+;; gnupg のインストールと起動
+;; - Windows :: http://gpg4win.org/
+;; - Linux ::  eval `gpg-agent --daemon` を session 単位で。
+;; - Macintosh :: MacGPG2 （MacPortsは不推奨）
+;;   https://gpgtools.org/macgpg2/index.html
+;;   自動的に launhchd で gpg-agent が起動する。
+;; - symmetric passphrase を使う場合、ファイル先頭に以下を付加。
+;;   -*- epa-file-encrypt-to: nil -*-
+;; M-x epa-list-keys
+;; 同じファイルに対して、パスワードを何度も打ち込まないようにする。
+;; （GnuPG2 を使う場合は GPG-AGENTを起動する必要がある。）
+(setq epa-file-cache-passphrase-for-symmetric-encryption t)
 ;;;; ffap.el
 ;; iciclesと相性が悪そうなので、一時iciclesの方をオフにする。
 (lazyload ((find-file-at-point "C-x C-f")
@@ -2712,6 +2726,30 @@ DIR/subdir.el がある場合は、それを実行し、DIR下のディレクト
       (string-match "\\.passwd$" filename)))
 
 ;;;; bbdb (elpa)
+;; 人名・住所管理システム。
+;; 
+;; Recordの構造
+;; | フィールド   | ラベル               | 構成・内容                                   |
+;; |--------------+----------------------+----------------------------------------------|
+;; | firstname    | なし                 | string                                       |
+;; | lastname     | なし                 | string                                       |
+;; | affix        | なし                 | string                                       |
+;; | aka          | なし                 | (string ...)                                 |
+;; | organization | なし                 | (string ...)                                 |
+;; | phone        | home,work.cell,other | ([label phone] ...)                          |
+;; | address      | home,work,other      | ([label (street ..) city state country zip]) |
+;; | mail         | なし                 | (mail ...)                                   |
+;; | xfields      | なし                 | ((symbol . "value") ...)                     |
+;;
+;; xfield の例
+;; | フィールド  |                         |
+;; |-------------+-------------------------|
+;; | www         | Web Home Page           |
+;; | name-format | first-last / last-first |
+;; | name-face   |                         |
+;; | twitter     | ツイッター              |
+;; | skype       |                         |
+
 ;; 前準備
 ;; BBDB での名前のソーティングを日本語ベースにする（kakasiを使用）
 ;; 全ての日本語（半角カナ含む）を「ひらがな」に直す関数
@@ -2742,13 +2780,52 @@ DIR/subdir.el がある場合は、それを実行し、DIR下のディレクト
                        japanese-to-kana-hash))
           (set-buffer old-buffer)))))
 
+(defun bbdb-edit-address-japan (address)
+  "Function to use for address editing for Japanese."
+  (let ((postcode (bbdb-error-retry
+                   (bbdb-parse-postcode
+                    (bbdb-read-string "郵便番号: "
+                                      (bbdb-address-postcode address)))))
+        (state (bbdb-read-string "県名（州名）: " (bbdb-address-state address)))
+        (city (bbdb-read-string "市町村名: " (bbdb-address-city address)))
+        (streets (bbdb-edit-address-street (bbdb-address-streets address)))
+        (country (bbdb-read-string "国名（英語）: " (or (bbdb-address-country address)
+                                                        bbdb-default-country))))
+    (list streets city state postcode country)))
+
+(defun bbdb-format-address-japan (address)
+  "Return formatted ADDRESS as a string.
+This is the default format; it is used in the Japan.
+This function is a possible formatting function for
+`bbdb-address-format-list'."
+  (let ((country (bbdb-address-country address))
+        (streets (bbdb-address-streets address)))
+    (concat (bbdb-address-postcode address) "\n"
+            (bbdb-address-state address)
+            (bbdb-address-city address) "\n"
+            (if streets
+                (concat (mapconcat 'identity streets "\n") "\n"))
+            (unless (or (not country) (string= "" country))
+              (concat "\n" country)))))
+
 (lazyload ((bbdb "C-:")  bbdb-create) "bbdb-com"
-  (setq bbdb-message-pop-up 'horiz) ;; 'horizでサマリバッファの横に出る。
-  (setq bbdb-pop-up-window-size 0.2) ;; 0.5 / 4
   (setq bbdb-file "~/.emacs.d/.bbdb.gpg")
+  ;; 日本人主体なので、Last+Firstの順番で表示する。
+  (setq bbdb-name-format 'last-first)
+  ;; Gnus連携時、サマリバッファの横にBBDB情報を表示する。
+  (setq bbdb-message-pop-up 'horiz) 
+  (setq bbdb-pop-up-window-size 0.2) ;; 0.5 / 4
+  ;; 写真画像は、パスに "Last, First.jpg" 名で入っている。
+  (setq bbdb-image 'lf-name
+        bbdb-image-path "~/.emacs.d/bbdb-images/")
   (setq bbdb-message-mail-as-name nil)
-  (setq bbdb-phone-style nil) ;; NANP (north american numbering plan) は使用しない。
-  (setq bbdb-default-country "") ;; Japan, Emacs, etc
+  ;; NANP (north american numbering plan) は使用しない。
+  (setq bbdb-phone-style nil)
+  ;; 日本の住所フォーマット
+  (setq bbdb-address-format-list
+        '((("USA") "scSpC" "@%s\n@%c@, %S@ %p@\n%C@" "@%c@")
+          (t bbdb-edit-address-japan bbdb-format-address-japan "@%c@")))
+  (setq bbdb-default-country "Japan") ;; Japan, Emacs, etc
   ;; 日本の〒番号フォーマットを追加
   (add-to-list 'bbdb-legal-postcodes "^〒?[0-9]\\{3\\}-[0-9]\\{4\\}$")
   (bbdb-initialize 'gnus)
@@ -2756,12 +2833,7 @@ DIR/subdir.el がある場合は、それを実行し、DIR下のディレクト
   (define-key bbdb-mode-map "\M-w" 'kill-ring-save)
   ;; (define-key bbdb-mode-map "O" 'bbdb-insert-new-field) ;; bbdb2
   (define-key bbdb-mode-map "O" 'bbdb-insert-field) ;; bbdb3
-  ;; (setq-default bbdb-north-american-phone-numbers-p nil)
-  ;; (setq bbdb-offer-save nil)
   (setq bbdb-complete-mail-allow-cycling t)
-  ;; (setq bbdb-completion-type 'primary-or-name)
-  ;; (setq bbdb-check-zip-codes-p nil)
-  ;; (setq bbdb-dwim-net-address-allow-redundancy t)
   ;; -------
   (defun my-bbdb-name-add-title (name-addr)
     (save-match-data
@@ -2796,9 +2868,9 @@ DIR/subdir.el がある場合は、それを実行し、DIR下のディレクト
      (let ((furigana (bbdb-record-xfield record 'furigana)))
        (japanese-to-kana-string
         (if (= 0 (length furigana))
-            (concat (bbdb-record-firstname record)
+            (concat (bbdb-record-lastname record)
                     " "
-                    (bbdb-record-lastname record))
+                    (bbdb-record-firstname record))
           furigana)))))
   ;; bbdb.el にある、bbdb-record-sortkey を上書きする。(要kakasi)
   (when (executable-find "kakasi")
@@ -2808,72 +2880,17 @@ DIR/subdir.el がある場合は、それを実行し、DIR下のディレクト
            (bbdb-record-cache record)
            (bbdb-japanese-sortkey record)))))
 
-  ;; 実際にソートする場合は（一回で十分）、emacsを再起動（キャッシュを消
-  ;; 去）して、.bbdbのバッファが無いのを確認した上で、
-  ;; (bbdb-resort-database)を実行する。
-
-  ;; bbdbで自動的にデータを蒐集する。
-  (setq bbdb-auto-notes-alist
-        '(
-          ;; ("X-Mailer" ( ".*" mua 0))
-          ;; ("User-Agent" ( ".*" mua 0))
-          ;; ("Reply-To" ( ".*" ML 0))
-          ;; ("X-Newsreader" ( ".*" mua 0))
-          ;; ("X-Ml-Name" ( ".*" lists 0))
-          ;; ("X-Sequence" ( "^[^ \t\n]+" lists 0))
-          ;; ("X-URL" ( ".*" WWW 0))
-          ;; ("Organization" ( ".*" Organization 0))
-          ;; ("X-URI" ( ".*" WWW 0))
-          ))
-  ;(add-hook 'bbdb-notice-hook 'bbdb-auto-notes-hook)
-
   (defadvice bbdb-rfc822-addresses
     (after remove-honorable-title last (&optional arg) activate)
     "This advice removes honorable titles from the result."
     (dolist (elem ad-return-value)
       (let ((name (car elem)))
         (if (and (stringp name) (string-match " ?様$" name))
-            (setcar elem (substring name 0 (match-beginning 0)))))))
+            (setcar elem (substring name 0 (match-beginning 0))))))))
 
-  ;; BBDBによる画像表示
-  ;;
-  ;; この機能を使うためには、bbdb-format-record の２１行目、
-  ;; (all-fields (append '(phones addresses net aka)
-  ;; を、
-  ;; (all-fields (append '(phones addresses net aka image)
-  ;; に変更し、bbdb-format-record-layout-multi-line のcondループの中で、
-  ;;
-  ;;((eq field 'image)
-  ;; (let ((image (bbdb-record-image record)))
-  ;;   (when image
-  ;;     (insert (format fmt "Image"))
-  ;;     (put-text-property start (point) 'bbdb-field
-  ;;                        '(image field-name))
-  ;;     (insert image "\n"))))
-  ;;
-  ;; という行を入れる。
-  (setq bbdb-image-extensions
-        `(,(if (image-type-available-p 'png) ".png")
-          ,(if (image-type-available-p 'jpeg) ".jpg")
-          ,(if (image-type-available-p 'gif) ".gif")))
-  ;; 現状では、Emacsではjpegファイルのリサイズをすることはできない（はず）。
-  ;; そのため、以下のようなコマンドで一括リサイズをするのがお勧め。
-  ;; ~/.system/bbdb-images% foreach file in *.orig.jpg
-  ;; % foreach file in *.orig.jpg
-  ;; > convert -size 128x192 $file -resize 128x192 `basename $file .orig.jpg`.jpg
-  ;; > end
-  (setq bbdb-image-directory "~/.emacs.d/bbdb-images")
-  (defun bbdb-record-image (record)
-    (let* ((fnames (mapcar (lambda (ext)
-                             (expand-file-name
-                              (concat bbdb-image-directory "/"
-                                      (bbdb-record-firstname record) "_"
-                                      (bbdb-record-lastname record) ext)))
-                           bbdb-image-extensions)))
-      (setq fnames (delete-if-not 'file-exists-p fnames))
-      (if fnames (propertize
-                  " " 'display
-                  (create-image (car fnames) nil nil :height 100))))))
+  ;; 実際にソートする場合は（一回で十分）、emacsを再起動（キャッシュを消
+  ;; 去）して、.bbdbのバッファが無いのを確認した上で、
+  ;; (bbdb-resort-database)を実行する。
 
 ;;;; bookmark+ (elpa)
 ;; タグ付き、
@@ -3363,7 +3380,8 @@ DIR/subdir.el がある場合は、それを実行し、DIR下のディレクト
 ;; Emacs終了時にLookupでエラーが出る場合は、
 ;;   (remove-hook 'kill-emacs-hook 'lookup-exit)
 ;; を実行する。
-(lazyload ((lookup-pattern "C-c ?") (lookup-word "C-c /")
+(lazyload ((lookup-pattern "C-c ?") (lookup-pattern "C-x ?") ;; org-mode では C-c ? は予約済
+           (lookup-word "C-c /")
            (lookup-select-dictionaries "M-\"")
            (lookup-list-modules "M-'")
            (lookup-restart "C-c \"")) "lookup"
@@ -3848,8 +3866,8 @@ DIR/subdir.el がある場合は、それを実行し、DIR下のディレクト
 ;; ソースコードの編集は C-c '
 ;; C-c で評価し、結果は #+RESULTに置かれる。
 (lazyload () "org"
-  (setq
-   org-babel-load-languages
+  (org-babel-do-load-languages
+   'org-babel-load-languages
    `((C . t) (css . t) (emacs-lisp . t)
      ,@(and (executable-find "zsh")
             '((sh . t)))
@@ -3973,7 +3991,8 @@ DIR/subdir.el がある場合は、それを実行し、DIR下のディレクト
        ;; ("" "soul" t) ; ドイツ語用
        ;; LaTeX標準文字記号マクロ
        ,@my-org-latex-math-symbols-packages-alist
-       ;; ("" "tabulary" t)
+       ;;("" "tabulary" t)
+       ("" "bigtabular" t)
        ("" "multicol" t)
        ;; その他のデフォルトで使用するLaTeX設定
        ,(concat
