@@ -21,6 +21,8 @@
 # - .zshenv は、.environ をsourceする。
 # - .profile は、両者に共通の対話型設定を行う。（エイリアス・関数など）
 # - .environ は、両者に共通の非対話な環境変数設定を行う。
+#
+# Mac の場合は、PATH/MANPATH は、/etc/paths.d, /etc/manpaths.d も参照。
 
 #* 初期化
 stty sane # デフォルトに戻す。(stty -a で確認可能)
@@ -30,6 +32,12 @@ if [ ! -z "$HTTP_PROXY" ]; then
     echo "HTTP_PROXY=$HTTP_PROXY"
 fi
 echo "JAVA_HOME=$JAVA_HOME"
+if [ ! -z "$GPG_AGENT_INFO" ]; then
+    echo "GPG_AGENT_INFO=$GPG_AGENT_INFO"
+    # Macの場合は https://gpgtools.org/installer/ をインストールして、
+    # pinentry-mac を ~/.gnupg/ で設定する。
+    export GPG_TTY=$(tty)
+fi
 if [ ! -L $HOME/.zsh_history ]; then
     echo "~/.zsh_history is not symbolic link." 
 fi
@@ -72,6 +80,9 @@ alias larx='ls -laoFRX'
 
 #** cd
 alias cdsl='cd ~/.emacs.d/site-lisp'
+
+#** MacTeX
+# /usr/texbin, /Library/TeX/Distributions/
 
 #** history
 alias h=history
@@ -128,6 +139,12 @@ function setenv {
 
 function settitle { echo "\e]0;${1}\a" }
 
+#** AHFormatter
+alias ahf='/usr/local/AHFormatterV61/run.sh'
+function ahf {
+  /usr/local/AHFormatterV61/run.sh -peb 1 -x 4 -d $1 -o $1.pdf
+}
+
 # 再帰的grep
 function rgrep {
   find "." -type f -name $2 -exec grep $1 {} /dev/null \;
@@ -145,6 +162,13 @@ function bell {
   echo '\007\c'
 }
 
-function 7zx {
-  7za a -mx=9 $1.7z $1
+# jsdoc は実行ディレクトリに移動する必要がある。
+# e.g. % jsdoc-auto kanbun.js
+function jsdoc-auto () {
+  DIR=`pwd`
+  cd ~/Dropbox/cvs/jsdoc
+  ./jsdoc --verbose --destination $DIR/doc $DIR/$1
+  cd -
 }
+
+source ~/.profile_extra
