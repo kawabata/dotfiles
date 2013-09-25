@@ -1,11 +1,21 @@
-;;; .emacs/init.el  -*- coding: utf-8-unix; lexical-binding: t; -*-
-;; For Emacs 24.3 / 24.3.50 (Windows, MacOSX, Linux)
+;;; init.el --- My Emacs Initialization file for Emacs 24.3 / 24.3.50 (Windows, MacOSX, Linux)
 ;;
+;; Filename: init.el
+;; Description: My Emacs Initialization file for Emacs 24.3 / 24.3.50 (Windows, MacOSX, Linux)
+;; Package-Requires: ((cl-lib "1.4"))
 ;; Author: KAWABATA, Taichi <kawabata.taichi_at_gmail.com>
-;; Modified: 2013-09-21
-;; URL: https://github.com/kawabata/dotfiles/
+;; Created: around 1995 (Since my first Emacs experience...)
+;; Modified: 2013-09-25
+;; Version: 13
+;; Keywords: internal
+;; Human-Keywords: Emacs Initialization
+;; Namespace: my-
+;; URL: https://github.com/kawabata/dotfiles/.emacs/init.el
 ;;
-;;; 技術メモ
+;;; Commentary:
+
+;; 技術メモ
+
 ;;;; 最新版Emacsおよび関連ソフトのインストール方法
 ;;
 ;; - Ubuntu 12.04 (LTS)
@@ -21,7 +31,7 @@
 ;; - 個別パッケージインストール
 ;;   + TeX (MacTeX, W32TeX, TexLive)
 ;;   + Pandoc
-;;   + GnuPG
+;;   + GnuPG (Agent)
 ;;   + Haskell
 ;;
 ;;;;; GnuPack のCyginw利用設定
@@ -65,11 +75,17 @@
 ;;   |     (setq xxx value)                     ; 設定の追加
 ;;   |     (add-hook 'xxx-hook zzz-func)        ; autoload で設定された関数のフック追加
 ;;   |     ))
+;;   | (lazyload () "yyyy"                      ; xxxx の関数を ライブラリ yyyyのフックに追加
+;;   |   (when (functionp 'xxx-func)
+;;   |     (add-hook 'yyyy-hook 'xxx-func)))
 ;;   | ;; 後で必要な場合
 ;;   | (eval-and-compile (require 'XXX nil t)) ; すぐに必要な場合
 ;;   | (eval-when-compile (require 'XXX nil t)) ; 後で必要な場合
 ;; (3) その他
 ;;   - global-minor-mode の設定はできるだけ避け、(add-hook XXX-hook 'turn-on-XXX-mode) をこまめに書く。
+;;   - 初期設定ファイルを分割するのは以下の理由で良くない。
+;;     + コンパイル時に独自マクロ等が適用できない。
+;;     + 複数のライブラリにまたがる設定の見通しが難しい。
 ;;
 ;;;; Emacs スクリプトの書き方
 ;;
@@ -90,44 +106,7 @@
 ;; - 原則として、 auto-insert-alist の書き方に倣う
 ;; - 名前空間の議論は http://nic.ferrier.me.uk/blog/2013_06/adding-namespaces-to-elisp を参照
 ;; - lisp-mnt.el のコメントも確認すること。
-;; - サンプル例
-;;
-;;  | ;;; XXXX.el --- <<Short Description>>
-;;  | ;;
-;;  | ;; Filename: XXXX.el
-;;  | ;; Description: <<Description>>
-;;  | ;; Author: KAWABATA, Taichi <kawabata.taichi_at_gmail.com>
-;;  | ;; Created: 2013-XX-YY
-;;  | ;; Version: 1.YYMMDD
-;;  | ;; Package-Requires: ((helm "1.0"))
-;;  | ;; Keywords: 《finder-known-keywordsのいずれか》
-;;  | ;; Human-Keywords: 自由なキーワード
-;;  | ;; Namespace: XX-
-;;  | ;; URL: https://github.com/kawabata/XXXX
-;;  | ;;
-;;  | ;;; Commentary:
-;;  | ;;
-;;  | ;; -*- mode:org -*-
-;;  | ;;
-;;  | ;; 《Documentation》
-;;  | ;;
-;;  |
-;;  | ;;; Code:
-;;  |
-;;  | 《 Code 》
-;;  |
-;;  | ;;;###autolod
-;;  | (add-to-list 'auto-mode-alist (cons "XXX" 'archive-mode))
-;;  |
-;;  |
-;;  | (provide 'XXXX)
-;;  |
-;;  | ;;; XXXX.el ends here
-;;  | ;; Local Variables:
-;;  | ;; lexical-binding: t
-;;  | ;; coding: utf-8
-;;  | ;; time-stamp-pattern: "10/Version:\\\\?[ \t]+2.%02y%02m%02d\\\\?\n"
-;;  | ;; End:
+;; - サンプルとしてはこの init.el を見ること。
 ;;
 ;; - その他のルール
 ;;   (http://marmalade-repo.org/doc-files/package.5.html)
@@ -170,8 +149,8 @@
 ;; | csharp-mode       |                    | omnisharp            |                      |                     |       |                  |                    |                     |                   |
 ;; | d-mode            | flymake            |                      |                      |                     |       |                  |                    |                     |                   |
 ;; |                   | (cf. emacswiki)    |                      |                      |                     |       |                  |                    |                     |                   |
-;; | emacs-lisp-mode   |                    | auto-complete-config | eldoc                | yasnippet           |       | edebug           |                    |                     |                   |
-;; | (lisp-mode)       |                    |                      | help-fns             |                     |       |                  | erefactor          |                     |                   |
+;; | emacs-lisp-mode   |                    | auto-complete-config | eldoc                | yasnippet           |       | edebug           |                    |                     | ert               |
+;; | (lisp-mode)       |                    |                      | help-fns             |                     |       |                  | erefactor          |                     | ert-runner        |
 ;; |                   |                    |                      | info-look            |                     |       |                  |                    |                     |                   |
 ;; |                   |                    |                      | (elisp/emacs.info)   |                     |       |                  |                    |                     |                   |
 ;; |                   |                    |                      | ffap (elisp)         |                     |       |                  |                    |                     |                   |
@@ -211,7 +190,7 @@
 ;; | ess-mode          |                    | ess-comp             | ess-eldoc            |                     |       | ess-inf          |                    |                     |                   |
 ;; |                   |                    |                      |                      |                     |       | ess-debug        |                    |                     |                   |
 ;; | ruby-mode         | flymake-ruby       | auto-complete-config | yari                 |                     | ctags | realgud (rdebug) | ruby-refactor      | helm-rubygems-local |                   |
-;; |                   | semantic           | rsense               | rsense               |                     |       | geben (Komodo)   |                    | bundler             |                   |
+;; | (enh-ruby-mode)   | semantic           | rsense               | rsense               |                     |       | geben (Komodo)   |                    | bundler             | emamux-ruby-test  |
 ;; |                   | robe               | robe                 |                      |                     |       | gud (rubydb3x)   |                    |                     |                   |
 ;; |                   | rubocop (flycheck) |                      |                      |                     |       | ruby-test-mode   |                    |                     |                   |
 ;; |                   |                    |                      |                      |                     |       |                  |                    |                     |                   |
@@ -448,7 +427,7 @@
 ;; codesign によって動作する場合もあれば動かない場合もあるので、
 ;; 多少古いが Apple専用gdb (/usr/bin/gdb) を使うのが無難。
 
-;;; 初期設定
+;;; Code:
 (require 'cl-lib)
 (eval-when-compile (require 'cl))
 (setq init-file-debug t)
@@ -1202,6 +1181,8 @@ DIR/subdir.el がある場合は、それを実行し、DIR下のディレクト
 ;; ミニバッファの変化が激しいと思うときは、'grow-onlyに。
 (setq resize-mini-windows 'grow-only)
 (setq-default show-trailing-whitespace t) ; 行末の空白を表示
+(defun turn-on-show-trailing-whitespace () (interactive) (setq show-trailing-whitespace t))
+(defun turn-off-show-trailing-whitespace () (interactive) (setq show-trailing-whitespace nil))
 ;; フレームの横幅が一定以下になれば自動的に truncate-window-mode にする。
 ;; nil の場合はこの機能を無効にする。（デフォルトは50）
 (setq truncate-partial-width-windows nil)
@@ -1253,7 +1234,64 @@ DIR/subdir.el がある場合は、それを実行し、DIR下のディレクト
            '(
              ;;("\\.html" . "template.html")))
              (latex-mode . "template.tex")))
-    (push elem auto-insert-alist)))
+    (push elem auto-insert-alist))
+  ;; emacs-lisp 部分を入れ替え。
+  (add-to-list 'auto-insert-alist
+               '(("\\.el\\'" . "Emacs Lisp header")
+                 "Short description: "
+                 ";;; " (file-name-nondirectory (buffer-file-name)) " --- " str "
+
+;; Copyright (C) " (format-time-string "%Y") "  "
+                 (getenv "ORGANIZATION") | (progn user-full-name) "
+
+;; Author: " (user-full-name)
+                 '(if (search-backward "&" (line-beginning-position) t)
+                      (replace-match (capitalize (user-login-name)) t t))
+                 '(end-of-line 1) " <" (progn user-mail-address) ">
+;; Keywords: "
+                 '(require 'finder)
+                 ;;'(setq v1 (apply 'vector (mapcar 'car finder-known-keywords)))
+                 '(setq v1 (mapcar (lambda (x) (list (symbol-name (car x))))
+                                   finder-known-keywords)
+                        v2 (mapconcat (lambda (x) (format "%12s:  %s" (car x) (cdr x)))
+                                      finder-known-keywords
+                                      "\n"))
+                 ((let ((minibuffer-help-form v2))
+                    (completing-read "Keyword, C-h: " v1 nil t))
+                  str ", ") & -2 "
+
+\;; This program is free software; you can redistribute it and/or modify
+\;; it under the terms of the GNU General Public License as published by
+\;; the Free Software Foundation, either version 3 of the License, or
+\;; (at your option) any later version.
+
+\;; This program is distributed in the hope that it will be useful,
+\;; but WITHOUT ANY WARRANTY; without even the implied warranty of
+\;; MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+\;; GNU General Public License for more details.
+
+\;; You should have received a copy of the GNU General Public License
+\;; along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+\;;; Commentary:
+
+\;; " _ "
+
+\;;; Code:
+
+
+
+\(provide '"
+                  (file-name-base)
+       ")
+\;;; " (file-name-nondirectory (buffer-file-name)) " ends here\n
+
+\;; Local Variables:
+\;; lexical-binding: t
+\;; time-stamp-pattern: \"10/Version:\\\\?[ \t]+2.%02y%02m%02d\\\\?\n\"
+\;; End:
+")
+))
 
 ;;;; autorevert.el (global-minor-mode)
 ;; バッファ自動再読み込み
@@ -1388,6 +1426,9 @@ DIR/subdir.el がある場合は、それを実行し、DIR下のディレクト
 ;;;; cmuscheme.el (major-mode)
 ;; C-x C-e → scheme-send-last-sexp
 
+;;;; custom.el
+;; テーマを読み込む際にいちいち聞かない。
+(setq custom-safe-themes t)
 ;;;; dabbrev.el
 (lazyload () "dabbrev"
   (setq dabbrev-abbrev-char-regexp "\\w\\|\\s_")
@@ -1744,49 +1785,184 @@ DIR/subdir.el がある場合は、それを実行し、DIR下のディレクト
 (lazyload () "epa-file"
   (setq epa-file-cache-passphrase-for-symmetric-encryption t))
 
-;;;; erc/erc.el
-(lazyload
-  ((defun erc-w3 () (interactive)
-     ;; :port 6665/6667
-     (erc :server "irc.w3.org" :port "6665" :nick "kawabata"))) "erc"
-  (erc-autojoin-mode 1)
-  (setq erc-autojoin-channels-alist
-        '(("freenode.net" "#emacs" "#emacs-lisp-ja" "#emacs-ja")
-          ("irc.w3.org" "#css"))
-        ;; erc-server "irc.freenode.net"
-        ;; erc-port 6667
-        erc-email-userid "kawabata"
-        erc-nick '("dotabata" "kawabata" "bata")
-        erc-nicklist-use-icons nil
-        erc-password nil
-        erc-nickserv-passwords nil
-        erc-anonymous-login t
-        ;; erc-auto-query 'bury
-        ;; erc-join-buffer 'bury
-        erc-max-buffer-size 40000
+;;;; erc
+;; 注意！ISO-2022-JPが利用できないため、日本語チャットには riece を使うこと！
+;; Rieceが使いにくい場合・UTF-8の場合はこちらを使用する。
+;;;;; erc/erc.el
+;; IRCへの接続は M-x erc-server-select が推奨。
+;; 各チャネルで、メッセージ受信時に個別にバッファが作成される。
+;; IRCサーバコマンド
+;; - /list :: チャンネルリスト一覧
+;; - /join ::
+;; IRCチャネルコマンド
+;; - /part :: チャンネル離脱
+;; - /topic
+;; - /names #ch
+;; - /nick
+;; - /whois <nick> （OCNだとログイン名でバレバレ…）
+(lazyload () "erc"
+  ;; デフォルトIRC設定
+  (setq erc-server "irc.freenode.net"
+        erc-port 6667
+        erc-nick '("teufelsdrockh" "dotabata" "bata")
+        erc-password nil)
+  ;; ログイン
+  (setq erc-anonymous-login t
         erc-prompt-for-password nil
-        erc-command-indicator "CMD"
-        erc-send-whitespace-lines nil
-        ;; erc-track-exclude-types '("JOIN" "NICK" "PART" "QUIT" "MODE"
-        ;;                          "324" "329" "332" "333" "353" "477")
-        )
+        erc-command-indicator "CMD")
+  (erc-autojoin-mode 1)
+  ;; メッセージ送出
+  (setq erc-send-whitespace-lines nil)
+  (add-hook 'erc-insert-post-hook 'erc-truncate-buffer)
+  ;; /join
+  (setq erc-join-buffer 'bury) ; 裏バッファ
+  ;; /msg
+  (setq erc-auto-query 'window-noselect) ; 裏バッファ
+  ;; /quit
   (setq erc-quit-reason-various-alist
         '(("brb"    "I'll be right back.")
+          ("jrbb"   "すぐ戻ります")
           ("lunch"  "Having lunch.")
           ("dinner" "Having dinner.")
           ("food"   "Getting food.")
           ("sleep"  "Sleeping.")
           ("work"   "Getting work done.")
-          (".*"     (yow))))
-  ;;(defvar erc-insert-post-hook)
-  ;;(add-hook 'erc-insert-post-hook 'erc-truncate-buffer)
-  ;;(setq erc-truncate-buffer-on-save t)
-  (setq erc-part-reason-various-alist erc-quit-reason-various-alist
-        erc-part-reason               'erc-part-reason-various
-        erc-quit-reason               'erc-quit-reason-various)
+          (".*"     (yow)))
+        erc-quit-reason 'erc-quit-reason-various)
+  ;; /part
+  (setq erc-part-reason-various-alist
+        '(("brb"    "I'll be right back.")
+          ("jrbb"   "すぐ戻ります")
+          ("lunch"  "Having lunch.")
+          ("dinner" "Having dinner.")
+          ("food"   "Getting food.")
+          ("sleep"  "Sleeping.")
+          ("work"   "Getting work done.")
+          (".*"     (yow)))
+        erc-part-reason 'erc-part-reason-various)
+  ;; モジュール erc-XXXX-enable によって起動
+  (setq erc-modules
+        `(
+          autoaway         ; erc-autoaway.el
+          autojoin         ; erc-join.el
+          button           ; erc-button.el
+          ;;capab          ; erc-capab.el
+          completion       ; erc-pcomplete.el
+          dcc              ; erc-dcc.el
+          fill             ; erc-fill.el
+          ;;identd         ; erc-identd.el
+          irccontrols      ; erc-goodies.el
+          ;;keep-place     ; erc-goodies.el
+          list             ; erc-list.el :: /list コマンド処理
+          log              ; erc-log.el
+          match            ; erc-match.el :: 知り合いのハイライト・通知
+          menu             ; erc-menu.el
+          move-to-prompt   ; erc-goodies.el
+          netsplit         ; erc-netsplit.el
+          networks         ; erc-networks.el
+          noncommands      ; erc-goodies.el
+          notify           ; erc-notify.el
+          page             ; erc-page.el
+          readonly         ; erc-goodies.el
+          ;; replace       ; erc-replace.el
+          ring             ; erc-ring.el
+          scrolltobottom   ; erc-goodies.el
+          ;;services       ; erc-services.el (NickServ)
+          smiley           ; erc-goodies.el
+          sound            ; erc-sound.el
+          stamp            ; erc-stamp.el
+          ;; spelling      ; erc-spelling.el
+          track            ; erc-track.el
+          truncate         ; erc-truncate.el
+          ;; unmorse       ; erc-goodies.el
+          ;; xdcc          ; erc-xdcc.el
+          ))
+  (erc-log-mode 1))
+
+;; erc でパスワードを設定しない場合、auth-source から取得する。
+(defun my-erc-w3 () (interactive)
+  (erc :server "irc.w3.org" :port "6665" :nick "kawabata"))
+(defun my-erc-freenode () (interactive)
+  (erc :server "irc.freenode.net" :port "6667" :nick "teufelsdrockh"))
+(defun my-erc-2ch () (interactive)
+  (erc :server "irc.2ch.net" :port "6667" :nick "batta"))
+
+;;;;; erc/erc-backend.el
+(lazyload () "erc-backend"
+  (setq erc-encoding-coding-alist
+        '(("2ch.net" . iso-2022-jp)))
+  (setq erc-server-auto-reconnect t
+        erc-server-reconnect-attempts t
+        erc-server-reconnet-timeout 10))
+
+;;;;; erc/erc-ibuffer.el
+;; ibuffer の "/ C-e" を、ercサーバリストのフィルタにする。
+(lazyload () "erc"
+  (require 'ibuffer)
+  (require 'erc-ibuffer)
+  (define-key ibuffer-mode-map (kbd "/ \C-e") 'ibuffer-filter-by-erc-server))
+
+;;;;; erc/erc-list.el
+;; リスト処理（自動読み込みされる）
+
+;;;;; erc/erc-log.el
+(lazyload () "erc-log"
+  (setq erc-log-channels-directory "~/.irclog/"
+        erc-save-buffer-on-part t
+        erc-log-file-coding-system 'utf-8
+        erc-log-write-after-send t
+        erc-log-write-after-insert t)
+  (unless (file-exists-p erc-log-channels-directory)
+    (mkdir erc-log-channels-directory t)))
+
+;;;;; erc/erc-join.el
+;; チャネル接続時にパスワードが必要な場合は、auth-sources に書いておけばOK。
+(lazyload () "erc-join"
+  (setq erc-autojoin-channels-alist
+        `(("freenode.net" "#emacs" "#emacs-lisp-ja" "#emacs-ja"
+           "#wikipedia-ja" "##japanese")
+          ("w3.org" "#css")
+          ("2ch.net" "#IRC航空宇宙局" ;; ,(encode-coding-string "#IRC航空宇宙局" 'iso-2022-jp)
+                     ,(encode-coding-string "#おもしろネタ速報" 'iso-2022-jp)
+           "#japanese" "#yaruo"))))
+
+;;;;; erc/erc-match.el
+(lazyload () "erc-match"
+  (setq erc-pals '("rms"
+                   "hober"
+                   "alan"
+                   "fantasai")))
+
+;;;;; erc/erc-networks.el
+(lazyload () "erc-networks"
+  (add-to-list 'erc-server-alist
+               '("W3C: " w3c "irc.w3.org" ((6665 6667))))
   (setq erc-networks-alist
         '((freenode "freenode.net")
           (w3c "w3.org"))))
+
+;;;;; erc/erc-notify.el
+;; erc-notify-list に nickname を入れる。
+;;;;; erc/erc-services.el
+;; NickServ 管理
+;;(lazyload () "erc-services"
+;;  (let ((secret (plist-get (nth 0 (auth-source-search :host "freenode.net"))
+;;                           :secret)))
+;;    (when (functionp secret) (setq secret (funcall secret)))
+;;    (when secret
+;;      (setq erc-nickserv-passwords (list secret)
+;;            erc-nick "batta"))))
+
+;;;;; erc/erc-truncate.el
+;; メッセージ送出時に長すぎるメッセージをtruncateする。
+(lazyload () "erc-truncate"
+  (setq erc-truncate-buffer-on-save t)
+  (setq erc-max-buffer-size 40000))
+
+;;;;; erc/erc-track.el
+(lazyload () "erc-track"
+  (setq erc-track-exclude-types '("JOIN" "NICK" "PART" "QUIT" "MODE"
+                                  "324" "329" "332" "333" "353" "477")))
 
 ;;;; eshell/esh-opt.el
 ;; cf. [[info:eshell]]
@@ -2106,6 +2282,8 @@ DIR/subdir.el がある場合は、それを実行し、DIR下のディレクト
 ;; RFC3028 Email Filtering Language Sieve.
 
 ;;;; gv.el
+;; Emacs 24.3 gv.el でコメントアウトされていた関数。
+;; 非常に使いやすいのでここに入れおく。
 (defun alist-get (key alist)
   "Get the value associated to KEY in ALIST."
   (declare
@@ -2493,6 +2671,10 @@ DIR/subdir.el がある場合は、それを実行し、DIR下のディレクト
 ;;;; minibuf-eldef.el
 (minibuffer-electric-default-mode 1)
 
+;;;; minibuffer.el
+;; ミニバッファ全体管理
+
+
 ;;;; msb.el
 ;; メニューのバッファ一覧を階層化する。
 ;; (msb-mode 1)
@@ -2640,6 +2822,10 @@ DIR/subdir.el がある場合は、それを実行し、DIR下のディレクト
 ;; saxon
 ;; Ubuntu 11 : /usr/share/java/saxon-6.5.5.jar
 ;; MacOS X   : /opt/local/share/java/saxon-9.1he.jar
+
+;;;; obsolete/yow.el
+;; yow が obsolete になり、autoload対象外になったので再設定
+(lazyload (yow) "yow")
 
 ;;;; org/org.el (major-mode)
 ;; org-mode は、git版を優先するため、load-pathの設定が終わった後で設定
@@ -3341,7 +3527,7 @@ GDBは動作しない可能性があります！") (sit-for 2))
 
 ;;;; view.el
 ;; 一週間以上古いファイルは、自動的にread-onlyにする。
-(defun read-only-if-old-file ()
+(defun my-read-only-if-old-file ()
   (let ((modification-time
          (elt (file-attributes (buffer-file-name)) 5)))
     (when (and modification-time
@@ -3358,9 +3544,18 @@ GDBは動作しない可能性があります！") (sit-for 2))
                (not (string-match "bookmarks" (buffer-file-name)))
                (not (string-match "emacs-bmk-bmenu" (buffer-file-name))))
       (read-only-mode))))
-(add-hook 'find-file-hook 'read-only-if-old-file)
-;; これがまずい場合は、以下の命令でキャンセルする。
-;; (remove-hook 'find-file-hook 'read-only-if-old-file)
+;; 切り替え関数の定義
+(defun turn-on-old-file-read-only () (interactive)
+  (add-hook 'find-file-hook 'my-read-only-if-old-file)
+  (message "old-file-read-only is on."))
+(defun turn-off-old-file-read-only () (interactive)
+  (remove-hook 'find-file-hook 'my-read-only-if-old-file)
+  (message "old-file-read-only is off."))
+(defun toggle-old-file-read-only () (interactive)
+  (if (memq 'my-read-only-if-old-file find-file-hook)
+      (turn-off-old-file-read-only)
+    (turn-on-old-file-read-only)))
+(turn-on-old-file-read-only)
 
 ;;;; wdired.el
 (autoload 'wdired-change-to-wdired-mode "wdired" nil t)
@@ -3370,6 +3565,7 @@ GDBは動作しない可能性があります！") (sit-for 2))
 ;;;; windmove.el
 ;; Shift + ↑←↓→ で、移動。
 (eval-and-compile (windmove-default-keybindings))
+;; 一番左のウィンドウから左への移動は一番右へいく。
 (setq windmove-wrap-around t)
 
 ;;;; window.el
@@ -3994,6 +4190,8 @@ This function is a possible formatting function for
 (lazyload () "ox-org"
   (require 'bibeltex nil t))
 
+;;;; bibretrieve (elpa)
+
 ;;;; bookmark+ (elpa)
 ;; |---------------+---------------------------------|
 ;; | C-x p m (r m) | bookmark-set                    |
@@ -4049,14 +4247,13 @@ This function is a possible formatting function for
           ,(cfw:cal-create-source "Orange") ; diary source
           ,@(let ((secret (plist-get (nth 0 (auth-source-search :host "calendar.google.com"))
                                     :secret)))
-              (when (functionp secret) (setq secret (funcall secret)))
-              (when secret
+              (when (functionp secret)
                 (list
                  (cfw:ical-create-source
                   "gcal"
                   (concat
                    "https://www.google.com/calendar/ical/kawabata.taichi%40gmail.com/"
-                   secret "/basic.ics") "IndianRed")) ; google calendar ICS
+                   (funcall secret) "/basic.ics") "IndianRed")) ; google calendar ICS
               ))))
   (defun my-calendar ()
     (interactive)
@@ -4256,6 +4453,12 @@ This function is a possible formatting function for
   (with-no-warnings
     (defvar e float-e "The value of e (2.7182818...).")))
 
+;;;; efeed (elpa)
+(lazyload () "elfeed"
+  (setq elfeed-feeds
+      '("http://nullprogram.com/feeds/"
+        "http://www.terminally-incoherent.com/blog/feed/")))
+
 ;;;; elscreen
 ;;(setq elscreen-prefix-key "\C-c\C-c") ; Old copy-to-register
 ;;(require 'elscreen nil t)
@@ -4313,6 +4516,14 @@ This function is a possible formatting function for
 (lazyload () "scala-mode2"
   (when (require 'ensime nil t)
     (add-hook 'scala-mode-hook 'ensime-scala-mode-hook)))
+
+;;;; epsilon
+;; プログラミング言語 GNU epsilon
+;; http://arxiv.org/pdf/1212.5210v5.pdf
+;; http://www.gnu.org/software/epsilon
+(lazyload (epsilon-mode
+           (add-to-list 'auto-mode-alist '("\\.e$" . epsilon-mode)))
+    "epsilon")
 
 ;;;; erefactor (elpa)
 ;; autoload で、フック・erefactor-map は設定されている。
@@ -5169,7 +5380,7 @@ This function is a possible formatting function for
 ;; - Emacsでリファクタリングに超絶便利なmark-multiple
 ;;   http://d.hatena.ne.jp/tuto0621/20121205/1354672102
 ;;   http://emacsrocks.com/e13.html
-(lazyload 
+(lazyload
     ((global-set-key (kbd "C->") 'mc/mark-next-like-this)
      (global-set-key (kbd "C-<") 'mc/mark-previous-like-this)
      (global-set-key (kbd "C-c M-8") 'mc/mark-all-like-this))
@@ -5189,13 +5400,13 @@ This function is a possible formatting function for
 ;;;; navi
 ;; navi はバッファの概略を表示するパッケージ。
 ;; outline-mode で代替できるので不要。
-;(when (locate-library "navi")
-;  (autoload 'navi "navi" "navi." t nil)
-;  (global-set-key [f11]  'call-navi)
-;  (global-set-key "\C-x\C-l" 'call-navi)
-;  (defun call-navi ()
-;    (interactive)
-;    (navi (buffer-name))))
+;;(when (locate-library "navi")
+;;  (autoload 'navi "navi" "navi." t nil)
+;;  (global-set-key [f11]  'call-navi)
+;;  (global-set-key "\C-x\C-l" 'call-navi)
+;;  (defun call-navi ()
+;;    (interactive)
+;;    (navi (buffer-name))))
 
 ;;;; navi2ch
 ;; * インストール
@@ -5399,33 +5610,33 @@ This function is a possible formatting function for
   (org-defkey org-mode-map (kbd "C-c C-x M-o") 'org-clock-out)
   (setq org-clock-persist 'history))
 
-;; 先頭が "*" でなく、改行の前後が日本の文字の場合はその改行を除去する。
+;; 先頭が "*","#","|" でなく、改行の前後が日本の文字の場合はその改行を除去する。
 ;; org-mode で利用する。
 ;; U+3000 以降の文字同士が改行で分割されていた場合は改行を削除する。
 ;; XeTeX/LuaTeX や HTML, DocBook 等、日本語の改行が空白扱いになる箇所で利用する。
-(defun remove-newlines-at-cjk-text (&optional _mode)
+(defun remove-org-newlines-at-cjk-text (&optional _mode)
   (interactive)
   (goto-char (point-min))
-  (while (re-search-forward "^\\([^*\n].+\\)\\(.\\)\n *\\(.\\)" nil t)
+  (while (re-search-forward "^\\([^|#*\n].+\\)\\(.\\)\n *\\(.\\)" nil t)
     (if (and (> (string-to-char (match-string 2)) #x2000)
                (> (string-to-char (match-string 3)) #x2000))
-        (replace-match "\\1\\2\\3")
-      (replace-match "\\1\\2 \\3"))
+        (replace-match "\\1\\2\\3"))
+    ;;(replace-match "\\1\\2 \\3"))
     (goto-char (point-at-bol))))
 
 ;; org-mode のテキストを PowerPoint などにコピーする際に
 ;; キルリングに入る日本語の改行・空白を削除する。
-(defun remove-newlines-at-cjk-kill-ring-save (from to)
+(defun remove-org-newlines-at-cjk-kill-ring-save (from to)
   (interactive "r")
   (let ((string (buffer-substring from to)))
     (with-temp-buffer
       (insert string)
-      (remove-newlines-at-cjk-text)
+      (remove-org-newlines-at-cjk-text)
       (copy-region-as-kill (point-min) (point-max))))
   (if (called-interactively-p 'interactive)
       (indicate-copied-region)))
 
-(global-set-key (kbd "M-W") 'remove-newlines-at-cjk-kill-ring-save)
+(global-set-key (kbd "M-W") 'remove-org-newlines-at-cjk-kill-ring-save)
 
 ;;;;; org/org-feed
 ;; RSSリーダ
@@ -5536,7 +5747,7 @@ This function is a possible formatting function for
 ;; (pandoc) → docbook, latex, mediawiki, etc. etc...
 
 (lazyload () "ox"
-  (add-hook 'org-export-before-processing-hook 'remove-newlines-at-cjk-text))
+  (add-hook 'org-export-before-processing-hook 'remove-org-newlines-at-cjk-text))
 
 ;;;;; org/ox-freemind
 (lazyload () "ox-freemind"
@@ -5889,19 +6100,67 @@ Allows use of the fancyvrb latex package."
         ;;org-deck-base-url "http://imakewebthings.com/deck.js"))
 
 ;;;; org-octopress (elpa)
-;; org-mac-link の built-in-package への追加（暫定処置）
+;; * 参考文献
+;;   - https://github.com/yoshinari-nomura/org-octopress （本家）
+;;   - http://quickhack.net/nom/blog/2013-05-01-org-octopress.html （作者ブログ）
+;; * Octopressの設定
+;;   - 普通にインストールし、テーマを設定する。
+;;   - _config.ymlを編集する。
+;;     + permlink を "/blog/:year-:month-:day-:title.html" にする。
+;;     + 名前・タイトル等を変更する。
+;; * ブログの書き方：
+;;   - M-x org-octopress
+;;   - w を押してブログを書く。
+;;   - 画像は blog/images 等のディレクトリを作り、相対リンクで参照する。
+;;   - dot/ditaa のグラフは以下のように書く。
+;;     | :NOT:
+;;     | #+NAME: dottyExample
+;;     | #+BEGIN_SRC dot :file ./images/2013/exampleDotty.png :exports results のように書く。
+;;     | ...
+;;     | #+END_SRC
+;;     | :END:
+;;     | #+RESULTS[6d2ac873c0fc0e0232e317a2a88e734600e5ac0d]: dottyExample
+;;     | #+CAPTION: Example of Dotty Image
+;;     | [[file:./images/2013/exampleDotty.png]]
+;;   - C-c C-e P x octopress
+;; * octopress のアップグレード
+;;   - doc:: http://octopress.org/docs/updating/
+;;   : git pull octopress master     # Get the latest Octopress
+;;   : bundle install                # Keep gems updated
+;;   : rake update_source            # update the template's source
+;;   : rake update_style             # update the template's style
+;; * 手順
+;;   1. ~/org/octopress/blog (YYYY-MM-DD-title.org)
+;;      Blogの原稿が入ったディレクトリ
+;;   2. ~/cvs/octopress/source_posts (YYYY-MM-DD-title.html YAML)
+;;      M-x org-publish によって変換されるディレクトリ
+;;   3. ~/cvs/octopress/public/blog (YYYY-MM-DD-title.html)
+;;      rake generate によって生成されるコンテンツ。
+;;   4. git commit/push
+;;
+;;  タイムスタンプは ~/.org-timestamps にあるのでうまく動かない場合は削除する。
+;;
+(lazyload (org-octopress) "org-octopress"
+  (setq ;; オリジナルファイルのディレクトリ
+        org-octopress-directory-org-top   "~/org/octopress"
+        org-octopress-directory-org-posts "~/org/octopress/blog"
+        org-octopress-setup-file          "~/org/octopress.org"
+        ;; export先のディレクトリ
+        org-octopress-directory-top       "~/Dropbox/cvs/octopress/source"
+        org-octopress-directory-posts     "~/Dropbox/cvs/octopress/source/_posts")
+  ;; octopress-static も追加する。
+  (add-hook 'org-octopress-summary-mode-hook
+            (lambda ()
+              (setf (alist-get "octopress" org-publish-project-alist)
+                    '(:components ("octopress-posts" "octopress-org" "octopress-static"))))))
+;; 残骸ノート（以下の情報はメモ）
+;; 一時期、org-mac-linkパッケージの不在による org-octopressインストール失敗があったため、
+;; 以下のようにして対処した。
 ;; org-octopress -> orglue -> org-mac-link への対応 (org-mac-link-grabbar が消滅)
 ;; 　初期化時のエラーメッセージが消えたら対処完了
 ;;(when (locate-library "org-mac-link")
 ;;  (add-to-list 'package--builtins
 ;;               '(org-mac-link . [(1 2) nil "Grab links and url from various mac"])))
-;; TODO 画像等の static file への対応
-(lazyload (org-octopress) "org-octopress"
-  (setq org-octopress-directory-top       "~/Dropbox/cvs/octopress/source"
-        org-octopress-directory-posts     "~/Dropbox/cvs/octopress/source/_posts"
-        org-octopress-directory-org-top   "~/org/octopress"
-        org-octopress-directory-org-posts "~/org/octopress/blog"
-        org-octopress-setup-file          "~/org/octopress.org"))
 
 ;;;; org-table-comment (elpa)
 ;; orgtbl-mode では対応できない 非ブロックコメント形式のプログラム言語
@@ -5918,14 +6177,13 @@ Allows use of the fancyvrb latex package."
 
 ;;;; package-build (elpa)
 ;; 自動的にパッケージを構築してくれる。
+;; MELPAに入っているものを使えば良い。
 ;; http://qiita.com/ongaeshi/items/0502030e0875b6902fe1
 ;; package-build-archive
 ;; (package-build)
 ;;
 ;; XXX.el (Version: VERSION) --> XXX-pkg.el (define-pkg ... "VERSION")
 ;;                           --> XXX-VERSION.tar
-;; パッケージの構築方法
-;;
 
 ;;;; pandoc-mode (elpa)
 ;; M-x pandoc-mode
@@ -6011,23 +6269,40 @@ Allows use of the fancyvrb latex package."
 ;; ることを確認した後でrealgud-rdebug を実行する。gdb はまだ本家のgudが便利か。
 (lazyload (realgud-bashdb realgud-gdb realgud-gub realgud-pdb
            realgud-perldb realgud-pydb realgud-remake realgud-rdebug
-           realgud-zsh)
+           realgud-zsh) ;; GUB ... Go SSA Debugger
     "realgud")
 
 ;;;; riece
-;; ;; irc.w3.org 6665
-;; チャンネルに入る ・C-c j
+;; doc: http://www.nongnu.org/riece/riece-ja/Commands.html#Commands
+;; |         | erc     | riece     |
+;; |---------+---------+-----------|
+;; | join    | C-c C-j | C-c j     |
+;; | part    | C-c C-p | C-c C-p   |
+;; | quit    | C-c C-q | C-c q     |
+;; | notice  |         | C-RET     |
+;; | privmsg |         | C-c p     |
+;; | nick    |         | C-c n     |
+;; | whois   |         | C-c f     |
+;; | kick    |         | C-c C-k   |
+;; | invite  |         | C-c i     |
+;; | list    |         | C-c l     |
+;; | names   | C-c C-n | C-c C-n   |
+;; | who     |         | C-c w     |
+;; | topic   | C-c C-t | C-c t     |
+;; | mode    |         | C-c C-m   |
+;; | mode +o |         | C-c o     |
+;; | mode -o |         | C-c C-o   |
+;; | mode +v |         | C-c v     |
+;; | mode -v |         | C-c C-v   |
+;; | away    |         | C-c C-t a |
+;; |---------+---------+-----------|
+;; | any     |         | C-c /     |
+;; 上記のコマンドを特定のIRCサーバへ向けて発出するには、C-c M <server> prefix を使う。
+;; 特定のサーバを開いたり閉じたりするのは C-c O または C-c C.
 ;; 次のチャンネルへ移動 ・C-c >
 ;; 前のチャンネルへ移動 ・C-c <
-;;(lazyload (riece) "riece"
-;;  (setq riece-server-alist
-;;        '(;("freenode" :host "irc.freenode.net"
-;;          ; :nickname "kawabata" :username "kawabata")
-;;          ("w3c" :host "irc.w3.org" :port 6665
-;;           :nickname "kawabata" :username "kawabata")
-;;          ;("wide" : host "irc.tokyo.wide.ad.jp" :port 6668
-;;          ; :nickname "kawabata" :username "kawabata")
-;;          )))
+;; riece の設定は、 ~/.riece/init に記述する。
+(lazyload (riece) "riece")
 
 ;;;; rnc-mode (elpa)
 ;; http://www.pantor.com
@@ -6335,78 +6610,78 @@ Allows use of the fancyvrb latex package."
 ;;;; tabbar (elpa) (使用中止)
 ;; [注意] tabbarはバッファが増えると著しく重くなるので使用中止。
 ;; gnupack の設定を利用。
-;(when (require 'tabbar nil t)
-;  ;; tabbar有効化
-;  (tabbar-mode -1)
-;  ;; タブ切替にマウスホイールを使用（0：有効，-1：無効）
-;  (tabbar-mwheel-mode -1)
-;  ;; タブグループを使用（t：有効，nil：無効）
-;  (setq tabbar-buffer-groups-function nil)
-;  ;; ボタン非表示
-;  (dolist (btn '(tabbar-buffer-home-button
-;                 tabbar-scroll-left-button
-;                 tabbar-scroll-right-button))
-;    (set btn (cons (cons "" nil) (cons "" nil))))
-;  ;; タブ表示 一時バッファ一覧
-;  (defvar tabbar-displayed-buffers
-;    '("*scratch*" "*Messages*" "*Backtrace*" "*Colors*"
-;      "*Faces*" "*Apropos*" "*Customize*" "*shell*" "*Help*")
-;    "*Regexps matches buffer names always included tabs.")
-;  ;; 作業バッファの一部を非表示
-;  (setq tabbar-buffer-list-function
-;        (lambda ()
-;          (let* ((hides (list ?\  ?\*))
-;                 (re (regexp-opt tabbar-displayed-buffers))
-;                 (cur-buf (current-buffer))
-;                 (tabs (delq
-;                        nil
-;                        (mapcar
-;                         (lambda (buf)
-;                           (let ((name (buffer-name buf)))
-;                             (when (or (string-match re name)
-;                                       (not (memq (aref name 0) hides)))
-;                               buf)))
-;                         (buffer-list)))))
-;            (if (memq cur-buf tabs)
-;                tabs
-;              (cons cur-buf tabs)))))
-;  ;; キーバインド設定
-;  ;(global-set-key (kbd "<C-tab>")   'tabbar-forward-tab)
-;  ;(global-set-key (kbd "<C-S-tab>") 'tabbar-backward-tab)
-;  ;; タブ表示欄の見た目（フェイス）
-;  (set-face-attribute 'tabbar-default nil
-;                      :background "SystemMenuBar")
-;  ;; 選択タブの見た目（フェイス）
-;  (set-face-attribute 'tabbar-selected nil
-;                      :foreground "red3"
-;                      :background "SystemMenuBar"
-;                      :box (list
-;                            :line-width 1
-;                            :color "gray80"
-;                            :style 'released-button)
-;                      :overline "#F3F2EF"
-;                      :weight 'bold
-;                      :family "Inconsolata"
-;                      )
-;  ;; 非選択タブの見た目（フェイス）
-;  (set-face-attribute 'tabbar-unselected nil
-;                      :foreground "black"
-;                      :background "SystemMenuBar"
-;                      :box (list
-;                            :line-width 1
-;                            :color "gray80"
-;                            :style 'released-button)
-;                      :overline "#F3F2EF"
-;                      :family "Inconsolata"
-;                      )
-;  ;; タブ間隔の調整
-;  (set-face-attribute 'tabbar-separator nil
-;                      :height 0.1)
-;  (defun rotate-tabbar (arg)
-;    (interactive "P")
-;    (if (null arg) (tabbar-forward-tab) (tabbar-backward-tab)))
-;  (add-to-list 'rotate-command-set
-;               '(rotate-tabbar . "Tabbar") t))
+;;(when (require 'tabbar nil t)
+;;  ;; tabbar有効化
+;;  (tabbar-mode -1)
+;;  ;; タブ切替にマウスホイールを使用（0：有効，-1：無効）
+;;  (tabbar-mwheel-mode -1)
+;;  ;; タブグループを使用（t：有効，nil：無効）
+;;  (setq tabbar-buffer-groups-function nil)
+;;  ;; ボタン非表示
+;;  (dolist (btn '(tabbar-buffer-home-button
+;;                 tabbar-scroll-left-button
+;;                 tabbar-scroll-right-button))
+;;    (set btn (cons (cons "" nil) (cons "" nil))))
+;;  ;; タブ表示 一時バッファ一覧
+;;  (defvar tabbar-displayed-buffers
+;;    '("*scratch*" "*Messages*" "*Backtrace*" "*Colors*"
+;;      "*Faces*" "*Apropos*" "*Customize*" "*shell*" "*Help*")
+;;    "*Regexps matches buffer names always included tabs.")
+;;  ;; 作業バッファの一部を非表示
+;;  (setq tabbar-buffer-list-function
+;;        (lambda ()
+;;          (let* ((hides (list ?\  ?\*))
+;;                 (re (regexp-opt tabbar-displayed-buffers))
+;;                 (cur-buf (current-buffer))
+;;                 (tabs (delq
+;;                        nil
+;;                        (mapcar
+;;                         (lambda (buf)
+;;                           (let ((name (buffer-name buf)))
+;;                             (when (or (string-match re name)
+;;                                       (not (memq (aref name 0) hides)))
+;;                               buf)))
+;;                         (buffer-list)))))
+;;            (if (memq cur-buf tabs)
+;;                tabs
+;;              (cons cur-buf tabs)))))
+;;  ;; キーバインド設定
+;;  ;(global-set-key (kbd "<C-tab>")   'tabbar-forward-tab)
+;;  ;(global-set-key (kbd "<C-S-tab>") 'tabbar-backward-tab)
+;;  ;; タブ表示欄の見た目（フェイス）
+;;  (set-face-attribute 'tabbar-default nil
+;;                      :background "SystemMenuBar")
+;;  ;; 選択タブの見た目（フェイス）
+;;  (set-face-attribute 'tabbar-selected nil
+;;                      :foreground "red3"
+;;                      :background "SystemMenuBar"
+;;                      :box (list
+;;                            :line-width 1
+;;                            :color "gray80"
+;;                            :style 'released-button)
+;;                      :overline "#F3F2EF"
+;;                      :weight 'bold
+;;                      :family "Inconsolata"
+;;                      )
+;;  ;; 非選択タブの見た目（フェイス）
+;;  (set-face-attribute 'tabbar-unselected nil
+;;                      :foreground "black"
+;;                      :background "SystemMenuBar"
+;;                      :box (list
+;;                            :line-width 1
+;;                            :color "gray80"
+;;                            :style 'released-button)
+;;                      :overline "#F3F2EF"
+;;                      :family "Inconsolata"
+;;                      )
+;;  ;; タブ間隔の調整
+;;  (set-face-attribute 'tabbar-separator nil
+;;                      :height 0.1)
+;;  (defun rotate-tabbar (arg)
+;;    (interactive "P")
+;;    (if (null arg) (tabbar-forward-tab) (tabbar-backward-tab)))
+;;  (add-to-list 'rotate-command-set
+;;               '(rotate-tabbar . "Tabbar") t))
 
 ;;;; taskjuggler-mode
 ;; http://www.skamphausen.de/cgi-bin/ska/taskjuggler-mode (official)
@@ -6587,6 +6862,7 @@ Allows use of the fancyvrb latex package."
 ;; C-c C-p : Toggle read-only area.
 ;; C-c C-k : Discard all changes and exit.
 ;; C-x C-q : Exit wgrep mode.
+;; 実行前に turn-off-old-file-read-only の実行を推奨。
 (lazyload () "grep"
   (require 'wgrep nil t))
 
@@ -6668,8 +6944,9 @@ Allows use of the fancyvrb latex package."
   (load "my-birthdays" nil t))
 
 ;;;; bbdb-export
-(lazyload (bbdb-export-vcard
-           (global-set-key (kbd "C-c V") 'bbdb-export-vcard)) "bbdb-export")
+(lazyload (bbdb-export-vcard-v3
+           (global-set-key (kbd "C-c V") 'bbdb-export-vcard-v3))
+    "bbdb-export")
 
 ;;;; BibTeX CiNii検索
 (lazyload (bib-cinii-bib-buffer) "bib-cinii")
@@ -6980,16 +7257,21 @@ same directory as the org-buffer and insert a link to this file."
  ;; Your init file should contain only one such instance.
  ;; If there is more than one, they won't work right.
  '(Linum-format "%7i ")
+ '(ansi-color-names-vector ["#242424" "#e5786d" "#95e454" "#cae682" "#8ac6f2" "#333366" "#ccaa8f" "#f6f3e8"])
+ '(ansi-term-color-vector [unspecified "#FFFFFF" "#d15120" "#5f9411" "#d2ad00" #1="#6b82a7" "#a66bab" #1# "#505050"] t)
  '(background-color "#202020")
  '(background-mode dark)
  '(bmkp-last-as-first-bookmark-file "~/.emacs.d/bookmarks")
  '(compilation-message-face (quote default))
  '(cursor-color "#cccccc")
+ '(debug-on-quit nil)
+ '(default-input-method "math-symbols-bold")
  '(fci-rule-character-color "#d9d9d9")
  '(fci-rule-color "#d9d9d9")
  '(foreground-color "#cccccc")
  '(frame-brackground-mode (quote dark))
  '(fringe-mode 4 nil (fringe))
+ '(global-my-theme-display-mode t)
  '(highlight-changes-colors (quote ("#d33682" "#6c71c4")))
  '(highlight-tail-colors (quote (("#eee8d5" . 0) ("#B4C342" . 20) ("#69CABF" . 30) ("#69B7F0" . 50) ("#DEB542" . 60) ("#F2804F" . 70) ("#F771AC" . 85) ("#eee8d5" . 100))))
  '(linum-format " %7d ")
@@ -7028,7 +7310,12 @@ same directory as the org-buffer and insert a link to this file."
 (put 'set-goal-column 'disabled nil)
 (put 'upcase-region 'disabled nil)
 
+(provide 'init)
+;;; init.el ends here
+
 ;; Local Variables:
+;; coding: utf-8-unix
+;; lexical-binding: t
 ;; outline-minor-mode: t
 ;; time-stamp-pattern: "10/Modified:\\\\?[ \t]+%:y-%02m-%02d\\\\?\n"
 ;; eval: (hide-sublevels 5)
