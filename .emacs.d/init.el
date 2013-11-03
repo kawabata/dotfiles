@@ -5,7 +5,7 @@
 ;; Package-Requires: ((emacs "24.3"))
 ;; Author: KAWABATA, Taichi <kawabata.taichi_at_gmail.com>
 ;; Created: around 1995 (Since my first Emacs experience...)
-;; Modified: 2013-10-30
+;; Modified: 2013-11-03
 ;; Version: 13
 ;; Keywords: internal, local
 ;; Human-Keywords: Emacs Initialization
@@ -34,13 +34,16 @@
 ;;   GnuPack emacs-24.3-ime-2013-05-03.patch.tar.gz
 
 ;; - 個別パッケージインストール
-;;   + TeX (MacTeX, W32TeX, TexLive)
-;;   + Pandoc
-;;   + Go Language
+;;   + TeX (MacTeX, W32TeX, TexLive) (/usr/texbin/)
+;;   + Pandoc (/usr/bin/pandoc)
+;;   + Go Language (/usr/local/go)
+;;   + Digital Mars D language
 ;;   + GnuPG (Agent)
-;;     MacGPGの場合はシステム環境設定のGPGPreferencesにおいて"Store Password in KeyChain" を設定
+;;     MacGPGの場合はシステム環境設定のGPGPreferencesにおいて
+;;     "Store Password in KeyChain" を設定
 ;;   + R (http://cran.r-project.org/bin/macosx/)
 ;;   + Haskell Platform (ghc を単体でインストールしてはいけない！）
+;;   + X Windows (XQuartz)
 ;; - パッケージマネージャ (MacPorts/HomeBrew) でインストール
 ;;   + Maxima
 
@@ -68,7 +71,6 @@
 ;; - php-auto-yasnippet :: 膨大な量の無関係なライブラリを読み込む。
 ;; - powerline - autoload does load itself.
 ;; - erc-hl-nicks - autoload does load itself.
-;; - auc-tex - autoload does load itself.
 ;; - ensime -- should not include auto-complete, that may shadow original auto-complete.
 ;; - pretty-mode.el -- should not include (require'cl)
 ;; - orglue - requires org-mac-link, which does not exists as independet package.
@@ -276,7 +278,7 @@
 ;; |               | flymake-csslint         | emmet-mode           |                |                  |       |                     |
 ;; | haml-mode     | flymake-haml            |                      |                |                  |       |                     |
 ;; | latex-mode    | flymake-simple-tex-init | ac-math              | info-look      | yasnippet        | ctags | TeX-run-interactive |
-;; | (tex-mode)    |                         |                      | [latex.info]   |                  |       | (tex-buf)           |
+;; | (tex-mode)    |                         |                      | [latex.info]   |                  | etags | (tex-buf)           |
 ;; |               |                         |                      | ffap           |                  |       |                     |
 ;; | markdown-mode |                         |                      |                | yasnippet        |       |                     |
 ;; | nxml-mode     | rng-nxml                | nxml-mode            |                | docbook-snippets |       |                     |
@@ -292,69 +294,75 @@
 
 ;;;; Minor Modes
 ;; 動作が重たい時は、profiler を使って重いモードをみつける。
-;; | anzu-mode                      | global-anzu-mode               |                                              |
-;; | auto-compile-mode              | auto-compile-on-save-mode      | （中）                                       |
-;; | auto-complete-mode             | global-auto-complete-mode      | （重）                                       |
+;; | マイナーモード名               | グローバルマイナーモード名     |                                              |
+;; |--------------------------------+--------------------------------+----------------------------------------------|
+;; | 標準ライブラリ                 |                                |                                              |
 ;; | auto-composition-mode          | global-auto-composition-mode   |                                              |
 ;; |                                | auto-compression-mode          |                                              |
 ;; |                                | auto-encryption-mode           |                                              |
 ;; |                                | auto-image-file-mode           |                                              |
 ;; |                                | auto-insert-mode               |                                              |
 ;; | auto-revert-mode               | global-auto-revert-mode        |                                              |
-;; | button-lock-mode               | global-button-lock-mode        | 特定のテキストプロパティをクリック可能にする |
 ;; | column-number-mode             |                                |                                              |
-;; |                                | global-crab-mode               | WebSocket 経由で ブラウザに接続・操作する。  |
-;; | diff-auto-refine-mode          |                                |                                              |
-;; | display-theme-mode             | global-display-theme-mode      |                                              |
-;; |                                | display-time-mode              |                                              |
-;; |                                | eldoc-in-minibuffer-mode       |                                              |
-;; |                                | file-name-shadow-mode          |                                              |
-;; | fixmee-mode                    | global-fixmee-mode             |                                              |
-;; | flycheck-mode                  | global-flycheck-mode           | 重                                           |
 ;; |                                | global-font-lock-mode          |                                              |
-;; |                                | global-git-gutter+-mode        |                                              |
-;; |                                | helm-match-plugin-mode         |                                              |
-;; |                                | helm-occur-match-plugin-mode   |                                              |
 ;; | hi-lock-mode                   | global-hi-lock-mode            |                                              |
 ;; | (hl-line-mode)                 | global-hl-line-mode            |                                              |
 ;; |                                | global-highlight-changes-mode  |                                              |
-;; | idle-highlight-mode            |                                | アイドル時に同じ単語をハイライト             |
-;; | image-diredx-async-mode        |                                |                                              |
 ;; | iswitchb-mode                  |                                |                                              |
 ;; | line-number-mode               | global-linum-mode              |                                              |
 ;; |                                | mac-mouse-wheel-mode           |                                              |
-;; |                                | global-magit-wip-save-mode     |                                              |
 ;; |                                | menu-bar-mode                  |                                              |
 ;; | minibuffer-depth-indicate-mode |                                |                                              |
 ;; | mouse-wheel-mode               |                                |                                              |
-;; |                                | global-orglink-mode            |                                              |
 ;; | outline-minor-mode             |                                |                                              |
-;; |                                | override-global-mode           |                                              |
-;; |                                | popwin-mode                    |                                              |
-;; | pretty-mode                    | global-pretty-mode             |                                              |
-;; | rainbow-delimiters-mode        | global-rainbow-delimiters-mode |                                              |
 ;; |                                | recentf-mode                   |                                              |
-;; | regexp-lock-mode               |                                | （重）                                       |
 ;; | shell-dirtrack-mode            |                                |                                              |
 ;; |                                | show-paren-mode                |                                              |
-;; |                                | global-speechd-speak-mode      |                                              |
-;; |                                | global-subword-mode            |                                              |
-;; |                                | temp-buffer-resize-mode        |                                              |
+;; |                                | temp-buffer-resize-mode        | help                                         |
 ;; |                                | tooltip-mode                   |                                              |
 ;; |                                | transient-mark-mode            |                                              |
-;; | undo-tree-mode                 | global-undo-tree-mode          |                                              |
 ;; |                                | global-visual-line-mode        |                                              |
 ;; |                                | winner-mode                    |                                              |
 ;; |                                | global-whitespace-mode         |                                              |
 ;; |                                | global-whitespace-newline-mode |                                              |
 ;; |--------------------------------+--------------------------------+----------------------------------------------|
+;; | 外部ライブラリ                 |                                |                                              |
+;; | anzu-mode                      | global-anzu-mode               |                                              |
+;; | auto-compile-mode              | auto-compile-on-save-mode      | 中                                           |
+;; | auto-complete-mode             | global-auto-complete-mode      | 重                                           |
+;; | button-lock-mode               | global-button-lock-mode        | 特定のテキストプロパティをクリック可能にする |
 ;; | checkdoc-minor-mode            |                                |                                              |
+;; |                                | global-crab-mode               | WebSocket 経由で ブラウザに接続・操作する。  |
 ;; |                                | global-cwarn-mode              |                                              |
+;; | diff-auto-refine-mode          |                                |                                              |
+;; | display-theme-mode             | global-display-theme-mode      |                                              |
+;; |                                | display-time-mode              |                                              |
+;; |                                | eldoc-in-minibuffer-mode       |                                              |
+;; |                                | file-name-shadow-mode          |                                              |
 ;; |                                | global-ede-mode                |                                              |
+;; |                                | global-eclim-mode              |                                              |
 ;; |                                | global-elixir-mix-mode         |                                              |
+;; | fixmee-mode                    | global-fixmee-mode             |                                              |
+;; | flycheck-mode                  | global-flycheck-mode           | 重                                           |
+;; |                                | global-git-gutter+-mode        |                                              |
+;; |                                | helm-match-plugin-mode         |                                              |
+;; |                                | helm-occur-match-plugin-mode   |                                              |
+;; | idle-highlight-mode            |                                | アイドル時に同じ単語をハイライト             |
+;; | image-diredx-async-mode        |                                |                                              |
+;; |                                | global-magit-wip-save-mode     |                                              |
+;; |                                | global-orglink-mode            |                                              |
+;; |                                | openwth-mode                   |                                              |
+;; |                                | override-global-mode           |                                              |
+;; |                                | popwin-mode                    |                                              |
+;; | pretty-mode                    | global-pretty-mode             |                                              |
+;; | projectile-mode                | global-projectile-mode         |                                              |
+;; | rainbow-delimiters-mode        | global-rainbow-delimiters-mode | 多くのテーマと相性が悪い                     |
 ;; |                                | global-rbenv-mode              |                                              |
 ;; |                                | global-rinari-mode             |                                              |
-;; |                                | global-eclim-mode              |                                              |
+;; |                                | global-speechd-speak-mode      |                                              |
+;; |                                | global-subword-mode            |                                              |
+;; | regexp-lock-mode               |                                | 重                                           |
+;; | undo-tree-mode                 | global-undo-tree-mode          |                                              |
 
 ;;;; Key Binding
 ;;;;; Modifier Keys
@@ -362,30 +370,41 @@
 ;; 自分で予約可能な修飾キーの一覧
 ;; | pre | A  | M  | C  | S  |    |                          |
 ;; |-----+----+----+----+----+----+--------------------------|
-;; | 指  | 子 | 親 | 子 | 子 |    | 子を２つ重ねるのは難しい |
+;; | 指  | 薬 | 親 | 子 | 子 |    | 子を２つ重ねるのは難しい |
 ;; |-----+----+----+----+----+----+--------------------------|
 ;; |     |    |    |    | *  | 予 | （self-insert-command）  |
 ;; |     |    |    | O  |    | 予 |                          |
-;; |     |    |    | O  | O  | 可 | ※右手のみ推奨           |
+;; |     |    |    | O  | O  | 可 | 非推奨（注1）            |
 ;; |     |    | O  |    |    | 予 |                          |
 ;; |     |    | O  |    | O  | 可 | （MacOSのキーでも利用）  |
 ;; |     |    | O  | O  |    | 予 |                          |
-;; |     |    | O  | O  | O  | 可 | ※右手のみ推奨           |
-;; |     | O  | *  | *  | *  | 可 | ※Metaとの組合せのみ推奨 |
+;; |     |    | O  | O  | O  | 可 | 非推奨（注1）            |
+;; |     | O  |    |    |    | 可 | ace-jump-word に使用     |
+;; |     | O  |    |    | O  | 可 |                          |
+;; |     | O  |    | O  |    | 可 | 未使用                   |
+;; |     | O  |    | O  | O  | 可 | 未使用                   |
+;; |     | O  | O  |    |    | 可 | ace-jump-char に使用     |
+;; |     | O  | O  | O  |    | 可 | 未使用                   |
+;; |     | O  | O  | O  | O  | 可 | 未使用                   |
+;; |     | O  | *  | *  | *  | 可 | （注2）                  |
 ;; |-----+----+----+----+----+----+--------------------------|
 ;; | C-c |    |    |    | *  | 可 |                          |
 ;; | C-c |    |    | O  | *  | 予 | （Major-Modeで使用）     |
 ;; | C-c |    | O  |    |    | 予 | b/f/o/w をorg-modeが使用 |
 ;; | C-c |    | O  | O  | *  | 可 |                          |
-;; | C-c | O  | *  | *  | *  | 可 | ※Metaとの組合せのみ推奨 |
+;; | C-c | O  | *  | *  | *  | 可 | （注2）                  |
 ;; |-----+----+----+----+----+----+--------------------------|
 ;; | C-x |    |    |    | *  | 予 |                          |
 ;; | C-x |    |    | O  | *  | 予 | （主にMinor-Modeで使用） |
 ;; | C-x |    | O  | *  | *  | 可 |                          |
-;; | C-x | O  | *  | *  | *  | 可 | ※Metaとの組合せのみ推奨 |
+;; | C-x | O  | *  | *  | *  | 可 | （注2）                  |
 ;; |-----+----+----+----+----+----+--------------------------|
-;; ※ Control-Shiftは公式には未サポート（ターミナルで利用不可）
-;; ※ Alt キーは VNC (Linux) では利用不可能。（C-x @ a/M-Aで代用）
+;; 注1 Control-Shiftはターミナルで利用不可。
+;; 注2 Alt キーは VNC では一部利用不可能。（C-x @ a/M-Aで代用）
+;; - Control と他のモディファイヤキーの組み合わせ方
+;;   - Control + Meta （左手親指）
+;;   - Control + Shift （右手小指）
+;;   - Control + Alt （右手薬指）
 
 ;; - 参考資料
 
@@ -600,6 +619,8 @@
   (message "Check Libraries mode!")
   (setq lazyload-check-library t))
 
+;; CIRU 等を使うため、全ライブラリを事前ロードする場合
+;; c.f. http://d.hatena.ne.jp/meech/20131030/1383109296
 (defvar lazyload-load-library nil)
 (when (or (and (member "-ll" command-line-args)
                (delete "-ll" command-line-args))
@@ -699,25 +720,22 @@ FUNCS will be evaluated at init time."
   (font-lock-add-keywords 'emacs-lisp-mode
     '(("when-interactive-and" . font-lock-keyword-face))))
 
-;;;; 回転系コマンドのショートカット
-;; | key | function               |
-;; |-----+------------------------|
-;; | f   | next-multiframe-window |
-;; | h   | rotate-han             |
-;; | k   | rotate-kana            |
-;; | l   | rotate-latin           |
-;; | s   | rotate-font-size       |
-;; | t   | rotate-theme           |
-;; | w   | rotate-winhist         |
-(defvar my-rotate-map (make-sparse-keymap))
-(defmacro smartrep-define-rotate-key (keymap prefix function-1 function-2)
-  (declare (indent 2))
-  `(smartrep-define-key
-       ,keymap ,prefix
-     ;;'(("n" . (command ,function-1))
-     ;;  ("p" . (command ,function-2)))))
-     '(("n" . ,function-1)
-       ("p" . ,function-2))))
+;;;; 設定済のassocから不要な設定を削除
+(defun my-assoc-delete-all (key alist) ; assq-delete-all より
+  "Delete from ALIST all elements whose car is `equal' to KEY.
+Return the modified alist.
+Elements of ALIST that are not conses are ignored."
+  (while (and (consp (car alist))
+	      (equal (car (car alist)) key))
+    (setq alist (cdr alist)))
+  (let ((tail alist) tail-cdr)
+    (while (setq tail-cdr (cdr tail))
+      (if (and (consp (car tail-cdr))
+	       (equal (car (car tail-cdr)) key))
+	  (setcdr tail (cdr tail-cdr))
+	(setq tail tail-cdr))))
+  alist)
+
 
 ;;; パッケージ管理システム
 ;; - 詳細は [[info:elisp#Packaging]] 参照。
@@ -811,12 +829,11 @@ FUNCS will be evaluated at init time."
 (ad-activate 'package-menu-execute)
 
 ;;; キーボード設定
-;; bind-key.el を使用する
+;;;; bind-key
 
 ;; bind-key* は、emulation-mode-map-alists を利用することにより、
 ;; minor-mode よりも優先させたいキーのキーマップを定義できる。
 ;; bind-key.el がない場合は普通のbind-key として振る舞う。
-
 (unless (require 'bind-key nil t)
   (defun bind-key (key cmd &optional keymap)
     (define-key (or keymap global-map) (kbd key) cmd))
@@ -829,6 +846,30 @@ FUNCS will be evaluated at init time."
 ;; M-x query-replace-regexp
 ;; (define-key \(.+?\) (kbd "\(.+?\)") +\(.+?\))
 ;; (bind-key "\2" \3 \1)
+
+;;;; 回転系コマンド
+;; 回転系コマンドは、doremi.el や、smartrep を使って実装する。
+;; | key | function               |
+;; |-----+------------------------|
+;; | f   | next-multiframe-window |
+;; | h   | rotate-han             |
+;; | k   | rotate-kana            |
+;; | l   | rotate-latin           |
+;; | s   | rotate-font-size       |
+;; | t   | rotate-theme           |
+;; | w   | rotate-winhist         |
+(defvar my-rotate-map (make-sparse-keymap))
+
+(declare-function smartrep-define-key "smartrep" (keymap prefix functions))
+(defmacro smartrep-define-rotate-key (keymap prefix function-1 function-2)
+  (declare (indent 2))
+  `(smartrep-define-key
+       ,keymap ,prefix
+     '(("n" . ,function-1)
+       ("p" . ,function-2))))
+
+(bind-key "M-r" my-rotate-map) ;; move-to-window-line-top-bottom を上書き
+(bind-key "M-R" my-rotate-map)
 
 ;;; 標準設定
 ;;;; alloc.c
@@ -847,7 +888,7 @@ FUNCS will be evaluated at init time."
 (setq-default bidi-display-reordering t)
 ;; cache-long-scans (Emacs 24.4) cache-long-line-scans (Emacs 24.3)
 ;; 長い行の文字数をキャッシュする。
-(defvar cache-long-scans t) ; 
+(defvar cache-long-scans t)
 (defvar cache-long-line-scans t)
 ;; 現在バッファをkillするのにいちいち確認しない。
 (bind-key "C-x k" 'kill-this-buffer)
@@ -1389,12 +1430,19 @@ DIRECTIONがnilなら前方向、それ以外なら後方向に回転させる�
 (when (functionp 'tool-bar-mode) (tool-bar-mode -1))
 ;; デフォルトフレーム設定
 (setq default-frame-alist
-      '((background-color . "#102020")
+      '(;; Colors
+        (background-color . "#102020")
         (foreground-color . "Wheat")   ; "#d0e0f0"
         (cursor-color . "#e0e0e0")
         (mouse-color . "Orchid")
         (pointer-color . "Orchid")
         (background-mode . dark)
+        ;; Frae Position and Size
+        (left . 0)
+        (top . 0)
+        (height . 45)
+        (width . 175)
+        ;; Misc
         (line-spacing . 0)
         (scroll-bar-width . 12)
         (vertical-scroll-bars . left)
@@ -1549,6 +1597,11 @@ DIR/subdir.el がある場合は、それを実行し、DIR下のディレクト
 ;;;; print.c
 (setq print-circle t)
 
+;;;; term.c
+;; shell において、4m .. 等の ANSI Esc Seq が見える場合。
+;; http://stackoverflow.com/questions/8918910/weird-character-zsh-in-emacs-terminal
+;; (setq system-uses-terminfo nil)
+
 ;;;; window.c
 (setq next-screen-context-lines 3
       scroll-preserve-screen-position t
@@ -1591,7 +1644,8 @@ DIR/subdir.el がある場合は、それを実行し、DIR下のディレクト
 
 ;;;; ansi-color.el (extension to comint.el)
 ;; SGR エスケープシーケンスをEmacsのFaceに解釈する。
-(ansi-color-for-comint-mode-on)
+(lazyload () "comint"
+  (ansi-color-for-comint-mode-on))
 (lazyload () "ansi-color"
   (setq ansi-color-names-vector
         ["#242424" "#e5786d" "#95e454" "#cae682" "#8ac6f2" "#333366" "#ccaa8f" "#f6f3e8"]))
@@ -2115,7 +2169,7 @@ DIR/subdir.el がある場合は、それを実行し、DIR下のディレクト
 ;; defadvice よりは add-function を使う方が管理は簡単。
 
 ;;;; emacs-lisp/packages.el
-(bind-key "C-c p" 'list-packages)
+(bind-key "C-c P" 'list-packages)
 
 ;;;; emacs-lisp/package-x.el
 ;; package-upload-buffer は tarファイルでも指定可能。
@@ -2777,9 +2831,9 @@ DIR/subdir.el がある場合は、それを実行し、DIR下のディレクト
   (setq html2text-remove-tag-list2  '("li" "dt" "dd" "meta")))
 
 ;;;; gnus/mm-util.el
-(eval-after-load "mm-util"
-  '(when (coding-system-p 'cp50220)
-     (add-to-list 'mm-charset-override-alist '(iso-2022-jp . cp50220))))
+(lazyload () "mm-util"
+  (when (coding-system-p 'cp50220)
+    (add-to-list 'mm-charset-override-alist '(iso-2022-jp . cp50220))))
 
 ;;;; gnus/score.el
 (add-to-auto-mode-alist '("\\.SCORE\\'" . gnus-score-mode))
@@ -2915,18 +2969,16 @@ DIR/subdir.el がある場合は、それを実行し、DIR下のディレクト
 ;; C-f :: デフォルトの動作に戻る。
 ;; C-j :: 入力テキストをそのまま使う。
 ;; ファイル保存時に勝手に既存ファイル名を補完するのが不便なので使用中止。
-(ido-mode t)
-;;(when (require 'ido nil :no-error)
-;;  (ido-mode t)
-;;  (ido-everywhere 1)
-;;  (bind-key "SPC" 'ido-exit-minibuffer ido-file-dir-completion-map)
-;;  (bind-key "C-h" 'ido-delete-backward-updir ido-file-dir-completion-map)
-;;  (setq ido-enable-prefix nil
-;;        ido-enable-flex-matching t
-;;        ido-create-new-buffer 'always
-;;        ido-use-filename-at-point 'guess
-;;        ido-use-virtual-buffers t ; [C-x b] (or M-x ido-switch-buffer)
-;;        ido-max-prospects 10))
+;; (ido-mode t)
+;; (ido-everywhere 1)
+;; (bind-key "SPC" 'ido-exit-minibuffer ido-file-dir-completion-map)
+;; (bind-key "C-h" 'ido-delete-backward-updir ido-file-dir-completion-map)
+;; (setq ido-enable-prefix nil
+;;       ido-enable-flex-matching t
+;;       ido-create-new-buffer 'always
+;;       ido-use-filename-at-point 'guess
+;;       ido-use-virtual-buffers t ; [C-x b] (or M-x ido-switch-buffer)
+;;       ido-max-prospects 10)
 
 ;;;; image-file.el
 ;; 画像ファイルは自動的にimage-file-modeで開く。
@@ -2952,7 +3004,8 @@ DIR/subdir.el がある場合は、それを実行し、DIR下のディレクト
   (info-initialize) ; Info-directory-list を設定
   (setq Info-directory-list (delete "/usr/share/info" Info-directory-list))
   ;; M-n が奪われるので注意。
-  ;;(bind-key "M-n" nil Info-mode-map)
+  (bind-key "M-n" nil Info-mode-map)
+  ;;(define-key Info-mode-map (kbd "M-n") nil)
   )
 
 ;;;; info-look.el
@@ -2960,6 +3013,10 @@ DIR/subdir.el がある場合は、それを実行し、DIR下のディレクト
 ;; - python :: https://github.com/wilfred/python-info
 ;; latex, texinfo, perl
 ;; M-x info-lookup-symbol
+
+;;;; international/kinsoku.el
+;; 禁則処理によって行長が何文字延びてもいいか。
+(defvar kinsoku-limit 10)
 
 ;;;; international/mule.el
 ;; new command :: revert-buffer-with-coding-system
@@ -3478,8 +3535,7 @@ GDBは動作しない可能性があります！") (sit-for 2))
 ;;;; progmodes/opascal.el
 ;; Emacs 24.4以降。
 (autoload 'opascal-mode "opascal")
-(add-to-auto-mode-alist
-  '("\\.\\(pas\\|dpr\\|dpk\\)\\'" . opascal-mode))
+(add-to-auto-mode-alist '("\\.\\(pas\\|dpr\\|dpk\\)\\'" . opascal-mode))
 
 ;;;; progmodes/scheme.el
 (lazyload () "scheme"
@@ -3549,12 +3605,13 @@ GDBは動作しない可能性があります！") (sit-for 2))
   (setq recentf-auto-cleanup 10))
 
 ;;;; rect.el
-(bind-key "C-x r t" 'string-rectangle)
-(eval-and-compile (require 'rect)) ; killed-rectangle
+(declare-function extract-rectangle "rect" (start end))
+(defvar killed-rectangle)
 (defun kill-rectangle-save (start end)
   (interactive "*r\nP")
   (setq killed-rectangle (extract-rectangle start end)))
 (bind-key "C-x r K" 'kill-rectangle-save)
+(bind-key "C-x r t" 'string-rectangle)
 
 ;;;; saveplace.el
 ;; ファイルでのカーソルの位置を保存しておく
@@ -3569,7 +3626,7 @@ GDBは動作しない可能性があります！") (sit-for 2))
 
 ;;;; shell.el
 ;; ファイル名に使われる文字
-(eval-and-compile (require 'shell))
+(defvar shell-file-name-chars)
 (setq shell-file-name-chars "~/A-Za-z0-9_^$!#%&{}@`'.,:()-")
 ;; zsh のヒストリファイル
 ;; - 0x80-0x9d,a0 :: 0x83 (r0 + 0x20)
@@ -3665,6 +3722,7 @@ GDBは動作しない可能性があります！") (sit-for 2))
 (line-number-mode t)
 (column-number-mode t)
 (transient-mark-mode t)
+(global-visual-line-mode t)
 (bind-key "C-M-h" 'backward-kill-word) ; 単語をまとめてBS。
 (bind-key "C-x :" 'goto-line) ; 古い慣習。
 (bind-key "C-c t" 'toggle-truncate-lines)
@@ -3680,7 +3738,7 @@ GDBは動作しない可能性があります！") (sit-for 2))
 
 ;;;; startup.el
 ;; interactive-mode 時の、 巨大テキストを貼り付けた時の処理の遅さを回避する。
-(setq initial-major-mode 'text-mode)
+;; (setq initial-major-mode 'text-mode)
 (setq mail-host-address (replace-regexp-in-string "^.+@" "" user-mail-address))
 ;; `default.el' があっても読み込まない。（site-start.elは読み込む。）
 ;;(setq inhibit-default-init t)
@@ -3935,6 +3993,8 @@ GDBは動作しない可能性があります！") (sit-for 2))
   (setq reftex-cite-format-builtin '((default "Default macro %t \\cite{%l}"
                                        "%t \\cite[]{%l}")))
   (setq reftex-cite-format 'default)
+  (setq reftex-plug-into-AUCTeX t)
+
   (defun reftex-browse ()
     (interactive) (reftex-citation t))
   ;; Wikipedia 執筆用のreftex引用を用意する。
@@ -4043,8 +4103,9 @@ GDBは動作しない可能性があります！") (sit-for 2))
 ;; バッファ名にディレクトリ名を追加する。
 (eval-and-compile (require 'uniquify))
 (setq uniquify-buffer-name-style 'post-forward-angle-brackets)
-(setq uniquify-ignore-buffers-re "*[^*]+*")
+(setq uniquify-ignore-buffers-re "^\\*")
 (setq uniquify-min-dir-content 1)
+(setq uniquify-after-kill-buffer-p t) ; rename after killing uniquified
 
 ;;;; vc/add-log.el
 ;; ChangeLogの英語のパターン
@@ -4135,8 +4196,11 @@ GDBは動作しない可能性があります！") (sit-for 2))
   (bind-key "r" 'wdired-change-to-wdired-mode dired-mode-map))
 
 ;;;; windmove.el
-;; Shift + ↑←↓→ で、移動。
-(eval-and-compile (windmove-default-keybindings))
+;; (eval-and-compile (windmove-default-keybindings)) ; Shift + ↑←↓→ で、移動。
+(bind-key* "M-N" 'windmove-down)
+(bind-key* "M-P" 'windmove-up)
+(bind-key* "M-F" 'windmove-right) ;; Mac OSに奪われるので要変更。
+(bind-key* "M-B" 'windmove-left)
 ;; 一番左のウィンドウから左への移動は一番右へいく。
 (setq windmove-wrap-around t)
 
@@ -4165,8 +4229,8 @@ GDBは動作しない可能性があります！") (sit-for 2))
 ;;        (insert (x-get-cut-buffer 0))
 ;;      (yank-pop arg))))
 ;; window操作
-(bind-key "C-S-n" 'enlarge-window)
-(bind-key "C-S-p" 'shrink-window)
+(bind-key "A-M-n" 'enlarge-window)
+(bind-key "A-M-p" 'shrink-window)
 (bind-key "A-M-f" 'enlarge-window-horizontally)
 (bind-key "A-M-b" 'shrink-window-horizontally)
 ;;(bind-key "<C-right>" (command (scroll-left 8)))
@@ -4192,28 +4256,28 @@ GDBは動作しない可能性があります！") (sit-for 2))
 (bind-key "C-x 9" 'my-enlarge-window-vertically)
 
 ;; 上下スクロールする際に、カーソルが追随するかどうかを切替える。
-(defvar scroll-with-cursor nil)
-(defun toggle-scroll-with-cursor ()
-  "Toggle scroll with cursor."
+
+(defvar scroll-with-cursor t)
+
+(defun my-scroll-up ()
   (interactive)
-  (if scroll-with-cursor
-      (progn
-        (setq scroll-with-cursor nil)
-        ;;(my-global-local-set-key (kbd "M-n") (command (scroll-up 1)))
-        ;;(my-global-local-set-key (kbd "M-p") (command (scroll-down 1)))
-        (bind-key "M-n" (command (scroll-up 1)))
-        (bind-key "M-p" (command (scroll-down 1)))
-        )
-    ;;(my-global-local-set-key
-    (bind-key "M-n"
-     (command (scroll-up 1) (forward-line 1)))
-    ;;(my-global-local-set-key
-    (bind-key "M-p"
-     (command (scroll-down 1) (forward-line -1)))
-    (setq scroll-with-cursor t)))
-(toggle-scroll-with-cursor)
+  (scroll-up 1)
+  (when scroll-with-cursor (forward-line 1)))
+
+(defun my-scroll-down ()
+  (interactive)
+  (scroll-down 1)
+  (when scroll-with-cursor (forward-line -1)))
+
+(defun my-toggle-scroll-with-cursor ()
+  (interactive)
+  (setq scroll-with-cursor (not scroll-with-cursor)))
+
+(bind-key "M-n" 'my-scroll-up)
+(bind-key "M-p" 'my-scroll-down)
 
 ;;;; winner.el
+(lazyload () "winner")
 (winner-mode t)
 
 ;;;; w32-ime.el
@@ -4305,12 +4369,14 @@ GDBは動作しない可能性があります！") (sit-for 2))
 ;; Clojure に対する、ciderを用いた自動補完
 ;; M-x cider, M-x cider-jack-in
 (lazyload () "cider-repl-mode"
-  (when (functionp 'ac-nrepl-setup)
-    (add-hook 'cider-repl-mode-hook 'ac-nrepl-setup)))
+  ;;(when (functionp 'ac-nrepl-setup)
+  ;;  (add-hook 'cider-repl-mode-hook 'ac-nrepl-setup))
+  )
 
 (lazyload () "cider-interaction"
-  (when (functionp 'ac-nrepl-setup)
-    (add-hook 'cider-interaction-mode-hook 'ac-nrepl-setup)))
+  ;;(when (functionp 'ac-nrepl-setup)
+  ;;  (add-hook 'cider-interaction-mode-hook 'ac-nrepl-setup))
+  )
 
 ;;;; ace-jump-mode (elpa)
 ;; 画面中で高速に指定した場所に移動する。
@@ -4328,11 +4394,9 @@ GDBは動作しない可能性があります！") (sit-for 2))
            do (eval `(bind-key ,(format "A-%c" c) 'my-ace-jump-word-mode)))
      (loop for c from ?a to ?z
            do (eval `(bind-key ,(format "A-%c" c) 'my-ace-jump-word-mode)))
-     ;; Meta+Alt+文字で、その文字に移動。
-     ;;(loop for c from ?0 to ?9
-     ;;      do (eval `(bind-key ,(format "A-M-%c" c) 'my-ace-jump-char-mode)))
-     ;;(loop for c from ?a to ?z
-     ;;      do (eval `(bind-key ,(format "A-M-%c" c) 'my-ace-jump-char-mode)))
+     ;; Meta+Shift+文字で、その文字に移動。
+     (loop for c from ?A to ?Z
+           do (eval `(bind-key ,(format "A-%c" c) 'my-ace-jump-char-mode)))
      )
     "ace-jump-mode")
 
@@ -4415,15 +4479,15 @@ GDBは動作しない可能性があります！") (sit-for 2))
 
 ;;;; apache-mode (elpa)
 (lazyload
-  ((add-to-list 'auto-mode-alist '("\\.htaccess\\'"   . apache-mode))
-   (add-to-list 'auto-mode-alist '("httpd\\.conf\\'"  . apache-mode))
-   (add-to-list 'auto-mode-alist '("srm\\.conf\\'"    . apache-mode))
-   (add-to-list 'auto-mode-alist '("access\\.conf\\'" . apache-mode))
-   (add-to-list 'auto-mode-alist '("sites-\\(available\\|enabled\\)/" . apache-mode)))
+  ((add-to-auto-mode-alist '("\\.htaccess\\'"   . apache-mode))
+   (add-to-auto-mode-alist '("httpd\\.conf\\'"  . apache-mode))
+   (add-to-auto-mode-alist '("srm\\.conf\\'"    . apache-mode))
+   (add-to-auto-mode-alist '("access\\.conf\\'" . apache-mode))
+   (add-to-auto-mode-alist '("sites-\\(available\\|enabled\\)/" . apache-mode)))
    "apache-mode")
 
 ;;;; applescript-mode(elpa)
-(lazyload ((add-to-list 'auto-mode-alist '("\\.applescript$" . applescript-mode)))
+(lazyload ((add-to-auto-mode-alist '("\\.applescript$" . applescript-mode)))
     "applescript-mode")
 
 ;;;; apt-util (elpa)
@@ -4435,10 +4499,115 @@ GDBは動作しない可能性があります！") (sit-for 2))
 ;;(add-to-auto-mode-alist '("\\.mo$" . asn1-mode))
 
 ;;;; AUCTeX (elpa)
+;;;;; メモ
+;; auto-mode-alist は自動追加される。
 ;; http://oku.edu.mie-u.ac.jp/~okumura/texfaq/auctex.html
-;; 形式的論理のスタイルファイル
-;; http://www.logicmatters.net/resources/pdfs/latex/BussGuide2.pdf
-;; http://www.logicmatters.net/latex-for-logicians/nd/
+;; http://oku.edu.mie-u.ac.jp/~okumura/texwiki/?AUCTeX#db9dca5d
+;; http://ftp.gnu.org/pub/gnu/auctex/11.86-extra/tex-ref.pdf
+
+;;;;; auctex/tex
+(defvar TeX-engine 'euptex) ; my-TeX-engine-set で変更。
+
+;; - LatexMk Options
+;; |        | opt                                  | PDF出力 | DVI出力 |
+;; |--------+--------------------------------------+---------+---------|
+;; | euptex | -latex='uplatex -synctex=1 ...'      | -pdfdvi | -dvi    |
+;; | luatex | -pdflatex='lualatex --synctex=1 ...' | -pdf    |         |
+;; | xetex  | -pdflatex='xelatex -synctex=1 ...'   | -pdf    |         |
+;; - 表示ソフト（SyncTeX対応）
+;;   + MacOS :: Skia
+;;   + Linux :: Evince
+;;   + Windows :: SumatraPDF
+(defun my-latexmk-command (latex view &optional output)
+  "Generate LatexMk command line for LATEX, VIEW -mode and OUTPUT -mode."
+  (let* ((latex-options
+         '("-src-specials" "-file-line-error" "-interaction=nonstopmode"
+           "-shell-escape" "-synctex=1"))
+         (luatex-option
+          (mapconcat (lambda (opt) (concat "-" opt)) latex-options " "))
+         (latex-option
+          (mapconcat 'identity latex-options " ")))
+    (concat "latexmk -gg " view " "
+            (case latex
+              ('euptex "-pdfdvi -latex='uplatex ")
+              ('xetex  "-pdf -pdflatex='xelatex  ")
+              ('luatex "-pdf -pdflatex='lualatex "))
+            (case latex
+              ('luatex luatex-option)
+              (t latex-option))
+            "' "
+            (if output "-output-directory=%o %f"
+              "%t"))))
+
+(lazyload (my-TeX-engine-set) "tex"
+  (require 'latex)
+  (setq TeX-engine-alist
+        '(;;(symbol name %(tex) %(latex) ConText)
+          (euptex "eupTeX" "euptex" "uplatex" "euptex")
+          (xetex "XeTeX" "xetex" "xelatex" "xetex")
+          (luatex "LuaTeX" "luatex" "lualatex" "luatex")))
+  ;; 以下の設定は、複数ファイルをソースにするときの情報
+  (setq TeX-auto-save t) ; 保存時にスタイル情報も保存
+  (setq TeX-parse-self t) ; 読み込み時にファイルをパーズ
+  (setq-default TeX-master nil) ; ?
+  ;; [[info:auctex#Japanese]]
+  ;;(setq TeX-default-mode 'japanese-latex-mode)
+  ;; 上記の設定で、TeX-Commandの参照先が japanese-(La)TeX-command に切り替わる。
+  (setq TeX-command-default "TeX")
+  ;; TeX-viewer
+  (setq TeX-view-program-selection '((output-pdf "PDF Viewer")))
+  (setq TeX-view-program-list
+        '(("PDF Viewer" "/Applications/Skim.app/Contents/SharedSupport/displayline -b -g %n %o %b")))
+
+  ;; エンジンに応じた設定
+  (defun my-TeX-engine-set ()
+    (interactive)
+    (call-interactively 'TeX-engine-set)
+    (case TeX-engine
+      ('luatex
+       (setq LaTeX-default-style   "ltjsarticle")
+       (add-hook 'LaTeX-mode-hook 'TeX-PDF-mode))
+      ('xetex
+       (setq LaTeX-default-style   "bxjsarticle")
+       (add-hook 'LaTeX-mode-hook 'TeX-PDF-mode))
+      ('euptex
+       (setq LaTeX-default-style   "jsarticle")
+       (remove-hook 'LaTeX-mode-hook 'TeX-PDF-mode)
+       (add-to-list 'TeX-output-view-style
+                    '("^dvi$" "."
+                      "%(o?)xdvi -watchfile 1 %dS %d"))))
+    ;; TeX-command-list
+    (setq TeX-command-list (my-assoc-delete-all "LatexMk" TeX-command-list))
+    (setq TeX-command-list
+          (cons
+           `("LatexMk"
+             ,(my-latexmk-command TeX-engine "-pvc")
+             TeX-run-TeX nil (latex-mode) :help "Run LatexMk")
+           TeX-command-list))
+    (setq LaTeX-command-default "LatexMk")))
+
+;;;;; auctex/latex
+(lazyload () "latex"
+  (add-hook 'LaTeX-mode-hook 'turn-on-reftex)
+  (add-hook 'LaTeX-mode-hook 'TeX-source-correlate-mode) ; src-specials に対応
+  (add-hook 'LaTeX-mode-hook 'TeX-PDF-mode) ; synctex に対応
+  (add-hook 'LaTeX-mode-hook 'LaTeX-math-mode)
+  (add-hook 'LaTeX-mode-hook 'outline-minor-mode)
+  (setq LaTeX-indent-level 4)
+  (setq LaTeX-item-indent 2))
+
+;;;;; auctex/bib-cite
+(lazyload () "bib-cite"
+  (setq bib-cite-use-reftex-view-crossref t))
+
+;;;;; auctex-latexmk
+;; M-x TeX-command-master にlatexmkメニュー追加
+;; TeX-command-list を LaTeXMkだけに統一する。
+;; C-c C-c で一発全部Make
+;;(lazyload () "tex"
+;;  (when (functionp 'auctex-latexmk-setup)
+;;    (auctex-latexmk-setup)
+;;    (setq japanese-LaTeX-command-default "LaTexMk")))
 
 ;;;; auto-compile (elpa)
 ;; elisp を保存する際に自動的にコンパイルする。
@@ -4473,6 +4642,7 @@ GDBは動作しない可能性があります！") (sit-for 2))
 
 ;;;; auto-complete-clang-async (elpa)
 ;; brew install emacs-clang-complete-async
+;; 日本語対応 :: https://github.com/8bit-jzjjy/emacs-clang-complete-async
 
 ;;;; auto-complete-nxml
 (lazyload () "nxml-mode"
@@ -4789,24 +4959,24 @@ This function is a possible formatting function for
 ;; M-x cider-jack-in (in leiningen mode)
 ;; M-x cider (`% lein repl' is executed)
 (lazyload () "cider-repl-mode"
-  (when (require 'auto-complete nil :no-error)
-    (add-to-list 'ac-modes 'cider-repl-mode))
-  (when (functionp 'cider-turn-on-eldoc-mode)
-    (add-to-list 'cider-repl-mode-hook 'cider-turn-on-eldoc-mode))
+  ;; (when (require 'auto-complete nil :no-error)
+  ;;   (add-to-list 'ac-modes 'cider-repl-mode))
+  ;; (when (functionp 'cider-turn-on-eldoc-mode)
+  ;;   (add-to-list 'cider-repl-mode-hook 'cider-turn-on-eldoc-mode))
   ;; *nrepl-connection* と *nrepl-server* を隠す
   ;; (setq nrepl-hide-special-buffers t)
   ;; (setq cider-repl-tab-command 'indent-for-tab-command)
   ;; (setq cider-repl-pop-to-buffer-on-connect nil)
   ;; (setq cider-popup-stacktraces nil)
-  (setq cider-repl-popup-stacktraces t)
-  (setq cider-auto-select-error-buffer t)
+  ;;(setq cider-repl-popup-stacktraces t)
+  ;;(setq cider-auto-select-error-buffer t)
   ;; (setq nrepl-buffer-name-separator "-")
-  (setq nrepl-buffer-name-show-port t)
+  ;;(setq nrepl-buffer-name-show-port t)
   ;; (setq cider-repl-display-in-current-window t)
-  (when (functionp 'subword-mode)
-    (add-hook 'cider-repl-mode-hook 'subword-mode))
-  (when (functionp 'smartparens-strict-mode)
-    (add-hook 'cider-repl-mode-hook 'smartparens-strict-mode))
+  ;;(when (functionp 'subword-mode)
+  ;;  (add-hook 'cider-repl-mode-hook 'subword-mode))
+  ;;(when (functionp 'smartparens-strict-mode)
+  ;;  (add-hook 'cider-repl-mode-hook 'smartparens-strict-mode))
   )
 
 ;;;; clojure-cheatseheet
@@ -4910,6 +5080,7 @@ This function is a possible formatting function for
 ;;;; d-mode (elpa)
 ;; http://prowiki.org/wiki4d/wiki.cgi?EditorSupport/EmacsEditor
 ;; http://www.emacswiki.org/emacs/FlyMakeD
+;; http://qiita.com/tm_tn/items/1d01c4500e1ca7632140
 ;; auto-mode-alist などは autoloadで設定済み
 (lazyload () "d-mode"
   ;; flymake
@@ -4930,13 +5101,17 @@ This function is a possible formatting function for
 ;;;; dabbrev-ja
 ;; 使用中止
 
+;;;; dash-at-point (elpa)
+;; M-x dash-at-point (Mac)
 ;;;; dired+ (elpa)
 (lazyload () "dired"
   (when (require 'dired+ nil :no-error)
     ;; dired+が頻用キーを奪うのを無効化。
-    ;;(bind-key "M-c" nil dired-mode-map)
-    ;;(bind-key "M-b" nil dired-mode-map)
-    ;;(bind-key "M-p" nil dired-mode-map)
+    (defun my-dired-reset-keys ()
+      (bind-key "M-c" nil dired-mode-map)
+      (bind-key "M-b" nil dired-mode-map)
+      (bind-key "M-p" nil dired-mode-map))
+    (add-hook 'dired-mode-hook 'my-dired-reset-keys)
     ))
 
 ;;;; dired-details (elpa)
@@ -5074,7 +5249,10 @@ This function is a possible formatting function for
 ;;;; eldoc-eval (elpa)
 ;; ミニバッファのeldoc表示を行なう。
 ;; また、ミニバッファでの評価結果は新しいバッファで表示する。
-(lazyload () "eldoc-eval"
+(lazyload (;;eldoc-eval-expression
+           ;;(bind-key "M-:" 'eldoc-eval-expression)
+           )
+    "eldoc-eval"
   (setq eldoc-in-minibuffer-mode-lighter " 💁"))
 
 (when-interactive-and (functionp 'eldoc-in-minibuffer-mode)
@@ -5143,15 +5321,24 @@ This function is a possible formatting function for
   (when (functionp 'emmet-mode)
     (add-hook 'web-mode-hook 'emmet-mode)))
 
+;;;; enh-ruby-mode (elpa)
+;; auto-mode-alist は設定済。
+;; % cd ~/.emacs.d/elpa/yasnippet-201*/snippets
+;; % cp -pr ruby-mode enh-ruby-mode
+(lazyload () "enh-ruby-mode"
+  (when (require 'auto-complete nil :no-error)
+    (add-to-list 'ac-modes 'enh-ruby-mode))
+  (setq enh-ruby-bounce-deep-indent t)
+  (setq enh-ruby-hanging-brace-indent-level 2))
+
 ;;;; enclose-mode (elpa)
 ;; 自動閉じ括弧挿入
 ;; 馴染まないので利用中止。
 ;; (enclose-global-mode 1)
 
-;;;; ensime
+;;;; ensime (elpa)
 ;; * 注意
-;;   2013.7 現在、きちんと動作しない。swankプロトコル不整合、というかバージョン非互換問題。
-;;   MELPAパッケージ版（β）もあるが、まだ色々と準備不足
+;;   2013.10 現在、きちんと動作しない。
 ;; * マニュアル
 ;;   http://aemoncannon.github.io/ensime/index.html
 ;; * ダウンロードサイト
@@ -5250,6 +5437,13 @@ This function is a possible formatting function for
 ;;  (bind-key "C-c e p" 'evernote-post-region)
 ;;  (bind-key "C-c e b" 'evernote-browser))
 
+;;;; expand-region (elpa)
+(lazyload ((bind-key "M-R" 'er/expand-region))
+    "expand-region")
+
+;;;; feature-mode (elpa)
+;; Cucumber の編集用モード
+
 ;;;; findr (elpa)
 ;; 巾優先探索によるファイル検索
 (lazyload (findr findr-search findr-query-replace)
@@ -5305,16 +5499,17 @@ This function is a possible formatting function for
 
 ;;;; frame-cmds (elpa)
 (lazyload (frame-to-right
-           (bind-key "C-c x" 'maximize-frame-vertically))
+           (bind-key "C-c x" 'maximize-frame-vertically)
+           (bind-key "C-c X" 'maximize-frame))
     "frame-cmds"
   (defun frame-to-right ()
-    "現在のフレームの大きさを全画面の半分にして右に配置する。"
+    "現在のフレームの大きさを全画面の半分にして左に配置する。"
     (interactive)
     (maximize-frame)
     (set-frame-parameter nil 'width
-                         (/ (frame-parameter nil 'width) 2))
+                         (/ (frame-parameter nil 'width) 3))
     (call-interactively
-     'move-frame-to-screen-right)))
+     'move-frame-to-screen-left)))
 
 ;;;; frame-fns (elpa)
 ;; (required by frame-cmds)
@@ -5443,6 +5638,11 @@ This function is a possible formatting function for
 
 ;;;; graphviz-dot-mode (elpa)
 ;; 'auto-mode-alist への追加は autoload 済
+
+;;;; grizzl (elpa)
+(lazyload () "projectile"
+  (when (require 'grizzl nil :no-error)
+    (setq projectile-completion-system 'grizzl)))
 
 ;;;; gtags (GNU Global) (elpa)
 ;; → ggtags を使う。（ナビゲーション・自動更新機能付き）
@@ -5661,10 +5861,19 @@ This function is a possible formatting function for
   (when (functionp 'helm-gtags-select)
     (bind-key "M-t" 'helm-gtags-select helm-command-map)))
 
+;;;; helm-projectile (elpa)
+(when (functionp 'projectile-mode)
+  (lazyload ((bind-key "C-c h" 'helm-projectile))
+      "helm-projectile"))
+
 ;;;; helm-themes (elpa)
 (lazyload () "helm-config"
   (when (functionp 'helm-themes)
     (bind-key "T" 'helm-themes helm-command-map)))
+
+;;;; highlight-indentation (elpa)
+(lazyload ((add-hook 'enh-ruby-mode-hook 'highlight-indentation-current-column-mode))
+    "highlight-indentation")
 
 ;;;; hiwin
 ;; http://d.hatena.ne.jp/ksugita0510/20111223/p1
@@ -6418,6 +6627,11 @@ k  (add-hook 'term-mode-hook
 ;;(require 'oneliner nil :no-error)
 
 ;;;; openwith (elpa)
+;; 【注意】 openwith の (error) の前後に "(let ((debug-on-error nil))...) " を入れること。
+;; : (let ((debug-on-error nil))
+;; : (error "Opened %s in external program"
+;; :        (file-name-nondirectory file))
+;; : )
 (lazyload () "openwith"
   (require 'recentf nil :no-error)
   (setq openwith-associations
@@ -6427,9 +6641,15 @@ k  (add-hook 'term-mode-hook
               "pdf" "mp3" "mp4"
               "ppt" "pptx" "potx" "doc" "docx" "xls" "xlsx"
               "odt" "enc" "wav" "sxi" "rtf" "tif" "cap"))
+          "open" (file))
+          ("/$"
           "open" (file)))))
 (when-interactive-and (functionp 'openwith-mode)
   (openwith-mode 1))
+
+(lazyload () "mm-util"
+  ;; 添付ファイル送信の際にopenwithが実行されるのを防止する。
+  (add-to-list 'mm-inhibit-file-name-handlers 'openwith-file-handler))
 
 ;;;; org
 ;;;;; org/org
@@ -6811,6 +7031,9 @@ XeTeX/LuaTeX や HTML, DocBook 等、日本語の改行が空白扱いになる�
       ("" "amsmath"   t)
       ("" "amsxtra"   t) ; MathJax未対応
       ;;("" "bbold"     t)
+      ;; 形式的論理のスタイルファイル
+      ;; http://www.logicmatters.net/resources/pdfs/latex/BussGuide2.pdf
+      ;; http://www.logicmatters.net/latex-for-logicians/nd/
       ("" "bussproofs" t) ; 自然推論
       ("" "isomath"   t) ; MathJax未対応
       ("" "latexsym"  t) ; MathJax未対応
@@ -6820,144 +7043,6 @@ XeTeX/LuaTeX や HTML, DocBook 等、日本語の改行が空白扱いになる�
       ("" "textcomp"  t) ; 特殊記号
       ("" "wasysym"   t); Waldi symbol font. bussproofs と衝突。
       ))
-
-(defvar org-latex-default-packages-alist)
-(defvar org-latex-packages-alist)
-(defvar org-latex-classes)
-(defvar org-latex-pdf-process)
-
-(defun my-org-export-latex-setup (latex)
-  "Set up LATEX environments."
-  (interactive
-   (list (intern (completing-read "engine for org-latex=? "
-                                  '("luatex" "xetex" "euptex")))))
-  ;; すべてのLaTeX出力に共通なパッケージ
-  (setq org-latex-default-packages-alist
-        `(
-          ,@(case latex ; 各 TeX に応じた日本語パッケージ設定
-              ('luatex '(("" "luacode" t)
-                         ("" "luatexja-otf" t)))
-              ('xetex  '(;; noCJKchecksiingle で、\meaning の非BMPでの分割を抑止
-                         ("AutoFallBack=true,noCJKchecksingle" "zxjatype" t)
-                         ;;("macros" "zxotf" t)
-                         ))
-              ('euptex '(("uplatex,multi" "otf" t)
-                         ("" "okumacro" t)))
-              (t nil))
-          ("" "fixltx2e" nil) ; 互換性より利便性を重視したLaTeX2eのバグ修正
-          ("" "fancyvrb" t) ; Verbatimで枠線を綺麗に出力
-          ("" "longtable" nil) ; ページをまたがるテーブルの作成
-          ("" "float" nil)
-          ;; ("" "wrapfig" nil) ; figureをwrapする。
-          ;; ("" "soul" t) ; ドイツ語用
-          ;; LaTeX標準文字記号マクロ
-          ,@my-org-latex-math-symbols-packages-alist
-          ;;("" "tabulary" t)
-          ("" "bigtabular" t)
-          ("" "multicol" t)
-          ;; その他のデフォルトで使用するLaTeX設定
-          ,(concat
-            "\\tolerance=1000\n"
-            "\\providecommand{\\alert}[1]{\\textbf{#1}}\n"
-            "\\fvset{xleftmargin=2em}\n")
-          ;; XeTeXの場合、1.9999 以降は IVSが使えるので、これらに glue が
-          ;; 入らないよう、キャラクタクラスを 256 にする。
-          ,(when (equal latex 'xetex)
-             (concat
-              "\\setjamainfont{HanaMinA}\n"
-              "\\setCJKfallbackfamilyfont{rm}{HanaMinB}\n"
-              ;;"\\XeTeXcharclass\"E0100=256\n"
-              ;;"\\XeTeXcharclass\"E0101=256\n"
-              ;;"\\XeTeXcharclass\"E0102=256\n"
-              ;;"\\XeTeXcharclass\"E0103=256\n"
-              ;;"\\XeTeXcharclass\"E0104=256\n"
-              ;;"\\XeTeXcharclass\"E0105=256\n"
-              ;;"\\XeTeXcharclass\"E0106=256\n"
-              ;;"\\XeTeXcharclass\"E0107=256\n"
-              ;;"\\XeTeXcharclass\"E0108=256\n"
-              ;;"\\XeTeXcharclass\"E0109=256\n"
-              ))
-          ))
-
-  ;; 一部のLaTeX出力に特有のパッケージ（Beamerで使わないパッケージ）
-  (setq org-latex-packages-alist
-        `(
-          ;; graphicx: jpeg や png を取り込む。
-          ;;   ebb *.png 命令を実行しないと Bounding Boxが生成されない。
-          ,(case latex
-             ('xetex  '("" "graphicx"  t))
-             ('euptex '("dvipdfm" "graphicx"  t))
-             (t       '("pdftex" "graphicx"  t)))
-          ;; hyperref: PDFでハイパーリンクを生成
-          ;; colorlinks=true を入れると、graphicx が dvipdfmx で失敗するので注意。
-          ,(case latex
-             ('luatex '("pdftex,pdfencoding=auto" "hyperref" t))
-             ('euptex '("dvipdfm" "hyperref"  t))
-             ('xetex  '("xetex" "hyperref"  t))
-             (t       '("pdftex" "hyperref"  t)))
-          ;; biblatex は重いので、使用するorg-fileのみ、
-          ;; `+LATEX_HEADER: \usepackage[backend=biber]{biblatex}'
-          ;; で入れるのがいいかも。
-          ;; ("backend=biber", "biblatex" t)
-          ;; ↓これを入れると、includegraphics で png が入らないので注意。
-          ("" "listings")
-          ("" "color")))
-
-  (setq org-latex-classes
-        `(("article"
-           ,(case latex
-              ('luatex "\\documentclass{ltjsarticle}\n")
-              ('xetex  "\\documentclass[a4paper]{bxjsarticle}\n")
-              ('euptex "\\documentclass[a4j,uplatex]{jsarticle}\n")
-              (t       "\\documentclass[11pt]{article}"))
-           ("\\section{%s}" . "\\section*{%s}")
-           ("\\subsection{%s}" . "\\subsection*{%s}")
-           ("\\subsubsection{%s}" . "\\subsubsection*{%s}")
-           ("\\paragraph{%s}" . "\\paragraph*{%s}")
-           ("\\subparagraph{%s}" . "\\subparagraph*{%s}"))
-          ("report"
-           ,(case latex
-              ('luatex "\\documentclass{ltjsarticle}\n")
-              ('xetex  "\\documentclass[a4paper]{bxjsreport}\n")
-              ('euptex "\\documentclass[11pt,report,uplatex]{jsbook}\n")
-              (t       "\\documentclass[11pt]{article}"))
-           ("\\section{%s}" . "\\section*{%s}")
-           ("\\subsection{%s}" . "\\subsection*{%s}")
-           ("\\subsubsection{%s}" . "\\subsubsection*{%s}")
-           ("\\paragraph{%s}" . "\\paragraph*{%s}")
-           ("\\subparagraph{%s}" . "\\subparagraph*{%s}"))
-          ("book"
-           ,(case latex
-              ('luatex "\\documentclass{ltjsarticle}\n")
-              ('xetex  "\\documentclass[9pt,a4paper]{bxjsreport}\n")
-              ('euptex "\\documentclass[9pt,a5j,uplatex]{jsbook}\n")
-              (t       "\\documentclass[11pt]{book}"))
-           ("\\part{%s}" . "\\part*{%s}")
-           ("\\chapter{%s}" . "\\chapter*{%s}")
-           ("\\section{%s}" . "\\section*{%s}")
-           ("\\subsection{%s}" . "\\subsection*{%s}")
-           ("\\subsubsection{%s}" . "\\subsubsection*{%s}"))
-          ("beamer"
-           ;; #+LaTeX_CLASS_OPTIONS: [presentation,dvipdfm] をつけたサンプ
-           ;; #ルには注意すること。
-           ;;,(concat "\\documentclass[compress,dvipdfm]{beamer}\n[NO-PACKAGES]\n"
-           ,(concat
-             (case latex
-               ('xetex
-                "\\documentclass[compress,xdvipdfmx]{beamer}\n")
-               (t "\\documentclass[compress,dvipdfmx]{beamer}\n"))
-             "\\usetheme{AnnArbor}\n"
-             "\\setbeamertemplate{navigation symbols}{}\n"
-             "[NO-PACKAGES]\n"
-             "\\usepackage{graphicx}\n")
-           org-beamer-sectioning)))
-
-  (setq org-latex-pdf-process
-        (case latex
-          ('luatex '("latexmk -pdf"))
-          ('xetex  '("latexmk -pdf"))
-          ('euptex '("latexmk -pdfdvi"))
-          (t '("latexmk -pdfdvi")))))
 
 (declare-function org-export-derived-backend-p "ox" (backend &rest backends))
 (defun my-org-latex-filter-bigtabular (text backend _info)
@@ -6978,8 +7063,139 @@ Allows use of the fancyvrb latex package."
      "\\\\\\1{Verbatim}" text)))
 
 (lazyload () "ox-latex"
-    ;; euptex, xetex, luatex
-  (my-org-export-latex-setup 'xetex)
+
+  (add-hook 'org-export-before-processing-hook 'my-ox-latex-tex-engine-setup)
+
+  (defun my-ox-latex-tex-engine-setup (backend)
+    (message "backend=%s" backend)
+    (when (equal backend 'latex)
+      (my-ox-latex-engine-set TeX-engine)))
+
+  (defun my-ox-latex-engine-set (latex)
+    "Set up LATEX environments."
+    ;; すべてのLaTeX出力に共通なパッケージ
+    (setq org-latex-default-packages-alist
+          `(
+            ,@(case latex ; 各 TeX に応じた日本語パッケージ設定
+                ('luatex '(("" "luacode" t)
+                           ("" "luatexja-otf" t)))
+                ('xetex  '(;; noCJKchecksiingle で、\meaning の非BMPでの分割を抑止
+                           ("AutoFallBack=true,noCJKchecksingle" "zxjatype" t)
+                           ;;("macros" "zxotf" t)
+                           ))
+                ('euptex '(("uplatex,multi" "otf" t)
+                           ("" "okumacro" t)))
+                (t nil))
+            ("" "fixltx2e" nil) ; 互換性より利便性を重視したLaTeX2eのバグ修正
+            ("" "fancyvrb" t) ; Verbatimで枠線を綺麗に出力
+            ("" "longtable" nil) ; ページをまたがるテーブルの作成
+            ("" "float" nil)
+            ;; ("" "wrapfig" nil) ; figureをwrapする。
+            ;; ("" "soul" t) ; ドイツ語用
+            ;; LaTeX標準文字記号マクロ
+            ,@my-org-latex-math-symbols-packages-alist
+            ;;("" "tabulary" t)
+            ("" "bigtabular" t)
+            ("" "multicol" t)
+            ;; その他のデフォルトで使用するLaTeX設定
+            ,(concat
+              "\\tolerance=1000\n"
+              "\\providecommand{\\alert}[1]{\\textbf{#1}}\n"
+              "\\fvset{xleftmargin=2em}\n")
+            ;; XeTeXの場合、1.9999 以降は IVSが使えるので、これらに glue が
+            ;; 入らないよう、キャラクタクラスを 256 にする。
+            ,@(when (equal latex 'xetex)
+                (list(concat
+                "\\setjamainfont{HanaMinA}\n"
+                "\\setCJKfallbackfamilyfont{rm}{HanaMinB}\n"
+                ;;"\\XeTeXcharclass\"E0100=256\n"
+                ;;"\\XeTeXcharclass\"E0101=256\n"
+                ;;"\\XeTeXcharclass\"E0102=256\n"
+                ;;"\\XeTeXcharclass\"E0103=256\n"
+                ;;"\\XeTeXcharclass\"E0104=256\n"
+                ;;"\\XeTeXcharclass\"E0105=256\n"
+                ;;"\\XeTeXcharclass\"E0106=256\n"
+                ;;"\\XeTeXcharclass\"E0107=256\n"
+                ;;"\\XeTeXcharclass\"E0108=256\n"
+                ;;"\\XeTeXcharclass\"E0109=256\n"
+                )))
+            ))
+
+    ;; 一部のLaTeX出力に特有のパッケージ（Beamerで使わないパッケージ）
+    (setq org-latex-packages-alist
+          `(
+            ;; graphicx: jpeg や png を取り込む。
+            ;;   ebb *.png 命令を実行しないと Bounding Boxが生成されない。
+            ,(case latex
+               ('xetex  '("" "graphicx"  t))
+               ('euptex '("dvipdfmx" "graphicx"  t))
+               (t       '("pdftex" "graphicx"  t)))
+            ;; hyperref: PDFでハイパーリンクを生成
+            ;; colorlinks=true を入れると、graphicx が dvipdfmx で失敗するので注意。
+            ,(case latex
+               ('luatex '("pdftex,pdfencoding=auto" "hyperref" t))
+               ('euptex '("dvipdfm" "hyperref"  t))
+               ('xetex  '("xetex" "hyperref"  t))
+               (t       '("pdftex" "hyperref"  t)))
+            ;; biblatex は重いので、使用するorg-fileのみ、
+            ;; `+LATEX_HEADER: \usepackage[backend=biber]{biblatex}'
+            ;; で入れるのがいいかも。
+            ;; ("backend=biber", "biblatex" t)
+            ;; ↓これを入れると、includegraphics で png が入らないので注意。
+            ("" "listings")
+            ("" "color")))
+
+    (setq org-latex-classes
+          `(("article"
+             ,(case latex
+                ('luatex "\\documentclass{ltjsarticle}\n")
+                ('xetex  "\\documentclass[a4paper]{bxjsarticle}\n")
+                ('euptex "\\documentclass[a4j,uplatex]{jsarticle}\n")
+                (t       "\\documentclass[11pt]{article}"))
+             ("\\section{%s}" . "\\section*{%s}")
+             ("\\subsection{%s}" . "\\subsection*{%s}")
+             ("\\subsubsection{%s}" . "\\subsubsection*{%s}")
+             ("\\paragraph{%s}" . "\\paragraph*{%s}")
+             ("\\subparagraph{%s}" . "\\subparagraph*{%s}"))
+            ("report"
+             ,(case latex
+                ('luatex "\\documentclass{ltjsarticle}\n")
+                ('xetex  "\\documentclass[a4paper]{bxjsreport}\n")
+                ('euptex "\\documentclass[11pt,report,uplatex]{jsbook}\n")
+                (t       "\\documentclass[11pt]{article}"))
+             ("\\section{%s}" . "\\section*{%s}")
+             ("\\subsection{%s}" . "\\subsection*{%s}")
+             ("\\subsubsection{%s}" . "\\subsubsection*{%s}")
+             ("\\paragraph{%s}" . "\\paragraph*{%s}")
+             ("\\subparagraph{%s}" . "\\subparagraph*{%s}"))
+            ("book"
+             ,(case latex
+                ('luatex "\\documentclass{ltjsarticle}\n")
+                ('xetex  "\\documentclass[9pt,a4paper]{bxjsreport}\n")
+                ('euptex "\\documentclass[9pt,a5j,uplatex]{jsbook}\n")
+                (t       "\\documentclass[11pt]{book}"))
+             ("\\part{%s}" . "\\part*{%s}")
+             ("\\chapter{%s}" . "\\chapter*{%s}")
+             ("\\section{%s}" . "\\section*{%s}")
+             ("\\subsection{%s}" . "\\subsection*{%s}")
+             ("\\subsubsection{%s}" . "\\subsubsection*{%s}"))
+            ("beamer"
+             ;; #+LaTeX_CLASS_OPTIONS: [presentation,dvipdfm] をつけたサンプ
+             ;; #ルには注意すること。
+             ;;,(concat "\\documentclass[compress,dvipdfm]{beamer}\n[NO-PACKAGES]\n"
+             ,(concat
+               (case latex
+                 ('xetex
+                  "\\documentclass[compress,xdvipdfmx]{beamer}\n")
+                 (t "\\documentclass[compress,dvipdfmx]{beamer}\n"))
+               "\\usetheme{AnnArbor}\n"
+               "\\setbeamertemplate{navigation symbols}{}\n"
+               "[NO-PACKAGES]\n"
+               "\\usepackage{graphicx}\n")
+             org-beamer-sectioning)))
+
+    (setq org-latex-pdf-process (list (my-latexmk-command TeX-engine "-pv" t))))
+
   ;; "verbatim" → "Verbatim" 置換
   (add-to-list 'org-export-filter-final-output-functions
                'my-org-latex-filter-fancyvrb)
@@ -7360,6 +7576,34 @@ Allows use of the fancyvrb latex package."
 
 ;;;; processing-mode (elpa)
 ;; auto-mode-alist への追加等は autoload で実行。
+
+;;;; projectile (elpa)
+;; https://github.com/bbatsov/projectile
+;; .git, .hg ディレクトリ単位でファイル探索等をサポート
+;; projectile-file のコマンド一覧
+;; （他にも便利な命令があるので、 C-c p <help> で確認）
+;; C-c p f	Display a list of all files in the project. With a prefix argument it will clear the cache first.
+;; C-c p d	Display a list of all directories in the project. With a prefix argument it will clear the cache first.
+;; C-c p T	Display a list of all test files(specs, features, etc) in the project.
+;; C-c p l	Display a list of all files in a directory (that's not necessarily a project)
+;; C-c p g	Run grep on the files in the project.
+;; C-c p b	Display a list of all project buffers currently open.
+;; C-c p o	Runs multi-occur on all project buffers currently open.
+;; C-c p r	Runs interactive query-replace on all files in the projects.
+;; C-c p i	Invalidates the project cache (if existing).
+;; C-c p R	Regenerates the projects TAGS file.
+;; C-c p k	Kills all project buffers.
+;; C-c p D	Opens the root of the project in dired.
+;; C-c p e	Shows a list of recently visited project files.
+;; C-c p a	Runs ack on the project. Requires the presence of ack-and-a-half.
+;; C-c p A	Runs ag on the project. Requires the presence of ag.el.
+;; C-c p c	Runs a standard compilation command for your type of project.
+;; C-c p p	Runs a standard test command for your type of project.
+;; C-c p z	Adds the currently visited to the cache.
+;; C-c p s	Display a list of known projects you can switch to.
+(lazyload () "projectile"
+  (projectile-global-mode)
+  (setq projectile-enable-caching t)) ; ファイル検索を高速化
 
 ;;;; ProofGeneral
 ;; http://proofgeneral.inf.ed.ac.uk/
@@ -7809,9 +8053,43 @@ Allows use of the fancyvrb latex package."
 
 ;;;; smartparens (elpa)
 ;; 最近人気のカッコ処理モード
+;; M-x smartparens-global-mode
+(lazyload () "smartparens"
+  (sp-with-modes '(rhtml-mode)
+     (sp-local-pair "<" ">")
+     (sp-local-pair "<%" "%>")))
+
+(lazyload () "enh-ruby-mode"
+  (require 'smartparens-ruby nil :no-error))
+
+(when (and (functionp 'show-smartparens-global-mode)
+           (require 'smartparens-config nil :no-error))
+  (smartparens-global-mode)
+  (show-smartparens-global-mode t))
 
 ;;;; smartrep (elpa)
 ;; 例：C-c C-n の繰り返しを、C-c C-n C-n ... ですませられるようにする。
+(lazyload (smartrep-define-key) "smartrep")
+;; これ以前の設定
+(when (boundp 'winner-mode-map)
+  (smartrep-define-key winner-mode-map "C-c"
+                       '(("M-p" . winner-undo)
+                         ("M-n" . winner-redo))))
+
+;; フォントセットを回転させる。
+(smartrep-define-rotate-key my-rotate-map "l"
+  (my-rotate-font-specs my-font-specs t)
+  (my-rotate-font-specs my-font-specs t -1))
+(smartrep-define-rotate-key my-rotate-map "k"
+  (my-rotate-font-specs my-font-specs 'kana)
+  (my-rotate-font-specs my-font-specs 'kana -1))
+(smartrep-define-rotate-key my-rotate-map "h"
+  (my-rotate-font-specs my-font-specs 'han)
+  (my-rotate-font-specs my-font-specs 'han -1))
+;; テーマの回転 (obsolete)
+;;(smartrep-define-rotate-key my-rotate-map "t"
+;;  (rotate-theme) (rotate-theme -1))
+
 (lazyload () "outline"
   (when (require 'smartrep nil :no-error)
     (smartrep-define-key
@@ -7825,25 +8103,6 @@ Allows use of the fancyvrb latex package."
         org-mode-map "C-c"
       '(("C-n" . outline-next-visible-heading)
         ("C-p" . outline-previous-visible-heading)))))
-
-(when-interactive-and (require 'smartrep nil :no-error)
-  ;;(bind-key "M-R" 'move-to-window-line-top-bottom)
-  (bind-key "M-r" my-rotate-map) ;; move-to-window-line-top-bottom を上書き
-  (bind-key "M-R" my-rotate-map)
-  ;; フォントセットを回転させる。
-  (smartrep-define-rotate-key my-rotate-map "l"
-    (my-rotate-font-specs my-font-specs t)
-    (my-rotate-font-specs my-font-specs t -1))
-  (smartrep-define-rotate-key my-rotate-map "k"
-    (my-rotate-font-specs my-font-specs 'kana)
-    (my-rotate-font-specs my-font-specs 'kana -1))
-  (smartrep-define-rotate-key my-rotate-map "h"
-    (my-rotate-font-specs my-font-specs 'han)
-    (my-rotate-font-specs my-font-specs 'han -1))
-  ;; テーマの回転 (obsolete)
-  ;;(smartrep-define-rotate-key my-rotate-map "t"
-  ;;  (rotate-theme) (rotate-theme -1))
-  )
 
 ;;;; smex (elpa)
 ;; Smart Meta-X
@@ -8133,7 +8392,9 @@ Allows use of the fancyvrb latex package."
         '(("F" . twittering-friends-timeline)
           ("R" . twittering-replies-timeline)
           ("U" . twittering-user-timeline)
-          ("W" . twittering-update-status-interactive))))
+          ("W" . twittering-update-status-interactive)
+          ("C-c f" . twittering-follow)
+          ("C-c u" . twittering-unfollow))))
 ;; (setq twittering-password "Twitterのパスワード")
 
 ;;;; tuareg (elpa)
@@ -8218,7 +8479,10 @@ Allows use of the fancyvrb latex package."
   (setq web-mode-script-offset 2)
   (setq web-mode-php-offset    2)
   (setq web-mode-java-offset   2)
-  (setq web-mode-asp-offset    2))
+  (setq web-mode-asp-offset    2)
+  ;; autocomplete
+  (when (require 'auto-complete nil :no-error)
+    (add-to-list 'ac-modes 'web-mode)))
 
 ;;;; wget (elpa)
 
@@ -8317,6 +8581,9 @@ Allows use of the fancyvrb latex package."
 
 ;;;; zotelo (not zotero!)
 ;; C-c z prefix.
+(lazyload () "tex" ;; auctex/tex
+  (when (functionp 'zotelo-minor-mode)
+    (add-hook 'TeX-mode-hook 'zotelo-minor-mode)))
 
 ;;; 個人用アプリケーション
 ;;;; aozora-proc
@@ -8426,21 +8693,6 @@ Allows use of the fancyvrb latex package."
         if (funcall (or test 'equal) (cdr cons) key)
         collect (car cons)))
 
-(defun assoc-delete-all (key alist)
-  "Delete from ALIST all elements whose car is `equal' to KEY.
-Return the modified alist.
-Elements of ALIST that are not conses are ignored."
-  (while (and (consp (car alist))
-	      (equal (car (car alist)) key))
-    (setq alist (cdr alist)))
-  (let ((tail alist) tail-cdr)
-    (while (setq tail-cdr (cdr tail))
-      (if (and (consp (car tail-cdr))
-	       (equal (car (car tail-cdr)) key))
-	  (setcdr tail (cdr tail-cdr))
-	(setq tail tail-cdr))))
-  alist)
-
 ;;;; ハッシュテーブル関係
 (defvar add-value) ;; special variable （構文スコープ対策）
 (defun addhash (key value table &optional append)
@@ -8502,6 +8754,8 @@ returned."
   (message "%s" (get-char-property (point) 'face)))
 
 ;;;; DropBox
+(declare-function ffap-read-file-or-url "ffap" (prompt guess))
+(declare-function ffap-guesser "ffap" nil)
 (defun find-file-in-dropbox (&optional filename)
   "FILENAME を DropBox で開く。"
   ;; ffap 機能の活用例。
@@ -8626,12 +8880,13 @@ same directory as the org-buffer and insert a link to this file."
  '(debug-on-quit nil)
  '(default-input-method "math-symbols-bold")
  '(display-theme-mode t)
- '(doremi-custom-themes (quote (occidental tango-dark phoenix-dark-mono tangotango tommyh twilight tsdh-dark wheatgrass whiteboard wombat tsdh-light tronesque toxi misterioso twilight-anti-bright twilight-bright underwater zenburn wilson zen-and-art adwaita alect-dark alect-light ample ample-zen anti-zenburn base16-chalk base16-default base16-eighties base16-greenscreen base16-mocha base16-monokai base16-ocean base16-railscasts base16-solarized base16-tomorrow birds-of-paradise-plus busybee calmer-forest clues colorsarenice-dark colorsarenice-light cyberpunk deeper-blue dichromacy django dorsey espresso fogus gandalf graham grandshell granger gruber-darker hemisu hemisu-dark hemisu-light heroku hickey inkpot ir-black ir_black leuven light-blue manoj-dark mccarthy moe moe-dark moe-light molokai monokai mustang naquadah noctilux nzenburn obsidian odersky pastels-on-dark phoenix-dark-pink purple-haze reverse soft-charcoal soft-morning soothe spolsky subatomic subatomic256 tango tango-2)))
+ '(doremi-custom-themes (quote (mccarthy phoenix-dark-pink soft-charcoal zen-and-art spolsky naquadah odersky tronesque wheatgrass wombat purple-haze soothe reverse subatomic256 tango-2 soft-morning tango subatomic occidental tango-dark phoenix-dark-mono tangotango tommyh twilight tsdh-dark whiteboard tsdh-light toxi misterioso twilight-anti-bright twilight-bright underwater zenburn wilson adwaita alect-dark alect-light ample ample-zen anti-zenburn base16-chalk base16-default base16-eighties base16-greenscreen base16-mocha base16-monokai base16-ocean base16-railscasts base16-solarized base16-tomorrow birds-of-paradise-plus busybee calmer-forest clues colorsarenice-dark colorsarenice-light cyberpunk deeper-blue dichromacy django dorsey espresso fogus gandalf graham grandshell granger gruber-darker hemisu hemisu-dark hemisu-light heroku hickey inkpot ir-black ir_black leuven light-blue manoj-dark moe moe-dark moe-light molokai monokai mustang noctilux nzenburn obsidian pastels-on-dark)))
  '(fci-rule-character-color "#d9d9d9")
  '(fci-rule-color "#d9d9d9")
  '(foreground-color "#cccccc")
  '(frame-brackground-mode (quote dark))
  '(fringe-mode 4 nil (fringe))
+ '(global-rainbow-delimiters-mode t)
  '(highlight-changes-colors (quote ("#d33682" "#6c71c4")))
  '(highlight-tail-colors (quote (("#eee8d5" . 0) ("#B4C342" . 20) ("#69CABF" . 30) ("#69B7F0" . 50) ("#DEB542" . 60) ("#F2804F" . 70) ("#F771AC" . 85) ("#eee8d5" . 100))))
  '(linum-format " %7d ")
@@ -8694,6 +8949,7 @@ same directory as the org-buffer and insert a link to this file."
           (find-file file)
         (message "File `%s' does not exist!" file )))))
 
+(defvar auto-mode-alist-2 (copy-sequence auto-mode-alist))
 (provide 'init) ; make sure it only load once.
 
 ;; Local Variables:
