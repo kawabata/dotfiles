@@ -1,5 +1,5 @@
 #!/bin/sh
-# -*- outline-regexp: "^#\\*+"; -*- 
+# -*- outline-regexp: "^#\\*+"; -*-
 
 #* 対話型シェルの設定
 # シェルに依存しない一般的なプロフィール設定を行う。
@@ -14,7 +14,7 @@
 #  | non-interactive | $BASH_ENV        | .zshenv   | 1 |
 #  |-----------------+------------------+-----------+---|
 #  | logout          | .bash_logout     | .zlogout  | 5 |
-# 
+#
 # - .bash_login は、.bashrc を sourceして、BASH_ENVを設定する。
 # - .bashrc は、.profileをsourceして、bash特有の設定を行う。
 # - .zshrc は、zsh特有の設定を行う。
@@ -25,7 +25,7 @@
 # Mac の場合は、PATH/MANPATH は、/etc/paths.d, /etc/manpaths.d も参照。
 
 #* 初期化
-stty sane # デフォルトに戻す。(stty -a で確認可能)
+[ -z "$CYGWIN" ] && stty sane # デフォルトに戻す。(stty -a で確認可能)
 
 #* ユーザへの環境情報の表示
 if [ ! -z "$HTTP_PROXY" ]; then
@@ -39,7 +39,7 @@ if [ ! -z "$GPG_AGENT_INFO" ]; then
     export GPG_TTY=$(tty)
 fi
 if [ ! -L $HOME/.zsh_history ]; then
-    echo "~/.zsh_history is not symbolic link." 
+    echo "~/.zsh_history is not symbolic link."
 fi
 
 #* Z
@@ -101,6 +101,7 @@ alias j=jobs
 alias po=popd
 
 # ユーティリティ関数の定義
+alias est='estcmd gather -cl -fm -cm ~/News/casket ~/Mail'
 alias less="less -X" # less 終了後に画面をクリアしない
 alias mkdir='mkdir -p'
 alias emacs='emacs --debug-init'
@@ -140,9 +141,10 @@ function setenv {
 function settitle { echo "\e]0;${1}\a" }
 
 #** AHFormatter
-alias ahf='/usr/local/AHFormatterV61/run.sh'
+# alias ahfcmd='/usr/local/AHFormatterV62/run.sh'
+# -pdfver PDF1.4 は、PNG 64bit depth の透過色に関するバグ回避のため。（修正されたら外す。）
 function ahf {
-  /usr/local/AHFormatterV61/run.sh -peb 1 -x 4 -d $1 -o $1.pdf
+  /usr/local/AHFormatterV62/run.sh -pdfver PDF1.4 -peb 1 -x 4 -d $1 -o $1.pdf $2
 }
 
 # 再帰的grep
@@ -171,4 +173,14 @@ function jsdoc-auto () {
   cd -
 }
 
-source ~/.profile_extra
+# avconv
+function avconvert () {
+    if [ -z "$2" ]; then
+        threads="4"
+    else
+        threads="$2"
+    fi
+    avconv -i $1 -threads $threads -c:a libfdk_aac -vbr 3 -c:v libx265 -preset slower `basename $1 .ts`.mp4
+}
+
+[ -f ~/.profile_extra ] && source ~/.profile_extra
