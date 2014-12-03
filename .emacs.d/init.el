@@ -5,17 +5,25 @@
 ;; Package-Requires: ((emacs "24.3"))
 ;; Author: KAWABATA, Taichi <kawabata.taichi_at_gmail.com>
 ;; Created: around 1995 (Since my first Emacs experience...)
-;; Modified: 2014-04-29
-;; Version: 13
+;; Modified: 2014-12-01
+;; Version: 14
 ;; Keywords: internal, local
 ;; Human-Keywords: Emacs Initialization
 ;; Namespace: tkw-
 ;; URL: https://github.com/kawabata/dotfiles/.emacs.d/init.el
 
 ;;; Commentary:
+
+;; ポリシー
+;; - init.el 単独で管理する。
+;; - Cask は別途使用する。
+
 ;; 技術メモ
 ;;;; Emacsおよび関連ソフトのインストール方法
 
+;; - git repository
+;;   : git clone git://git.sv.gnu.org/emacs.git
+;;   : git clone http://git.sv.gnu.org/r/emacs.git (behind proxy)
 ;; - Ubuntu 12.04 (LTS)
 ;;    % sudo add-apt-repository ppa:cassou/emacs
 ;;    % sudo apt-get update
@@ -25,7 +33,8 @@
 ;; - Ubuntu Compilation
 ;;    % sudo apt-get install build-essential
 ;;    % sudo apt-get build-dep emacs23
-;;    % sudo apt-get install git
+;;    % sudo apt-get install git ccache
+;;    % export PATH=/usr/lib/ccache:$PATH
 ;;    % git clone git://git.savannah.gnu.org/emacs.git
 ;;    % cd emacs
 ;;    % ./configure
@@ -35,6 +44,10 @@
 ;; - Macintosh
 ;;   + Yamamoto Patch (comp.emacs.gnus)
 ;;     (git://github.com/railwaycat/emacs-mac-port)
+;;     + update 11/21/2014: Emacs 24.4 with emacs-24.4-mac-5.2
+;       (http://lists.gnu.org/archive/html/emacs-devel/2014-11/msg01719.html)
+;;     + update 11/03/2014: Emacs 24.4 with emacs-24.4-mac-5.1
+;;     + update 10/20/2014: Emacs 24.4 with emacs-24.4-mac-5.0
 ;;     + update 11/07/2013: Emacs 24.3 with emacs-24.3-mac-4.5
 ;;     + update 10/25/2013: Emacs 24.3 with emacs-24.3-mac-4.4
 ;;     + update 09/24/2013: Emacs 24.3 with emacs-24.3-mac-4.3
@@ -45,7 +58,6 @@
 ;;     日本語インラインパッチ付き
 ;;     : brew install --cocoa --srgb --with-gnutls --japanese emacs -v
 ;;   + X-Windows 版の利用
-;;
 ;;     : unexec: not enough room for load commands for new __DATA segments
 ;;     : make[2]: *** [bootstrap-emacs] Error 1
 ;;     : make[1]: *** [src] Error 2
@@ -57,6 +69,15 @@
 ;;     変更：690→6C8
 ;;     configure.ac のif文がミスしている場合あり。
 ;;
+;;   + HEAD を ns でコンパイル
+;;     : brew install ccache
+;;     : export PATH=/usr/local/opt/ccache/libexec:$PATH
+;;     : ./configure --with-ns
+;;     : make bootstrap
+;;     : make install
+;;     : open ./nextstep/Emacs.app
+;;     : EMACS=/Users/kawabata/cvs/emacs/src/emacs cask update
+;;
 ;;   + トラブルシューティング
 ;;     tputs がない、というエラーが出たら、config.log のエラー出力場所をよく見る。
 ;;     librsvg 等、思わぬライブラリが悪さをしていることがある。関係ライブラリを一度、
@@ -64,39 +85,72 @@
 ;;     freetype がないと、フォントはまともに表示できない。
 ;;     ./configure 時に、freetype=no と出る場合は、以下を試すとうまくいく場合がある。
 ;;    % ln -s /usr/local/opt/freetype/include/freetype2 /usr/local/include/freetype
-
-;; - Windows
-;;   Home directory :: d:/Users/john/appdata/roaming
-;;   + GnuPack_devel-11.00 を展開して指定フォルダに置く。
-;;   + GnuPack emacs-24.3-ime-2013-05-03.zip
-;;     これを展開して、
-;;     Gnupack_devel-11.00/app/emacs/emacs として置く。
-;;   + Gnupack_devel-11.00/Config.ini を編集。（下記参照）
-;;   + ホームディレクトリに .emacs.d のシンボリックリンクを作成する。
-;;     （コマンドプロンプトに管理者権限が必要）
-;;     : % mklink /d .emacs.d .\Dropbox\dotfiles\.emacs.d
-;;     : % mklink .environ .\Dropbox\dotfiles\.environ
-;;     : % mklink .profile .\Dropbox\dotfiles\.profile
-;;     : % mklink .zshenv .\Dropbox\dotfiles\.zshenv
-;;     : % mklink .zshrc .\Dropbox\dotfiles\.zshrc
-;;     : etc..
-;;   + Gnupack_devel-11.00/emacs.exe を起動。
-;;     + --debug-init などを付けるとオリジナルのemacs.exe に渡される。
 ;;
-;; - Windows 24.4
-;;  + http://semantic.supelec.fr/popineau/programming-emacs.html からダウンロード
+;;   + ソースからのビルド
+;;     % wget http://ftp.gnu.org/gnu/emacs/emacs-24.4.tar.xz
+;;     % wget ftp://ftp.math.s.chiba-u.ac.jp/emacs/emacs-24.4-mac-5.2.tar.gz
+;;     % tar xfz emacs-24.4-mac-5.2.tar.gz
+;;     % tar xfJ emacs-24.4.tar.xz
+;;     % cd emacs-24.4
+;;     % cat ../emacs-24.4-mac-5.2/patch-mac | patch -p0
+;;     % rsync -av ../emacs-24.4-mac-5.2/mac/ ./mac/
+;;     % rsync -av ../emacs-24.4-mac-5.2/src/ ./src/
+;;     % rsync -av ../emacs-24.4-mac-5.2/lisp/ ./lisp/
+;;     （以下はインラインパッチを当てる場合）
+;;     % xzcat ../tis.gz | patch -p0
+;;     （以下は不要）
+;;     % cp ./nextstep/Cocoa/Emacs.base/Contents/Resources/Emacs.icns ./mac/Emacs.app/Contents/Resources/Emacs.icns
+;;     % cp -pr ../emacs-hires-icons-1.0/etc/images/* ./etc/images
+;;     （ここまで不要）
+;;     % ./configure --enable-mac-app --with-mac CC="/usr/bin/gcc"
+;;      --enable-profiling は絶対に指定してはいけない。（速度が極端に遅くなる。）
+;;     'unrecognized command line option "-fconstant-cfstrings" ならば、/usr/bin/gcc の代わりに /usr/local/bin/gcc が使われている。
+;;     % make # -j CC="/usr/bin/gcc -std=gnu99" CFLAGS=-g3 bootstrap
+;;     % sudo make install
 
+;; * Windows
+;;   Home directory :: d:/Users/john
+;;   + GnuPack_Devel-11.00 の場合
+;;     - GnuPack_devel-11.00 を展開して適当なフォルダに置く。
+;;     - GnuPack emacs-24.3-ime-2013-05-03.zip
+;;       これを展開して、
+;;       Gnupack_devel-11.00/app/emacs/emacs として置く。
+;;   + GnuPack_Devel-12.10 の場合
+;;     - GnuPack_devel-12.10 を展開して適当なフォルダに置く。
+;;   + Gnupack_devel-XX.Y0/Config.ini を編集。（下記参照）
+;;     + Color-Theme などをやめる。
+;;   + Windows 24.4（インラインは使えない）
+;;     http://semantic.supelec.fr/popineau/programming-emacs.html からダウンロード
+;;   + GnuPack の機能をフルに活かすには、Cygwin のgpgなどのコマンドが必要。
+;;   + ホームディレクトリに .emacs.d のシンボリックリンクを作成する。
+;;     mklink を使ってもよいが、CYGWIN で、export CYGWIN="winsymlinks:nativestrict"
+;;     を宣言すれば、ln コマンドも利用できる。
+;;
+;;   + コマンドプロンプトで emacs.exe を --debug-init で起動可。
+;;   + Windows では Cask は動かないので、Caskファイルに対し以下の命令で
+;;     パッケージをインストール。
+;;      (while (re-search-forward "(depends-on \"\\(.+?\\)\")" nil t)
+;;        (let ((package (intern (match-string 1))))
+;;          (unless (package-installed-p package)
+;;            (package-install package))))
+;;
+;;   + Cygwin と Emacs ではパスは以下のように異なるので注意。
+;;     - "c:/Windows/system32" → "/cygdrive/c/windows/system32"
+;;     - "path1;path2;path3"   → "path1:path2:path3"
+;;     parse-colon-path 関数が自動的に環境に応じて処理してくれる。
+;;     なお、cygwin の rootディレクトリは
+;;     HKEY_LOCAL_MACHINE\SOFTWARE\Cygwin\setup\rootdir = C:\cygwin64
+;;     となっているが、これは当然、Emacsからは見えないので、
+;;     (getenv "SHELL") に /bin/sh があってもアクセスできない。
 
-;; - 個別パッケージインストール
+;; * 個別パッケージインストール
 ;;   + TeX (MacTeX, W32TeX, TexLive) (/usr/texbin/)
-;;   + Pandoc (/usr/bin/pandoc)
 ;;   + Go Language (/usr/local/go)
 ;;   + Digital Mars D language
 ;;   + GnuPG (Agent)
 ;;     MacGPGの場合はシステム環境設定のGPGPreferencesにおいて
 ;;     "Store Password in KeyChain" を設定
 ;;   + R (http://cran.r-project.org/bin/macosx/)
-;;   + Haskell Platform (ghc を単体でインストールしてはいけない！）
 ;;   + X Windows (XQuartz)
 ;;   + m17n-lib (https://savannah.nongnu.org/projects/m17n)
 ;;     - コンパイルには libintl.h が必要なため、
@@ -104,6 +158,7 @@
 ;;       : brew link gettext (gettext はkeg onlyなため)
 ;;       を実行する。
 ;; - パッケージマネージャ (MacPorts/HomeBrew) でインストール
+;;   + Haskell / Cabal (Pandoc via Cabal)
 ;;   + Maxima
 
 ;;;;; GnuPack のCyginw利用設定
@@ -128,13 +183,11 @@
 
 ;;;; 現在のIssues,TODOs
 ;; 必要に応じて、開発者に報告する。
+;; xs-mode, zoom-window, ox-hatena, helm-godoc
 ;; - org-capture :: template を "org-capture-verify-tree" でチェックするため、テンプレートに "#+TITLE: " 等が使えない。
 ;; - bbdb-dwim :: なぜかエラーが出る。原因は不明。
 ;; - bundler, robe - package dependent on inf-ruby, need to check
 ;; - php-auto-yasnippet :: 膨大な量の無関係なライブラリを読み込む。
-;; - powerline - autoload does load itself.
-;; - erc-hl-nicks - autoload does load itself.
-;; - pretty-mode.el -- should not include (require'cl)
 ;; - orglue - requires org-mac-link, which does not exists as independet package.
 ;; - alpha - 勝手に global-set-key を設定する。
 ;; - php-eldoc - cl package included.
@@ -149,7 +202,10 @@
 ;;;;; init.el の書き方
 
 ;; init.el はできるだけ内容は小さくすること。
-;; 外部ファイルに設定が置ける場合はできるだけそうすること。
+;; 外部ファイルに設定がまとめて置ける場合はできるだけそうすること。
+;; バイトコンパイルはしないこと。
+;;  （理由：init.el で使う関数がマクロかどうかはライブラリを読まないとわからないが、
+;;         すべてのライブラリを読み込むとコンパイルに時間がかかりすぎるため。）
 
 ;; (1-a) 標準ライブラリで遅延起動
 ;;   | ;; autoload でないライブラリの設定でコンパイル時に警告を抑制
@@ -157,8 +213,8 @@
 ;;   | (setq XYZ-var "hogehoge")
 
 ;; (1-b) 標準ライブラリでかつ即時起動
-;;   | (require 'XYZ)                      ; 起動時に必要
 ;;   | (setq XYZ-var "hogehoge")
+;;   | (require 'XYZ)                      ; 起動時に必要
 ;;   | (when-interactive-and t             ; バッチモードでは不要な場合
 ;;   |   (global-XYZ-mode))
 
@@ -189,6 +245,8 @@
 ;;   - 初期設定ファイルを分割するのは以下の理由で良くない。
 ;;     + 複数のライブラリにまたがる設定の見通しが難しい。
 ;;   - バッチで不要な設定は、(when-interactive-and) マクロで囲む。
+
+;; ライブラリ読み込み後の設定は customize-set-variable を使う。
 
 ;;;;; init.el のコメント書式
 ;;
@@ -731,8 +789,25 @@
 ;; Volpiatto, Thierry :: https://github.com/thierryvolpiatto
 ;; Walker, Roland :: http://github.com/rolandwalker
 
-;;;; トラブルシュート
-;; Emacsが重い場合は、eldocが悪さをしている場合が多いので、これをoffにする。
+;;;; OSにおけるWindow管理
+;;;;; Macintosh (Spectacle)
+;; - Option+Control+← :: Left Half
+;; - Option+Control+→ :: Right Half
+;;;;; Windowss
+;; - Windows+← :: Left Half
+;; - Windows+→ :: Right Half
+;;;;; Linux
+;; vncserver -geometry 1600x1200 -randr 1600x1200,1440x900,1024x768
+;; WindowMaker
+;; - LHMaximizeKey = "Meta+Left"
+;; - RHMaximizeKey = "Meta+Right"
+
+;;; Emacs による開発
+;;;; cask
+;;;; ert-runner
+;;;; evm
+;;;; ecukes
+;;;; package-installation
 ;;; Code:
 (require 'cl-lib)
 (eval-when-compile (require 'cl))
@@ -790,16 +865,7 @@ Elements of ALIST that are not conses are ignored."
 	(setq tail tail-cdr))))
   alist)
 
-;;;; major-mode, minor-mode のモードライン名を変更
-;; - cf. https://github.com/znz/dot-emacs
-(defun tkw-minor-mode-lighter (mode string &optional face)
-  "Change the mode-line MODE lighter to STRING with FACE."
-  (let ((mode-pair (assq mode minor-mode-alist))
-        (string (if face (propertize string 'face face)
-                  (concat " " string))))
-    (if mode-pair (setcar (cdr mode-pair) string)
-      (add-to-list 'minor-mode-alist (list mode string)))))
-
+;;;; major-mode のモードライン名を変更
 (defun tkw-major-mode-lighter (mode string &optional face)
   "Change the mode-line MODE lighter to STRING with FACE."
   (let ((string (if face (propertize string 'face face) string)))
@@ -808,6 +874,26 @@ Elements of ALIST that are not conses are ignored."
 
 ;;; パッケージ管理システム
 ;; - 詳細は [[info:elisp#Packaging]] 参照。
+;;;; cask
+;; - Installation
+;;  % cd
+;;  ## for Mac
+;;  % brew install cask
+;;  ## for Linux
+;;  % curl -fsSkL https://raw.github.com/cask/cask/master/go | python
+;;  % cask upgrade # upgrade-cask でもOK
+;; - マニュアル
+;;   + http://cask.github.io/dsl.html
+;; - 開発ガイド
+;;   + http://www.kaichan.info/blog/2014-02-23-emacs-cask.html
+;; EVM 等と組み合わせて開発を行う。
+
+;; Windows ではCaskは caskxy
+(when (and (not (equal window-system 'w32))
+	   (or (require 'cask nil t) ;; MacOS X (homebrew)
+	       (require 'cask "~/.cask/cask.el" t))) ;; Linux (install by curl)
+  (cask-initialize))
+
 ;;;; 初期化
 
 ;;   Emacsは init.el 読み込み後に各パッケージへのload-path設定を行い
@@ -815,7 +901,7 @@ Elements of ALIST that are not conses are ignored."
 ;;   require/locate-library ができないため、(package-initialize) を事前
 ;;   に実行する。
 
-(require 'autoinsert) ;; abc-mode-autoloads.el 対策。
+;;(require 'autoinsert) ;; abc-mode-autoloads.el 対策。
 (package-initialize)
 (setq package-enable-at-startup nil) ;; 初期化済みなので自動初期化は停止。
 
@@ -840,8 +926,6 @@ Elements of ALIST that are not conses are ignored."
         ("melpa" . "http://melpa.milkbox.net/packages/")
         ;; sunrise-commander
         ;; ("SC"   . "http://joseito.republika.pl/sunrise-commander/")
-        ;; mepla
-        ;; ("melpa" . "http://melpa.milkbox.net/packages/") t)
         ;; org-mode
         ("org"   . "http://orgmode.org/elpa/")
         ))
@@ -850,7 +934,7 @@ Elements of ALIST that are not conses are ignored."
   (add-to-list 'package-archives
                '("local" . "~/.emacs.d/local-packages/") t))
 
-;; Marmalade
+;;;; Marmalade
 ;; marmalade は危険なファイルが入る可能性があるので、専用の関数で処理する。
 ;; 利用後は M-x init-package-archives して、もとに戻す。
 ;;(defun list-packages-marmalade ()
@@ -858,7 +942,7 @@ Elements of ALIST that are not conses are ignored."
 ;;  (setq package-archives '(("marmalade" . "http://marmalade-repo.org/packages/")))
 ;;  (list-packages))
 
-;; ノート :: 様々なパッケージ管理システム
+;;;; ノート :: 様々なパッケージ管理システム
 ;; TODO： これらの統合管理システムが欲しいかも。
 ;; | system      | packager       | test          |
 ;; |-------------+----------------+---------------|
@@ -901,7 +985,7 @@ Elements of ALIST that are not conses are ignored."
     ad-do-it))
 (ad-activate 'package-menu-execute)
 
-;;;; use-package
+;;;; use-package <elpa>
 ;; 非標準パッケージは use-package で管理する。
 ;; これを利用できない環境では、パッケージ管理のソフトはインストールしない。
 ;; * 遅延読み込みモード
@@ -926,10 +1010,37 @@ Elements of ALIST that are not conses are ignored."
 ;; - :requires
 (unless (require 'use-package nil t)
   (message "Use-package is unavailable!")
-  (defun use-package (&rest _args)))
+  (defmacro use-package (&rest _args)))
+
+;;;; el-get <elpa> (abstain)
+
+;;;; Cask ファイルの自動生成
+;; init.el から自動的に Cask ファイルを生成する。
+;; Cask-tmp と Cask を比較して、
+;; Cask にしかないものは、 init.el に加えるか、不要なら削除
+;; Cask-tmp にしかないものは、init.el で <abstain> にする。
+(defun tkw-generate-cask ()
+  (interactive)
+  (let ((table (make-hash-table :test 'equal)))
+    (with-temp-buffer
+      (insert-file-contents "~/.emacs.d/init.el")
+      (goto-char (point-min))
+      (while (re-search-forward "^;;;; \\(.+\\) <elpa>$" nil t)
+        (puthash (match-string 1) t table)))
+    (with-temp-file "~/.emacs.d/Cask-tmp"
+      (maphash (lambda (key _val)
+                 (insert "(depends-on \"" key "\")\n"))
+               table)
+      (sort-lines nil (point-min) (point-max))
+      (goto-char (point-min))
+      (insert "(source gnu)
+(source melpa)
+(source org)\n\n"))))
+
 
 ;;; キーボード設定
-;;;; bind-key
+
+;;;; bind-key <elpa>
 
 ;; bind-key* は、emulation-mode-map-alists を利用することにより、
 ;; minor-mode よりも優先させたいキーのキーマップを定義できる。
@@ -959,16 +1070,32 @@ Elements of ALIST that are not conses are ignored."
 ;; | t   | rotate-theme           |
 (defvar tkw-rotate-map (make-sparse-keymap))
 
-(declare-function smartrep-define-key "smartrep" (keymap prefix functions))
-(defmacro smartrep-define-rotate-key (keymap prefix function-1 function-2)
-  (declare (indent 2))
-  `(smartrep-define-key
-       ,keymap ,prefix
-     '(("n" . ,function-1)
-       ("p" . ,function-2))))
-
 (bind-key "M-r" tkw-rotate-map) ;; move-to-window-line-top-bottom を上書き
 (bind-key "M-R" tkw-rotate-map) ;; M-r が別の目的に使われていた場合
+
+;;;; emacs-24.4-mac-5.2 の新機能
+;; 詳細は macport.texi を参照。
+(when (fboundp 'mac-select-input-source)
+  ;; M-x 入力時に日本語を抑止する。
+  (defun mac-translation-select-ascii-capable-keyboard (prompt)
+    (mac-select-input-source 'ascii-capable-keyboard)
+    (vector last-input-event))
+  (mapc (lambda (key)
+          (define-key input-decode-map key
+            'mac-translation-select-ascii-capable-keyboard))
+        '("\C-c" "\C-x" "\M-g" "\M-s"))
+  (add-hook 'minibuffer-setup-hook
+            (lambda ()
+              (mac-select-input-source 'ascii-capable-keyboard)))
+  ;; 入力モードの状態に応じてカーソルを変更する。
+  (defun tkw-mac-selected-keyboard-input-source-chage-function ()
+    (let ((mac-input-source (mac-input-source)))
+      (if (string-match "\\.US$" mac-input-source)
+          (set-cursor-color "Yellow")
+        (set-cursor-color "Red"))))
+  (setq mac-selected-keyboard-input-source-change-hook
+        'tkw-mac-selected-keyboard-input-source-chage-function)
+  )
 
 ;;; 標準設定
 ;;;; (emacs) 7 Basic
@@ -990,12 +1117,11 @@ Elements of ALIST that are not conses are ignored."
 ;;;;; (emacs) 12.1.2 Killing by Lines
 (setq kill-whole-line t)
 
+;;;;; (emacs) 12.3.2 Cut and Paste with Other Window Applications
+;; VNC等で動きが遅くならないための工夫
+(setq select-active-regions nil)
+
 ;;;;; (emacs) 12.5 Rectangles (rect.el)
-(declare-function extract-rectangle "rect" (start end))
-(defvar tkw-killed-rectangle)
-(defun tkw-kill-rectangle-save (start end)
-  (interactive "*r\nP")
-  (setq tkw-killed-rectangle (extract-rectangle start end)))
 (bind-key "C-x r K" 'tkw-kill-rectangle-save)
 (bind-key "C-x r t" 'string-rectangle)
 
@@ -1017,7 +1143,7 @@ Elements of ALIST that are not conses are ignored."
 (line-number-mode t)
 (column-number-mode t)
 
-;; time display
+;; time.el
 (setq display-time-day-and-date t)
 (setq display-time-24hr-format t)
 (setq display-time-string-forms
@@ -1041,13 +1167,19 @@ Elements of ALIST that are not conses are ignored."
 
 ;;;; (emacs) 18.2 Visiting Files
 (when (require 'openwith nil t)
-  ;; Following code uses `openwith' library.
+  ;; openwith-file-handler でデバッガに落ちないようにする。
+  (defadvice openwith-file-handler (around tkw-openwith-handler activate)
+    (let (debug-on-error)
+      ad-do-it))
+  ;; ディレクトリを開こうとする場合は、OSのファイルブラウザで開けるようにする。
   (defadvice find-file (around tkw-find-file activate)
     "Open directory by external application if its name ends with /."
     (if (and (file-directory-p (ad-get-arg 0))
              (string-match "/$" (ad-get-arg 0))
              (y-or-n-p (concat "Open " (ad-get-arg 0)
                                " in File Browser? ")))
+        ;; openwith は、強制エラーを発生させるので、 debug-on-error を
+        ;; nil にして、デバッガに入るのを抑止する。
         (cond ((eq system-type 'windows-nt)
                (openwith-open-windows (list (ad-get-arg 0))))
               ((eq system-type 'gnu/linux)
@@ -1055,6 +1187,8 @@ Elements of ALIST that are not conses are ignored."
               (t
                (openwith-open-unix "open" (list (ad-get-arg 0)))))
       ad-do-it)))
+;; warn only if file size is more than 100Mbyte.
+(setq large-file-warning-threshold 100000000)
 
 ;;;; (emacs) 20 Windows
 (bind-key "A-M-n" 'enlarge-window)
@@ -1105,8 +1239,6 @@ Elements of ALIST that are not conses are ignored."
 (bind-key "C-M-h" 'backward-kill-word) ; 単語をまとめてBS。
 
 ;;;; (emacs) 25.8 Outline Mode
-(tkw-minor-mode-lighter 'outline-minor-mode "概"
-                        '(:foreground "green"))
 
 ;;;; (emacs) 26.5 Comments
 (bind-key "C-c ;" 'comment-region)
@@ -1117,14 +1249,16 @@ Elements of ALIST that are not conses are ignored."
 ;;;; (emacs) 36 Running shell commands from Emacs
 ;; SHELL環境変数が使用される。
 ;;(defvar explicit-shell-file-name)
-;;(if (executable-find "zsh")
-;;    (setq shell-file-name "zsh"
-;;          explicit-shell-file-name "zsh")
-;;  (message "Warning! zsh not found!"))
+;; CYGWIN 環境では、SHELL環境変数が "/bin/bash" などだと、Emacsでは解釈できない。
+(if (equal window-system 'w32)
+    (if (executable-find "zsh")
+        (setq shell-file-name "zsh"
+              explicit-shell-file-name "zsh")
+      (message "Warning! zsh not found!")))
 
 ;;;; (emacs) 47.1 The Package Menu Buffer
 ;;;;; emacs-lisp/packages.el
-(bind-key "C-c P" 'list-packages)
+;; (bind-key "C-c P" 'list-packages)
 
 ;;;;; emacs-lisp/package-x.el
 ;; package-upload-buffer は tarファイルでも指定可能。
@@ -1143,10 +1277,10 @@ Elements of ALIST that are not conses are ignored."
 ;;                      package-install-file   |   hogehoge.elc           |
 ;;                                             |   misc files...          |
 ;;                                             +--------------------------+
-(use-package package-x
-  :commands (package-upload-file package-upload-buffer)
-  :config
-  (setq package-archive-upload-base (locate-user-emacs-file "local-packages")))
+;(use-package package-x
+;  :commands (package-upload-file package-upload-buffer)
+;  :config
+;  (setq package-archive-upload-base (locate-user-emacs-file "local-packages")))
 
 ;;;; (emacs) 48 Customization
 ;;;;; (emacs) 48.1.4 Saving Customizations
@@ -1619,20 +1753,23 @@ DIR/subdir.el がある場合は、それを実行し、DIR下のディレクト
 ;; - define-global-abbrev
 ;; - expand-abbrev
 (bind-key "A-'" 'expand-abbrev)
-(with-eval-after-load 'abbrev
-  (tkw-minor-mode-lighter 'abbrev-mode "省" '(:foreground "green")))
 
 ;;;; 37 Processes
 ;; PATHがない環境から起動された場合に備えて、exec-path に "gnupg" 等の
 ;; 必要なソフトがインストールされているパスを追加しておく。
-(loop for directory in '(
-                         "/usr/bin"
-                         "/opt/local/bin"
-                         "/usr/local/bin"
-                         "/cygwin/bin"
-                         ;;"c:/w32tex/texinst2010/bin"
-                         ;;"c:/Program Files/Ruby-1.9.2/bin"
-                         )
+(loop for directory in
+      '(
+        "/usr/bin"
+        "/opt/local/bin"
+        "/usr/local/bin"
+        ;; Windows用。
+        "c:/Program Files/Haskell Platform/2014.2.0.0/bin"
+        "c:/Program Files/Haskell Platform/2014.2.0.0/lib/extralibs/bin"
+        "c:/cygwin64/bin/"
+        "c:/w32tex/texinst2010/bin"
+        "c:/Program Files/Ruby-1.9.2/bin"
+        "d:/Users/taichi/AppData/Roaming/cabal/bin"
+        )
       if (file-directory-p directory)
       do (add-to-list 'exec-path directory))
 
@@ -1664,132 +1801,6 @@ DIR/subdir.el がある場合は、それを実行し、DIR下のディレクト
 ;; 最初から最後に向かってつなげていく。
 ;; TARGETのスクリプト名は、international/characters.el を参照。
 ;; fonts の最初の要素のフォントを利用する。
-
-(defun tkw-update-fontset (fontset specs &optional size)
-  "Update FONTSET according to SPECS.
-SPECS = ((target . font-families) (target . font-families) ...)
-TARGET = t ← default for all, nil ← all"
-;; 最初から最後に向かってつなげていく。
-;; TARGETになりうるスクリプト名は、international/characters.el を参照。
-;; fonts リストの最初のフォントファミリを利用する。
-  (dolist (spec specs)
-    (let* ((target (car spec))
-           (font (if size (font-spec :family (cadr spec) :size size)
-                   (font-spec :family (cadr spec)))))
-      (if (equal target t) (setq target '(#x0 . #x2ffff)))
-      (set-fontset-font fontset target font nil 'prepend))))
-
-(defun filter-fonts (font-specs)
-  "FONT-SPECSから、システムにインストールされていないフォントを除去。"
-  (cl-remove-if
-     'null
-   (mapcar (lambda (font-spec)
-             (let ((target (car font-spec))
-                   (fonts (cl-remove-if-not
-                           (lambda (x) (find-font (font-spec :family x)))
-                           (cdr font-spec))))
-               (if (null fonts) nil
-                 (cons target fonts))))
-           font-specs)))
-
-(defvar tkw-japanese-fonts
-  '(;; Macintosh 用
-    ;;"ヒラギノ丸ゴ Pro" "ヒラギノ角ゴ Pro" "ヒラギノ明朝 Pro"
-    "Hiragino Kaku Gothic ProN"
-    "Hiragino Maru Gothic ProN"
-    "Hiragino Mincho ProN"
-    ;; "游明朝体 M" "游明朝体 DB" "游ゴシック体 M" "游ゴシック体"
-    "YuMincho" "YuGothic"
-    ;; Windows 用
-    "メイリオ"
-    ;; Adobe フォント
-    "小塚明朝 Pr6N R" "小塚ゴシック Pr6N R"
-    ;;"Kozuka Mincho Pr6N R"
-    "Kozuka Mincho Pr6N"
-    "Kazuraki SPN"
-    "Mio W4"
-    "Ryo Text PlusN"
-    "Ryo Gothic PlusN"
-    "Ryo Display PlusN"
-    ;; 花園明朝
-    "HanaMinA"
-    "HanaMinB"
-    ;; イワタフォント
-    "PMinIWA-HW-Md"
-    ;; "PMinIWA-Md" ← 非固定幅
-    "Iwata SeichouF Pro"
-    ;; IPA
-    "IPAmjMincho"
-    "IPAexMincho" "IPAexGothic"
-    ;; Mona font for AA
-    "IPAMonaPGothic"))
-
-(defvar tkw-font-specs
-  ;; ((TARGET FONT-FAMILIES) (TARGET FONT-FAMILIES) ...)
-  ;; 本リストの後方にあるTARGETほど優先される。
-  (filter-fonts
-   `((t "Inconsolata"
-        ;; Adobe
-        "Source Code Pro"
-        ;; Programmer's Top 10 Fonts.
-        "Monaco"
-        "Monofur"
-        "Droid Sans Mono"
-        "DejaVu Sans Mono"
-        "Anonymous Pro"
-        ;; Windows
-        "Consolas"
-        ;; Macintosh
-        "Menlo"
-        ;; Mona
-        "IPAMonaPGothic"
-        "花園明朝 A")
-     (burmese "hogehoge") ;; dummy (for test)
-     (arabic "Arabic Typesetting Sample")
-     (tagalog "Tagalog Stylized")
-     ((#x1720 .  #x1c4f) "Code2000")
-     ((#x1720 .  #x1c4f) "MPH 2B Damase")
-     (symbol ,@tkw-japanese-fonts)
-     (symbol "STIX")
-     (han ,@tkw-japanese-fonts)
-     (kana ,@tkw-japanese-fonts)
-     (( #xf100 .  #xf6ff) "EUDC2")
-     (mathematical "STIX")
-     ((#x1f600 . #x1f6ff) "EmojiSymbols")
-     ((#x20000 . #x2a6ff) "SimSun-ExtB")
-     ((#x20000 . #x2a6ff) "花園明朝 B")))
-  "自分のフォント指定。(target font-families) のペアで指定する。
-font-families で複数のフォントファミリが指定されている場合、
-最初のフォントファミリを高い優先度で指定される。")
-
-(defvar tkw-fontset-size 16)
-
-(defun tkw-reset-fontset (&optional size)
-  "Reset Fontset to `my-font-specs' with optional SIZE."
-  (interactive)
-  (tkw-update-fontset (face-attribute 'default :fontset) tkw-font-specs
-                     (or size tkw-fontset-size)))
-
-(tkw-reset-fontset tkw-fontset-size)
-
-(declare-function -rotate "dash" (n list))
-(defun tkw-rotate-font-specs (font-specs target &optional direction)
-  "FONT-SPECS のTARGETのフォントファミリのリストをDIRECTION方向に回転させる.
-DIRECTIONがnilなら前方向、それ以外なら後方向に回転させる。
-結果として変更された FONT-SPECS を返す。
-他変数からFONT-SPECS （my-font-spec変数）へのポインタは維持される。"
-  (require 'dash)
-  (let* ((spec (assoc target font-specs))
-         (fonts (cdr spec)))
-    (when fonts
-      (if direction
-          (setq fonts (-rotate 1 fonts))
-        (setq fonts (-rotate -1 fonts)))
-      (setcdr spec fonts)
-      (tkw-update-fontset
-       (face-attribute 'default :fontset) font-specs)
-      (message "fonts=%s" (car fonts)))
-    font-specs))
 
 ;;;;; 38.12.12 Low-Level Font Representation
 
@@ -2149,10 +2160,21 @@ DIRECTIONがnilなら前方向、それ以外なら後方向に回転させる�
 ;;   |-----+---------+----------------|
 ;; - String :: e.g. "\a"
 ;; - Cons (a . b)
+(setq load-prefer-newer t)
 
 ;;;; (undocumented) macterm.c
+;; Macのみの設定。また、山本パッチのMacでは不要。
 (defvar mac-option-modifier nil)
-(setq mac-option-modifier 'alt)
+(defvar mac-option-key-is-meta nil)
+(defvar mac-command-key-is-meta nil)
+(defvar mac-command-modifier nil)
+
+(when (equal (window-system) 'ns)
+  (setq mac-option-key-is-meta nil)
+  (setq mac-command-key-is-meta t)
+  (setq mac-command-modifier 'meta)
+  (setq mac-option-modifier 'alt)
+  (setq mac-option-modifier nil))
 
 ;;;; (undocumented) term.c
 ;; shell において、4m .. 等の ANSI Esc Seq が見える場合。
@@ -2168,6 +2190,10 @@ DIRECTIONがnilなら前方向、それ以外なら後方向に回転させる�
 ;; - <major>
 ;; - <minor> <global-minor>
 ;; - <extension to XYZ.el>
+
+;;;; ada-mode
+;; Mac版ada のインストールは、GNATをダウンロードして、
+;; ./doinstall スクリプトを実行 → /usr/local/gnat/ にインストールされる。
 
 ;;;; align.el
 (use-package align :defer t
@@ -2247,6 +2273,10 @@ DIRECTIONがnilなら前方向、それ以外なら後方向に回転させる�
   ;; 複数のブックマークを使うが、起動時はbookmarks.bmk で統一する。
   (setq bookmark-default-file
         (locate-user-emacs-file "bookmarks/bookmarks.bmk")))
+
+;;;; bs.el
+;(bind-key (kbd "M-C-,") 'bs-cycle-previous)
+;(bind-key (kbd "M-C-.") 'bs-cycle-next)
 
 ;;;; calc/calc.el
 ;; 初期設定ファイルは、 ~/.emacs.d/calc.el に入れる。
@@ -2424,7 +2454,9 @@ DIRECTIONがnilなら前方向、それ以外なら後方向に回転させる�
 ;;;; dired.el
 (use-package dired :defer t
   :config
+  (require 'dired-x)
   (add-hook 'dired-mode-hook (lambda () (setenv "LANG" "C")))
+  (add-hook 'dired-mode-hook (lambda () (dired-omit-mode)))
   ;; diredのサイズ表示に Kbyte, Mbyte 等の単位を使う。
   ;; -h :: Kbyte, Mbyte 単位の表示
   (setq dired-listing-switches "-alh")
@@ -2507,9 +2539,9 @@ DIRECTIONがnilなら前方向、それ以外なら後方向に回転させる�
 
 ;;;; dired-x.el
 ;; dired 拡張機能 :: dired-jump, dired-omit-mode
-(use-package dired :defer t
+(use-package dired-x :defer t
+  :bind (("C-x C-j" . dired-jump))
   :config
-  (require 'dired-x)
   ;; dired-aux 機能の omit の一部キーバインドの無効化と代替キーバインドの設定
   (bind-key "C-M-o" 'dired-omit-mode dired-mode-map)
   ;; dired-omit-mode :: LaTeX等の作業ファイルを表示しない。
@@ -2517,7 +2549,6 @@ DIRECTIONがnilなら前方向、それ以外なら後方向に回転させる�
   (setq dired-omit-files ; dired-omit-mode で隠すファイル
         (concat "^~\\|^\\.?#\\|^\\.\\|^\\.\\.?$"
                 "\\|\\.aux$\\|\\.log$")))
-
 
 ;; shell-command-guesssing … "!" を押した時のシェルコマンドを予想
 ;; M-x dired-mark-extension … 特定の拡張子をマーク
@@ -2547,31 +2578,34 @@ DIRECTIONがnilなら前方向、それ以外なら後方向に回転させる�
 ;; | DEL | \177 |
 
 ;;;; electric.el
-;; 改行と同時にインデントする。(C-j 相当)
-(electric-indent-mode 1)
+;; 改行と同時にインデントする。
+;; Emacs 24.4 からデフォルトでオン。C-j で普通の改行。
+;; (electric-indent-mode 1)
 
 ;;;; emacs-lisp/checkdoc.el
 ;; DocString の内容チェックを行う。
 (use-package checkdoc :defer t
+  :diminish (checkdoc-minor-mode . "✔")
   :init
   (add-hook 'emacs-lisp-mode-hook 'checkdoc-minor-mode)
   (with-eval-after-load 'lisp-mode
-    (bind-key "C-c k" 'checkdoc-minor-mode emacs-lisp-mode-map))
-  :diminish "✔")
+    (bind-key "C-c k" 'checkdoc-minor-mode emacs-lisp-mode-map)))
 
 ;;;; emacs-lisp/easy-mmode
 ;; define-minor-mode
 
 ;;;; emacs-lisp/eldoc.el
-;; 重いので、明示的にOnにする以外はオフにしておく。
-;;(add-hook 'emacs-lisp-mode-hook 'turn-on-eldoc-mode)
+;; 重いので、明示的にOnにする以外はオフにしておく？
+(add-hook 'emacs-lisp-mode-hook 'turn-on-eldoc-mode)
 (add-hook 'lisp-interaction-mode-hook 'turn-on-eldoc-mode)
 (add-hook 'ielm-mode-hook 'turn-on-eldoc-mode)
+(add-hook 'eval-expression-minibuffer-setup-hook
+          #'eldoc-mode) ;; eval-expression 中に eldocを表示。
 (when (equal system-type 'darwin)
   (put 'eldoc-minor-mode-string 'risky-local-variable t)
   (setq eldoc-minor-mode-string
-        (if (eq window-system 'mac) "📚"
-          (propertize "d" 'face '(:foreground "purple" :background "yellow")))))
+        (if (eq window-system 'mac) " 📚"
+          (propertize "ed" 'face '(:foreground "purple" :background "yellow")))))
 
 ;;;; emacs-lisp/ert.el
 ;; [[info:ert#Top]]
@@ -2580,9 +2614,12 @@ DIRECTIONがnilなら前方向、それ以外なら後方向に回転させる�
 ;; - cask
 
 ;;;; emacs-lisp/find-func.el
-(use-package find-func :defer t
+;; find-function-setup-keys でキーをセットアップするため、
+;; 遅延ロードができない。
+(use-package find-func
+  :bind (("C-x >" . find-library))
   :init
-  (bind-key "C-x L" 'find-library)
+  (find-function-setup-keys) ; C-x (4/5/null) (F/K/V)
   :config
   (setq find-function-regexp
         (concat
@@ -2591,7 +2628,6 @@ DIRECTIONがnilなら前方向、それ以外なら後方向に回転させる�
 \\|easy-mmode-define-global-mode\\|luna-define-generic\\)"
          find-function-space-re
          "\\('\\|\(quote \\)?%s\\(\\s-\\|$\\|\(\\|\)\\)")))
-(find-function-setup-keys) ; C-x (4/5/null) (F/K/V)
 
 ;;;; emacs-lisp/lisp.el
 ;; デフォルトファイルなので lazyload しない。
@@ -2627,29 +2663,7 @@ DIRECTIONがnilなら前方向、それ以外なら後方向に回転させる�
 ;; シェル環境変数をEmacsの環境変数に反映させる。
 ;; Emacs配下で動作するプロセスに引き継ぐ環境変数で重要なもの：
 ;; PATH, JAVA_TOOL_OPTIONS, HTTP_PROXY, BIBINPUTS, etc.
-(eval-and-compile (require 'info))
-(defun parse-env (env)
-  "'env'命令の実行結果ENVの内容をEmacsに反映させる。"
-  (dolist (env (split-string env "\n"))
-    (when (string-match "^\\([A-Z][_A-Za-z0-9]+\\)=\\(.+\\)" env)
-      (let* ((env-name (match-string 1 env))
-             (env-val (match-string 2 env))
-             (old-val (getenv env-name)))
-        (unless (or (equal env "SHLVL") ; 例外
-                    (equal env "TERM")  ; 例外
-                    (equal env-val old-val))
-          (message "%s (%s) is updated to %s" env-name old-val env-val)
-          (pcase env
-            ("PATH" (dolist (path (reverse (split-string env-val ":")))
-                      (add-to-list 'exec-path path)))
-            ("INFOPATH" (dolist (path (reverse (split-string env-val ":")))
-                          (add-to-list 'Info-directory-list path))))
-          (setenv env-name env-val))))))
-(defun sync-env ()
-  "シェルの環境変数をEmacsの環境変数を同期させる。"
-  (interactive)
-  (let ((env (shell-command-to-string "env")))
-    (parse-env env)))
+
 ;; 参考 Emacs で利用する環境変数
 ;; （特定言語目的のものは除く）
 ;; |--------------------------+------------------------------------------------|
@@ -2866,7 +2880,9 @@ DIRECTIONがnilなら前方向、それ以外なら後方向に回転させる�
   (erc :server "irc.w3.org" :port "6665" :nick "kawabata"))
 (defun tkw-erc-freenode () (interactive)
   (erc :server "irc.freenode.net" :port "6667" :nick "teufelsdrockh"))
-(defun tkw-erc-2ch () (interactive)
+(defun tkw-erc-2ch ()
+  (interactive)
+  (erc-server-coding-system '(iso-2022-jp . iso-2022-jp))
   (erc :server "irc.2ch.net" :port "6667" :nick "batta"))
 
 ;;;;; erc/erc-backend.el
@@ -3029,6 +3045,7 @@ DIRECTIONがnilなら前方向、それ以外なら後方向に回転させる�
 ;; - defined-colors :: フレームの種類に応じてサポートされている色の種類を返す。
 ;; - color-values :: 色のRGB値を返す (xw-color-values/tty-color-values)
 ;; tty は原則8色だが、tty-color-standard-values で rgb.txt の類似色を返す。
+(bind-key "M-f" 'describe-face help-map)
 
 ;;;; ffap.el
 ;; バックスラッシュ記述のファイルサーバを自動補完
@@ -3037,8 +3054,10 @@ DIRECTIONがnilなら前方向、それ以外なら後方向に回転させる�
 ;; | \share\...                                 | /Volumes/share/...       |
 ;; | \\catseye\shared\...                       | /Volumes/shared/...      |
 ;; | \\129.60.126.33\share\..                   | /Volumes/share/...       |
+;; | \\mirai-file.onlab.ntt.co.jp\mi\...        | /Volumes/mi/...          |
 ;; | \\mirai-file.onlab.ntt.co.jp\mi-share\...  | /Volumes/mi-share/...    |
 ;; | \\mirai-file.onlab.ntt.co.jp\mi-kyotsu\... | /Volumes/mi-kyoutsuu/... |
+;; | \\mirai-file.onlab.ntt.co.jp\notice\...    | /Volumes/notice/...      |
 ;; samples
 ;; - \\mirai-file.onlab.ntt.co.jp\mi-share\01-管理簿\書庫\書庫整理2013.07.08.xls
 ;; - \\129.60.126.33\share\マネジメント中心_SG\マネジメントエンジン\2013年度\01.議論_AT\20130618_会議\AT資料
@@ -3061,6 +3080,8 @@ DIRECTIONがnilなら前方向、それ以外なら後方向に回転させる�
                '("\\`\\\\[-a-z]+\\\\.+" . tkw-ffap-server-complete))
   ;;(add-to-list 'ffap-alist
   ;;             '("\\`\\\\\\\\CATSEYE.*?\\\\[-a-z]+\\\\.+" . tkw-ffap-server-complete))
+  (add-to-list 'ffap-alist
+               '("(svn)/.+" . tkw-svn-server-complete))
   (add-to-list 'ffap-alist
                '("\\`\\\\\\\\mirai-file.*?\\\\[-a-z]+\\\\.+" . tkw-ffap-server-complete))
   (add-to-list 'ffap-alist
@@ -3087,6 +3108,13 @@ DIRECTIONがnilなら前方向、それ以外なら後方向に回転させる�
               (car (file-expand-wildcards (concat name "*"))))
         (if (file-exists-p name) name
           (replace-regexp-in-string "[^/]+$" "" name))))))
+
+(defun tkw-svn-server-complete (name)
+  (let ((name
+         (concat "~/Documents/CNH_m-eng-r2/"
+                 (substring 5 name))))
+    (message "name=%s" name)
+    name))
 
 ;; ftp 時に ping をしないで，いきなり ange-ftp で開く
 ;;(setq ffap-machine-p-known 'accept)
@@ -3132,21 +3160,29 @@ DIRECTIONがnilなら前方向、それ以外なら後方向に回転させる�
 ;; 頻繁に開くファイル（org-captureで代用）
 
 (defvar tkw-find-file-shortcut-keys
-  `((?e . "~/.environ")
+  `((?a . "~/.emacs.d/authinfo.gpg")
+    (?e . "~/.environ")
     (?3 . "~/org/work/w3c.org.txt")
     (?h . "~/org/home/home.org.txt")
     (?H . "~/org/home/home.org.txt") ; M-h はMacOSの予約キーなので念の為
-    (?g . ,(locate-user-emacs-file ".gnus.el"))
+    (?c . ,(locate-user-emacs-file "Cask"))
+    (?g . ,(locate-user-emacs-file "gnus.el"))
     (?i . ,(locate-user-emacs-file "init.el"))
+    (?I . "~/share/cvs/cjkvi/ids-orig/ids.orig.txt")
+    (?E . "~/share/cvs/cjkvi/ids-orig/extf-ids.orig.txt")
     (?j . "~/org/work/jsc2.org.txt")
     (?L . ,(locate-user-emacs-file "lookup/init.el"))
     (?l . "*Help*")
     (?m . "*Messages*")
-    (?p . "~/.passwd.gpg")
+    (?p . "~/share/dotfiles/.passwd.gpg")
     (?s . "*scratch*")
+    (?v . "~/share/cvs/cjkvi/variants-orig/cjkvi-variants.orig.txt")
+    (?u . "~/share/Standards/UCV/iwds/iwds.orig.xml")
     (?w . "~/org/work/work.org.txt")
     (?W . "~/org/work/w3c.org.txt")
-    (?z . "~/.zsh_history")))
+    (?z . "~/.zsh_history")
+    (?Z . "~/share/cvs/cjkvi/dict-orig/zihai.orig.txt")
+    (?x . "~/share/cvs/cjkvi/dict-orig/zihai-check.txt")))
 
 (dolist (pair tkw-find-file-shortcut-keys)
   (eval `(bind-key ,(format "C-x A-%c" (car pair)) 'tkw-find-file)))
@@ -3216,7 +3252,8 @@ DIRECTIONがnilなら前方向、それ以外なら後方向に回転させる�
 ;; wp            word processing
 
 ;;;; font-core.el
-(global-font-lock-mode t)
+(global-font-lock-mode 1) ;; 必要に応じて0にする。
+(bind-key "M-M" 'font-lock-mode)
 
 ;;;; frame.el
 ;; iconify を設定する
@@ -3232,21 +3269,16 @@ DIRECTIONがnilなら前方向、それ以外なら後方向に回転させる�
 
 ;;;; gnus/auth-source.el
 ;; 詳細は [[info:auth]] 参照。
-(use-package auth-source
-  :commands (auth-source-search)
-  :config
-  (setq auth-sources `(,(locate-user-emacs-file ".authinfo.gpg"))))
+(autoload 'auth-source-search "auth-source")
+(setq auth-sources `(,(locate-user-emacs-file "authinfo.gpg")))
 
 ;;;; gnus/gnus.el
-;; 設定は ~/.emacs.d/.gnus.el に分離する。
+;; 設定は ~/.emacs.d/gnus.el に分離する。
 (use-package gnus-start
   :bind (("C-c n" . gnus)
          ("C-c m" . gnus-msg-mail))
   :config
-  (setq gnus-init-file (locate-user-emacs-file ".gnus.el")))
-
-;;;; gnus/gnus-dired.el
-(add-hook 'dired-mode-hook 'turn-on-gnus-dired-mode)
+  (setq gnus-init-file (locate-user-emacs-file "gnus.el")))
 
 ;;;; gnus/html2text.el
 ;; iso-2022-jpをうっかりhtml化した時の復元に便利な設定
@@ -3266,6 +3298,14 @@ DIRECTIONがnilなら前方向、それ以外なら後方向に回転させる�
   (when (coding-system-p 'cp50220)
     (add-to-list 'mm-charset-override-alist '(iso-2022-jp . cp50220))))
 
+;;;; gnus/plstore.el
+(defvar tkw-plstore-file (locate-user-emacs-file "auth.plist"))
+(defvar tkw-plstore
+  (when (file-exists-p tkw-plstore-file)
+    (plstore-open tkw-plstore-file)))
+(add-to-auto-mode-alist (cons "\\.plist\\'" 'plstore-mode))
+
+
 ;;;; gnus/score.el
 (add-to-auto-mode-alist '("\\.SCORE\\'" . gnus-score-mode))
 
@@ -3274,22 +3314,24 @@ DIRECTIONがnilなら前方向、それ以外なら後方向に回転させる�
 
 ;;;; gv.el
 ;; Emacs 24.3 gv.el でコメントアウトされていた関数。
-;; 非常に使いやすいのでここに入れおく。
-(defun alist-get (key alist)
-  "Get the value associated to KEY in ALIST."
-  (declare
-   (gv-expander
-    (lambda (do)
-      (macroexp-let2 macroexp-copyable-p k key
-        (gv-letplace (getter setter) alist
-          (macroexp-let2 nil p `(assoc ,k ,getter)
-            (funcall do `(cdr ,p)
-                     (lambda (v)
-                       `(if ,p (setcdr ,p ,v)
-                          ,(funcall setter
-                                    `(cons (cons ,k ,v) ,getter)))))))))))
-  (cdr (assoc key alist)))
+;; Emacs 25.1 で導入される予定。（HEADにはすでに有る。）
+(unless (functionp 'alist-get)
+  (defun alist-get (key alist)
+    "Get the value associated to KEY in ALIST."
+    (declare
+     (gv-expander
+      (lambda (do)
+        (macroexp-let2 macroexp-copyable-p k key
+          (gv-letplace (getter setter) alist
+            (macroexp-let2 nil p `(assoc ,k ,getter)
+              (funcall do `(cdr ,p)
+                       (lambda (v)
+                         `(if ,p (setcdr ,p ,v)
+                            ,(funcall setter
+                                      `(cons (cons ,k ,v) ,getter)))))))))))
+    (cdr (assoc key alist))))
 
+;;;; help
 (temp-buffer-resize-mode 1)
 
 ;;;; help-at-pt
@@ -3306,8 +3348,8 @@ DIRECTIONがnilなら前方向、それ以外なら後方向に回転させる�
 
 ;;;; hl-line.el
 ;; 現在の行をハイライトする
-(require 'hl-line)
-(global-hl-line-mode)
+;; smart-cursor-line と衝突するのでオフ。
+;; (global-hl-line-mode)
 
 ;;;; htmlfontify.el (obsolete)
 ;; → hfyview.el に移行。
@@ -3401,8 +3443,9 @@ DIRECTIONがnilなら前方向、それ以外なら後方向に回転させる�
 ;; C-r/C-s :: 前・次の候補
 ;; ファイル保存時に勝手に既存ファイル名を補完するのが不便なので使用中止。
 ;; → 慣れたら便利なので利用再開。
-(ido-mode t)
-(ido-everywhere 1)
+;; (ido-mode t)
+;; (ido-everywhere 1)
+;; ここまで
 ;; (bind-key "SPC" 'ido-exit-minibuffer ido-file-dir-completion-map)
 ;; (bind-key "C-h" 'ido-delete-backward-updir ido-file-dir-completion-map)
 ;; (setq ido-enable-prefix nil
@@ -3412,12 +3455,17 @@ DIRECTIONがnilなら前方向、それ以外なら後方向に回転させる�
 ;;       ido-use-virtual-buffers t ; [C-x b] (or M-x ido-switch-buffer)
 ;;       ido-max-prospects 10)
 
+;;;; image.el
+;;(setq imagemagick-render-type 1)
+
 ;;;; image-file.el
 ;; 画像ファイルは自動的にimage-file-modeで開く。
 (auto-image-file-mode t)
 
-;;;; image.el
-;;(setq imagemagick-render-type 1)
+;;;; image-mode.el
+(customize-set-variable 'image-animate-loop t)
+;; SVGをXMLで開きたい場合は以下のようにする。
+;; (setf (alist-get "\\.svgz?\\'" auto-mode-alist) 'nxml-mode)
 
 ;;;; imenu.el
 ;; Emacs 24.3 only.
@@ -3429,6 +3477,8 @@ DIRECTIONがnilなら前方向、それ以外なら後方向に回転させる�
 (setq-default which-function-imenu-failed t)
 ;; emacs-lisp で追加
 (add-hook 'emacs-lisp-mode-hook 'imenu-add-menubar-index)
+(custom-set-faces
+ '(which-func ((t (:foreground "gainsboro")))))
 
 ;;;; info.el
 (use-package info :defer t
@@ -3660,9 +3710,10 @@ DIRECTIONがnilなら前方向、それ以外なら後方向に回転させる�
     (setq locate-command "mdfind")))
 
 ;;;; ls-lisp.el
-(eval-and-compile (require 'ls-lisp))
-(setq ls-lisp-ignore-case t)
-(setq ls-lisp-dirs-first nil)
+;; ls プロセスを使わずに dired を使用。
+;; (eval-and-compile (require 'ls-lisp))
+;; (setq ls-lisp-ignore-case t)
+;; (setq ls-lisp-dirs-first nil)
 
 ;;;; man.el
 (use-package man :defer t
@@ -3789,14 +3840,14 @@ DIRECTIONがnilなら前方向、それ以外なら後方向に回転させる�
 
 ;;;; nxml/nxml-mode.el, nxml/rng-nxml.el
 ;; xml-mode を{auto,magic}-mode-alistから取り除く。
-(cl-delete-if (lambda (x) (equal (cdr x) 'xml-mode)) auto-mode-alist)
-(cl-delete-if (lambda (x) (equal (cdr x) 'xml-mode)) magic-mode-alist)
+;; (cl-delete-if (lambda (x) (equal (cdr x) 'xml-mode)) auto-mode-alist)
+;; (cl-delete-if (lambda (x) (equal (cdr x) 'xml-mode)) magic-mode-alist)
 ;; その他のXML関連のモードのうち、自分で最初から編集するものを追加していく。
-(add-to-auto-mode-alist '("\\.xhtml\\'" . nxml-mode))
-(add-to-auto-mode-alist '("\\.mxml\\'" . nxml-mode))
-(add-to-auto-mode-alist '("\\.x[ms]l\\'" . nxml-mode))
-(add-to-auto-mode-alist '("\\.kml\\'" . nxml-mode))
-(add-to-list 'magic-mode-alist '("<\\?xml" . nxml-mode))
+;; (add-to-auto-mode-alist '("\\.xhtml\\'" . nxml-mode))
+;; (add-to-auto-mode-alist '("\\.mxml\\'" . nxml-mode))
+;; (add-to-auto-mode-alist '("\\.x[ms]l\\'" . nxml-mode))
+;; (add-to-auto-mode-alist '("\\.kml\\'" . nxml-mode))
+;; (add-to-list 'magic-mode-alist '("<\\?xml" . nxml-mode))
 
 ;;;;; 各種 RelaxNG スキーマと拡張モード
 ;; |            | Schema/Mode                                        | snippet          | tags  |
@@ -3937,10 +3988,13 @@ DIRECTIONがnilなら前方向、それ以外なら後方向に回転させる�
   (defun zone-rainbow () (interactive)
     (zone-choose "zone-pgm-rainbow"))
 
-  (aset zone-programs 0 'zone-pgm-rainbow))
+  (aset zone-programs 0 'zone-pgm-rainbow)
 
-;; スクリーンセーバー代わり
-(run-with-idle-timer 120 nil 'zone-rainbow)
+  ;; スクリーンセーバー代わり
+  (defvar zone-rainbow-timer)
+  (unless (equal system-type 'gnu/linux)
+    (setq zone-rainbow-timer (run-with-idle-timer 120 nil 'zone-rainbow)))
+  )
 
 ;;;; progmodes/cc-mode.el (major-mode)
 (use-package cc-mode :defer t
@@ -4084,6 +4138,7 @@ GDBは動作しない可能性があります！") (sit-for 2))
 
 ;;;; progmodes/lisp-mode.el
 (bind-key "C-c M-l" 'lisp-interaction-mode)
+(add-to-auto-mode-alist '("Cask\\'" . emacs-lisp-mode))
 
 ;;;; progmodes/make-mode.el
 ;;(add-hook 'makefile-mode-hook
@@ -4157,14 +4212,31 @@ GDBは動作しない可能性があります！") (sit-for 2))
   ;;(ad-activate 'sql-send-region)
   )
 
+;;;; progmodes/which-func.el
+;; Cやemacs-lisp で、現在どの関数にいるかを表示する。
+(which-function-mode 1)
+;; モードラインは狭いので header-line に表示させる。
+(setq-default header-line-format
+              '((which-function-mode ("" which-func-format " "))))
+
+;; モードラインから削除する。（どうせ見えない）
+(setq mode-line-misc-info
+      (assq-delete-all 'which-func-mode mode-line-misc-info))
+
 ;;;; recentf.el
 ;; 最近開いたファイルの一覧を表示。helm.el と組み合わせる。
 (use-package recentf
   :bind (("C-c F" . recentf-open-files))
+  :init
+  (recentf-mode) ;; global minor mode.
   :config
   (setq recentf-max-saved-items 2000)
   (setq recentf-exclude '(".recentf"))
   (setq recentf-auto-cleanup 10))
+
+;;;; savehist.el
+;; ミニバッファのヒストリを保存する。
+(savehist-mode 1)
 
 ;;;; saveplace.el
 ;; ファイルでのカーソルの位置を保存しておく
@@ -4183,12 +4255,14 @@ GDBは動作しない可能性があります！") (sit-for 2))
 (defvar shell-file-name-chars)
 (setq shell-file-name-chars "~/A-Za-z0-9_^$!#%&{}@`'.,:()-")
 
-;;(defun cmdproxy-shell ()
-;;  "Windowsにおいて、cmdproxyでシェルを起動する."
-;;  (interactive)
-;;  (let ((shell-file-name "cmdproxy")
-;;        (explicit-shell-file-name "cmdproxy"))
-;;    (shell)))
+(bind-key "C-c S" 'shell)
+
+(defun cmdproxy-shell ()
+  "Windowsにおいて、cmdproxyでシェルを起動する."
+  (interactive)
+  (let ((shell-file-name "cmdproxy")
+        (explicit-shell-file-name "cmdproxy"))
+    (shell (generate-new-buffer "*cmdproxy*"))))
 
 ;; | Functions           | UTF-8               | eight-bit       |
 ;; |---------------------+---------------------+-----------------|
@@ -4217,13 +4291,14 @@ GDBは動作しない可能性があります！") (sit-for 2))
 ;;            (do ((i 0 (+ i 1))) ((> i (1- (length array))))
 ;;              (aset array i (zsh-arrange-history (aref array i))))))))
 
-(defun new-shell ()
-  (interactive)
-  (let ((shell (get-buffer "*shell*")))
-    (if (null shell) (shell)
-      (set-buffer shell)
-      (rename-uniquely)
-      (shell))))
+;; C-u M-x shell
+;;(defun new-shell ()
+;;  (interactive)
+;;  (let ((shell (get-buffer "*shell*")))
+;;    (if (null shell) (shell)
+;;      (set-buffer shell)
+;;      (rename-uniquely)
+;;      (shell))))
 
 ;;;; speedbar.el
 ;; 不明なファイルは非表示。
@@ -4257,7 +4332,7 @@ GDBは動作しない可能性があります！") (sit-for 2))
 ;; |-----------------------------+----------------------------------|
 ;; | ~/Documents/Books/          | ~/Bibliography/Documents/        |
 ;; | ~/Resources/Books/          | ~/Bibliography/Resources/        |
-;; | ~/Dropbox/Books_and_Papers/ | ~/Bibliography/Books_and_Papers/ |
+;; | ~/share/Books_and_Papers/ | ~/Bibliography/Books_and_Papers/ |
 ;; | 非デジタル文献              | ~/Bibliography/Books/            |
 ;; |-----------------------------+----------------------------------|
 ;; | 全ファイルの結合            | ~/Bibliography/all.bib           |
@@ -4274,8 +4349,8 @@ GDBは動作しない可能性があります！") (sit-for 2))
 (defun tkw-collect-bibtex-files ()
   (shell-command
    (concat
-    "cat ~/Dropbox/Bibliography/**/*.bib~all.bib"
-    "  > ~/Dropbox/Bibliography/all.bib ")))
+    "cat ~/share/Bibliography/**/*.bib~all.bib"
+    "  > ~/share/Bibliography/all.bib ")))
 
 ;; - BibTeX 基本要素について
 ;; |        | file-path                    | files                       |
@@ -4414,10 +4489,11 @@ GDBは動作しない可能性があります！") (sit-for 2))
 ;; 強力無比なスペルチェッカ。 設定はispellを確認。
 ;; M-x flyspell-mode
 ;; C-, 移動 C-. 修正
-(when (executable-find "aspell")
-  (add-hook 'prog-mode-hook 'flyspell-prog-mode))
 (use-package flyspell :defer t
-  :diminish (if (eq window-system 'mac) "🐬" "飞"))
+  :if (executable-find "aspell")
+  :diminish ,(if (eq window-system 'mac) "🐬" "飞")
+  :init
+  (add-hook 'prog-mode-hook 'flyspell-prog-mode))
 
 ;;;; textmodes/ispell.el
 ;; spell check は aspell で行う。 (ispell-program-name)
@@ -4663,6 +4739,10 @@ GDBは動作しない可能性があります！") (sit-for 2))
                (not (string-match "_archive$" (buffer-file-name)))
                ;; (org-feed) "feeds.org" を含む名前は対象外
                (not (string-match "feeds\\.org$" (buffer-file-name)))
+               ;; (org-feed) "org-clock-save" を含む名前は対象外
+               (not (string-match "org-clock-save" (buffer-file-name)))
+               ;; (org-feed) "Cask" を含む名前は対象外
+               (not (string-match "Cask" (buffer-file-name)))
                ;; (package) "-autoloads" を含む名前は対象外
                (not (string-match "-autoloads" (buffer-file-name)))
                ;; (bookmark+)
@@ -4720,7 +4800,6 @@ GDBは動作しない可能性があります！") (sit-for 2))
 (bind-key "M-p" 'tkw-scroll-down)
 
 ;;;; winner.el
-(use-package winner :defer t)
 (winner-mode t)
 
 ;;;; w32-ime.el
@@ -4781,26 +4860,52 @@ GDBは動作しない可能性があります！") (sit-for 2))
 
 
 
-;;; ライブラリ
+;;; 非標準ライブラリ
 ;;;; anaphora <elpa> (abstain)
 ;; →　dash.el に移行。
+
+;;;; ansi <elpa>
+;; Turn string into ANSI (JIS X 0211) color strings.
+
+;;;; async <elpa>
+;; Emacs 内部で非同期関数を呼び出す
+
+;;;; autopair <elpa> (abstain)
+;; smartparens の同類。
+
+;;;; col-highlight <elpa>
+
+;;;; concurrent <elpa>
 
 ;;;; ctable <elpa>
 ;; Table component for Emacs Lisp
 
 ;;;; dash <elpa>
-;; A modern list library for Emacs
 
 ;;;; dash-functional <elpa>
+
+;;;; deferred <elpa>
 
 ;;;; edbi <elpa>
 ;; Emacs Database Interface
 ;; https://github.com/kiwanami/emacs-edbi
 
+;;;; el-mock <elpa>
+
+;;;; f <elpa>
+;; basic file functions.
+
+;;;; faces+ <elpa>
+;; Extensions to `faces.el'.
+
 ;;;; ffi
 ;; https://github.com/skeeto/elisp-ffi
-;; (use-package ffi)
 
+;;;; flx <elpa>
+;; fuzzy matching with good sorting
+;; - needed by: flx-ido
+
+;;;; ht <elpa>
 ;;;; ov <elpa>
 ;; Overlay Manipulation Library
 ;; https://github.com/ShingoFukuyama/ov.el
@@ -4818,41 +4923,39 @@ GDBは動作しない可能性があります！") (sit-for 2))
 ;; キャッシュ用インタフェース。
 ;; デフォルトは ~/.emacs.d/var/pcache/ にキャッシュ情報を格納。
 
+;;;; peg <elpa>
+
 ;;;; persistent-soft <elpa>
 ;; pcache の wrappter。異常時にエラーを出さずにnilを返す。
 
-;;; マイナーモード
-;;;; ac-dabbrev <elpa>
-(use-package ac-dabbrev :defer t
-  :init
-  (with-eval-after-load 'auto-complete
-    (add-to-list 'ac-sources 'ac-source-dabbrev))
-  :config
-  ;; 3rd party ac-dict を追加する。（手作業）
-  (let ((dir "~/.emacs.d/ac-dict/dotfiles/.emacs.d/ac-dict/"))
-    (when (file-directory-p dir)
-      (add-to-list 'ac-dictionary-directories dir))))
+;;;; popup <elpa>
+;;;; s <elpa>
+;; ハッシュテーブルライブラリ
 
-;;;; ac-emmet <elpa>
-;; emmet の auto-complete 版
-(use-package ac-emmet :defer t
-  :init
-  (add-hook 'css-mode-hook 'ac-emmet-css-setup)
-  (add-hook 'sgml-mode-hook 'ac-emmet-html-setup)
-  (add-hook 'web-mode-hook 'ac-emmet-html-setup))
+;;;; strie <elpa>
+;; 単純トライライブラリ
 
+;;; 非標準マイナーモード
 ;;;; anzu <elpa>
 ;; isearchのマッチ数を左下に表示
 (use-package anzu
-  :if (not noninteractive)
+  :init
+  (global-anzu-mode 1)
   :config
   (setq anzu-mode-lighter
         (if (eq window-system 'mac) "🍏"
-          (propertize "杏" 'face '(:foreground "green"))))
-  (global-anzu-mode 1))
+          (propertize "杏" 'face '(:foreground "green")))))
 
+;;;; ace-isearch <elpa>
+(use-package ace-isearch :defer t
+  ;; 現在の問題点
+  ;; 1. 漢字１文字の検索ができない。→ ace-jump の問題。要解決。
+  :config
+  ;;(global-ace-isearch-mode 1)
+  )
 
 ;;;; ace-jump-buffer <elpa> (abstain)
+;; M-x ace-jump-buffer
 ;; helm-buffers-list で十分なので不要。
 
 ;;;; ace-jump-mode <elpa>
@@ -4878,43 +4981,48 @@ GDBは動作しない可能性があります！") (sit-for 2))
              do (eval `(bind-key ,(format "A-%c" c) 'tkw-ace-jump-char-mode)))))
 
 ;;;; auto-complete <elpa>
+;; あまり使わないが、多くのパッケージが依存しているのでインストールは必要。
 ;; - 参照 :: http://cx4a.org/software/auto-complete/manual.ja.html
-(use-package auto-complete-config :defer t
-  :config
-  ;; (add-to-list 'ac-dictionary-directories (expand-file-name "dict" pdir))
-  ;; CSS3 properties の追加
-  (mapc
-    (lambda (entry) (add-to-list 'ac-css-property-alist entry))
-    '(
-      ;; http://dev.w3.org/csswg/css-writing-modes/
-      ("direction" "ltr" "rtl")
-      ("text-combine-horizontal" "none" "all" integer)
-      ("text-orientation" "mixed" "upright" "sideways-right" "sideways-left" "sideways"
-       "use-glyph-orientation mixed")
-      ("unicode-bidi" "normal" "embed" "isolate" "bidi-override" "isolate-override"
-       "plaintext")
-      ("writing-mode" "horizontal-tb" "vertical-rl" "vertical-lr")
-      ;;http://dev.w3.org/csswg/css-text-decor-3
-      ("text-decoration-line" "none" "underline" "overline" "line-through" "blink")
-      ("text-decoration-color" color)))
-  (ac-config-default))
+;;(use-package auto-complete-config :defer t
+;;  :config
+;;  ;; (add-to-list 'ac-dictionary-directories (expand-file-name "dict" pdir))
+;;  ;; CSS3 properties の追加
+;;  (mapc
+;;    (lambda (entry) (add-to-list 'ac-css-property-alist entry))
+;;    '(
+;;      ;; http://dev.w3.org/csswg/css-writing-modes/
+;;      ("direction" "ltr" "rtl")
+;;      ("text-combine-horizontal" "none" "all" integer)
+;;      ("text-orientation" "mixed" "upright" "sideways-right" "sideways-left" "sideways"
+;;       "use-glyph-orientation mixed")
+;;      ("unicode-bidi" "normal" "embed" "isolate" "bidi-override" "isolate-override"
+;;       "plaintext")
+;;      ("writing-mode" "horizontal-tb" "vertical-rl" "vertical-lr")
+;;      ;;http://dev.w3.org/csswg/css-text-decor-3
+;;      ("text-decoration-line" "none" "underline" "overline" "line-through" "blink")
+;;      ("text-decoration-color" color)))
+;;  (ac-config-default))
 ;; 動作が重いのでデフォルトはオフにする。
 ;;(add-hook 'prog-mode-hook
 ;;          (lambda () (require 'auto-complete-config nil :no-error)))
 
 ;;;; auto-dim-other-buffers <elpa>
-(use-package auto-dim-other-buffers
-  :config
-  (auto-dim-other-buffers-mode))
+;; run-hooks: Invalid function: (quote adob--after-change-major-mode-hook)
+;; エラーが出るので使用中止。
+;;(use-package auto-dim-other-buffers
+;;  :diminish ""
+;;  :config
+;;  (auto-dim-other-buffers-mode))
 
-;;;; auto-save-buffers-enhanced <elpa>
+;;;; auto-save-buffers-enhanced <elpa> (abstain)
+;; とりあえず手保存でいいので利用中止。
 ;;(when (functionp 'auto-save-buffers-enhanced)
 ;;  (auto-save-buffers-enhanced))
 ;;(defun auto-save-file-name-p (filename)
 ;;  (or (string-match "^#.*#$" filename)
 ;;      (string-match "\\.passwd$" filename)))
 
-;;;; auto-yasnippet <elpa>
+;;;; auto-yasnippet <elpa> (abstain for now.)
 ;; https://github.com/abo-abo/auto-yasnippet
 ;;(use-package auto-yasnippet :defer t
 ;;  :commands (aya-create aya-expand
@@ -4925,6 +5033,13 @@ GDBは動作しない可能性があります！") (sit-for 2))
 ;; fixmee の副次的なモードなのでlighterは消す。
 (use-package button-lock :defer t
   :diminish "")
+
+;;;; color-identifiers-mode <elpa>
+;; 識別子をカラフルに色付けしてくれる。便利。
+(use-package color-identifiers-mode :defer t
+  :init
+  ;; (global-color-identifiers-mode)
+  (add-hook 'prog-mode-hook 'color-identifiers-mode))
 
 ;;;; cmake-flymake
 ;; https://github.com/seanfisk/cmake-flymake/
@@ -4940,7 +5055,7 @@ GDBは動作しない可能性があります！") (sit-for 2))
 ;;   % cd ..
 ;;   % cmake-flymake-generate build
 
-;;;; crosshairs <elpa>
+;;;; crosshairs <elpa> (abstain)
 ;; crosshairs-mode は非常に重いので使用しない。
 ;; M-x crosshairs-toggle-when-idle がお勧め。
 
@@ -4950,10 +5065,27 @@ GDBは動作しない可能性があります！") (sit-for 2))
 (use-package dash-at-point
   :bind ("C-c d" . dash-at-point))
 
-;;;; display-theme <elpa> (mine)
+;;;; diffscuss-mode <elpa>
+;; % pip install diffscuss
+(use-package diffscuss-mode :defer t)
+
+;;;; diminish <elpa>
+;; minor-mode のモードライン名を削除・変更する。
+(use-package diminish
+  :config
+  (with-eval-after-load 'abbrev
+    (diminish 'abbrev-mode (propertize "省" 'face '(:foreground "orange"))))
+  (with-eval-after-load 'outline
+    (diminish 'outline-minor-mode (propertize "概" 'face '(:foreground "blue")))))
+
+;;;; display-theme <elpa>
 (use-package display-theme
   :if window-system
   :config (display-theme-mode))
+
+;;;; drag-stuff <elpa>
+;; - http://github.com/rejeep/drag-stuff
+;; マウスで行等を移動するモード。
 
 ;;;; emmet-mode <elpa>
 ;; https://github.com/smihica/emmet-mode/blob/master/README.md
@@ -4966,12 +5098,34 @@ GDBは動作しない可能性があります！") (sit-for 2))
   :config
   (setq emmet-indentation 2)) ; indent はスペース2個
 
-;;;; enclose-mode <elpa>
+;;;; enclose-mode (abstain)
 ;; 自動閉じ括弧挿入
 ;; 馴染まないので利用中止。
 ;; (enclose-global-mode 1)
 
-;;;; fixmee <elpa>
+;;;; exec-path-from-shell <elpa> (abstain)
+;; exec-path 環境変数をシェルから取得する。sync-env があるので不要。
+
+;;;; evernote-mode
+;; evernote-mode は、autoload時 に ruby へのアクセスをして（お行儀が悪
+;; い）、rubyがインストールされていない環境では回避不可なエラーを出すの
+;; で当面は利用中止。
+;; http://emacs-evernote-mode.googlecode.com/svn/branches/0_21/doc/readme_ja.html
+;; /bin の enclient.rb は、PATHのどこかに入れること。
+;; EN_PROXY環境変数を設定しておくこと。
+;;(when (locate-library "evernote-mode")
+;;  (setq evernote-enml-formatter-command
+;;        '("w3m" "-dump" "-I" "UTF8" "-O" "UTF8")) ; optional
+;;  (require 'evernote-mode)
+;;  (bind-key "C-c e c" 'evernote-create-note)
+;;  (bind-key "C-c e o" 'evernote-open-note)
+;;  (bind-key "C-c e s" 'evernote-search-notes)
+;;  (bind-key "C-c e S" 'evernote-do-saved-search)
+;;  (bind-key "C-c e w" 'evernote-write-note)
+;;  (bind-key "C-c e p" 'evernote-post-region)
+;;  (bind-key "C-c e b" 'evernote-browser))
+
+;;;; fixmee <elpa> (abstain)
 ;; fixmee を使うと、shellで M-p 押下時にコマンドプロンプトの前にコマンドが挿入されるので使用中止。
 ;; M-x fixmee-view-listing
 ;; XXX :: その部分のコードが正しくないが多くの場合動いてしまう
@@ -4988,14 +5142,23 @@ GDBは動作しない可能性があります！") (sit-for 2))
 
 ;;;; flycheck <elpa>
 ;; flymake の改良版
-;; 動作が重いのでデフォルトはオフ。
+;; 動作が重いのでデフォルトはオフにしているが、便利なので
+;; 必要な際にはできるだけ使うことを躊躇しないようにする。
 (use-package flycheck :defer t
   :config
   (when (eq window-system 'mac)
-    (setq flycheck-mode-line-lighter "🐦")))
+    (setq flycheck-mode-line-lighter "🐦"))
+  ;; TODO JSON Schema Validator の作成
+  ;; （完成したら、Melpa で、jarファイル込みで配布したい…）
+  ;; https://bintray.com/fge/maven/json-schema-validator/view
+  ;; java -Done-jar.silent=true -jar json-schema-validator-2.1.10-standalone.jar --help
+  ;; Syntax: java -jar jsonschema.jar [options] file [file...]
+  ;;(flycheck-define-checker json-schema
+  ;;  :command)
+  )
 
-;;;; ggtags (obsolete)
-;; 衝突を起こすので、利用後は速やかにquitするよう、注意が必要
+;;;; ggtags
+;; 以下でキー割当の衝突を起こすので、利用後は速やかにquitするよう、注意が必要
 ;; - M-n,M-p :: タグの移動
 ;; - M-{,M-} :: ファイルの移動
 ;; - M-O (M-o) :: navigation-mode の切り替え
@@ -5049,21 +5212,20 @@ GDBは動作しない可能性があります！") (sit-for 2))
 
 ;;;; idle-highlight-mode <elpa>
 ;; アイドル中に同じ部分文字列をハイライトする。
-(use-package idle-highlight-mode
+(use-package idle-highlight-mode :defer t
   :init
   (add-hook 'prog-mode-hook 'idle-highlight-mode))
 
 ;;;; mb-depth+ <elpa>
 ;; mb-depth の数字の表示のカスタマイズ化
-;; (use-package mb-depth+)
 
-;;;; mic-paren <elpa>
+;;;; mic-paren <elpa> (abstain)
 ;; show-paren の拡張
 ;; エラーが頻発するので使用中止。
 ;;(when (functionp 'paren-activate)
 ;;  (paren-activate))
 
-;;;; mmm-mode <elpa>
+;;;; mmm-mode <elpa> (abstain)
 ;; 使用中止。web-mode へ。
 
 ;;;; moz (abstain)
@@ -5090,9 +5252,9 @@ GDBは動作しない可能性があります！") (sit-for 2))
 ;; :        (file-name-nondirectory file))
 ;; : )
 (use-package openwith
-  :if (not noninteractive)
   :config
-  (require 'recentf nil :no-error)
+  ;; なぜ必要？
+  ;;(require 'recentf nil :no-error)
   ;;(setq openwith-associations
   ;;      `((,tkw-open-externally-ext-regexp
   ;;        "open" (file))
@@ -5127,7 +5289,74 @@ GDBは動作しない可能性があります！") (sit-for 2))
 ;;             'append))
 
 ;;;; pandoc-mode <elpa>
-;; autoload :: pandoc-mode
+;; pandoc 1.12.4 以降で org-mode をサポート
+;; install
+;; % brew install cabal-install
+;; % cabal update
+;; % cabal install cabal-install
+;; % cabal install alex happy pandoc pandoc-citeproc
+;; autoload :: pandoc-mode, turn-on-pandoc, conditionally-turn-on-pandoc
+;; document :: http://joostkremers.github.io/pandoc-mode/
+;; keybindings :: C-c / XXX
+;; 使い方：まず、
+;;   C-c / w :: pandoc-set-write (pandoc--set-write)
+;;   C-c / s :: pandoc-save-settings-file
+(use-package pandoc-mode :defer t
+  :init
+  ;; 過去に一度、pandoc-modeにして、.FILENAME.pandoc が保存されている場合のみ、
+  ;; pandoc-mode をオンにする。
+  (add-hook 'text-mode-hook 'conditionally-turn-on-pandoc)
+  ;;
+  ;; ((latex-engine "xelatex")
+  ;;  (bibliography "~/share/Bibliography/all.bib))
+  )
+;; Pandoc メモ
+;;
+;; * マニュアル
+;; - 原則は標準入力（ファイルの場合は直接指定）・標準出力（ファイルの場合は-o指定）
+;; - フォーマット指定 :: -f (from) -t (to)
+;; - その他 :: -s (standalone) -i (incremental slideshow) --toc 
+;; - scripting :: http://johnmacfarlane.net/pandoc/scripting.html
+;; - samples :: http://johnmacfarlane.net/pandoc/demos.html
+;; * テンプレート
+;; - local :: ~/.pandoc/templates
+;; - github :: http://github.com/jgm/pandoc-templates
+;; - filters :: https://github.com/jgm/pandocfilters
+;; HTML5/Word/EPubへの変換
+;; % pandoc -t html5 -o output.html input.org
+;; Wordへの変換
+;; % pandoc -t docx -o output.docx input.org
+;; epub3への変換
+;; % pandoc -t epub3 -o output.epub input.org
+;; slide
+;; % pandoc -s -t {s5, slidy, slideous, dzslides, revealjs} -o slide.html input.org
+;; --slidy-url, --slideous-url, or --s5-url (--revealjs-url not supported)
+
+;; Pandoc Options
+
+;; Pandoc slide
+;; http://johnmacfarlane.net/pandoc/demo/example9/producing-slide-shows-with-pandoc.html
+;; | format   | options            | Sample Value                             |
+;; |----------+--------------------+------------------------------------------|
+;; | pdf      | geometry           | (see LaTeX geometry package doc.)        |
+;; | epub     | epub-stylesheet    |                                          |
+;; |          | epub-embed-fonts   |                                          |
+;; |----------+--------------------+------------------------------------------|
+;; | (slides) | (5 formats)        |                                          |
+;; | revealjs | css                | http://cdn.jsdelivr.net/reveal.js/2.6.2/ |
+;; | s5       | s5-url             |                                          |
+;; | slideous | slideous-url       | ??                                       |
+;; | slidy    | slidy-url          |                                          |
+;; | dzslides | (standalone)       |                                          |
+
+;; Pandoc の数式は、--webtex, --mathjax, --mathml があるが、--mathjax が一番安定。
+
+;; Pandoc Xelatex
+;; | options      |         | variables |
+;; |--------------+---------+-----------|
+;; | latex-engine | xelatex | mainfont  |
+
+;; pandoc slides
 
 ;;;; pangu-spacing <elpa> (abstain)
 ;; Minor-mode to add space between Chinese and English characters.
@@ -5179,9 +5408,11 @@ GDBは動作しない可能性があります！") (sit-for 2))
 
 ;;;; rainbow-delimiters <elpa>
 ;; ネストしたカッコを色違いで表示する。
-(use-package rainbow-delimiters
-  :config
-  (global-rainbow-delimiters-mode))
+(use-package rainbow-delimiters :defer t
+  (add-hook 'prog-mode-hook 'rainbow-delimiters-mode)
+  ;; :config
+  ;; (global-rainbow-delimiters-mode)
+  )
 
 ;;;; rainbow-mode <elpa>
 ;; CSSなどの色指定をその色で表示する。
@@ -5190,8 +5421,9 @@ GDBは動作しない可能性があります！") (sit-for 2))
   (add-hook 'css-mode-hook
             (command (rainbow-mode 1))))
 
-;;;; rbenv <elpa>
+;;;; rbenv <elpa> (abstain)
 ;; 現在の rbenv の状態をモードラインに表示する。
+;; 将来的には、anyenv で mode line単位で切り替えたい。
 ;; M-x global-rbenv-mode/ rbenv-use-global/ rbenv-use
 
 ;;;; relative-line-numbers <elpa>
@@ -5201,9 +5433,11 @@ GDBは動作しない可能性があります！") (sit-for 2))
 ;; 正規表現の \\(....\\) に対応番号を付与する elisp
 (use-package regexp-lock :defer t
   :commands (turn-on-regexp-lock-mode)
-  ;; 重いのでデフォルトではオフにする。
-  :init
-  (add-hook 'emacs-lisp-mode-hook 'turn-on-regexp-lock-mode)
+  ;; 重いので、動作がもっさりしていると感じたらすぐにオフにする。
+  ;; .bbdb.el をアクセスする際に、ナローイングと衝突してエラーを出すので
+  ;; とりあえず、デフォルト起動を停止。
+  ;;:init
+  ;;(add-hook 'emacs-lisp-mode-hook 'turn-on-regexp-lock-mode)
   )
 
 ;;;; repl-toggle <elpa>
@@ -5217,27 +5451,35 @@ GDBは動作しない可能性があります！") (sit-for 2))
           (elixir-mode . elixir-mode-iex)
           (ruby-mode . inf-ruby))))
 
+;;;; rudel <elpa>
+(use-package rudel :defer t
+  :config
+  (global-rudel-minor-mode 1))
+
 ;;;; smart-compile <elpa>
 ;; 特定ファイルのコンパイル命令を、smart-compile-alist のモードに応じて設定する。
 (use-package smart-compile
   :bind ("C-x '" . smart-compile)
   :config
-  (add-to-list 'smart-compile-alist
-               '(web-mode browse-url-of-buffer))
-  (add-to-list 'smart-compile-alist
-               '("\\.xht$" browse-url-of-buffer))
-  (add-to-list 'smart-compile-alist
-               '("\\.xhtml$"
-                 "/usr/local/AHFormatterV62/run.sh -pdfver PDF1.4 -peb 1 -x 4 -d nucv.html -o nucv.html.pdf")))
+  (setf (alist-get "\\.xhtml$" smart-compile-alist)
+        "/usr/local/AHFormatterV62/run.sh -pdfver PDF1.4 -peb 1 -x 4 -d %f -o %n.pdf")
+  (setf (alist-get "\\.epub$" smart-compile-alist) "open %f"))
+
+;;;; smart-cursor-color <elpa> (abstain)
+;; 背景色や表示色に応じてカーソル色を変化させる。
+;; あまり効果を感じられないので使用中止。
+;;(use-package smart-cursor-color
+;;  :config
+;;  (smart-cursor-color-mode +1))
 
 ;;;; smartparens <elpa>
-;; 最近人気のカッコ処理モード
+;; 最近人気のカッコ処理モード　quoteを入力する度にfont-lockで色変化するのを防止する。
 ;; M-x smartparens-global-mode
 (use-package smartparens
+  :diminish ,(propertize "括" 'face '(:foreground "blue"))
   :config
   (sp-local-pair 'rhtml-mode "<" ">")
   (sp-local-pair 'rhtml-mode "<%" "%>")
-  (tkw-minor-mode-lighter 'smartparens-mode "括" '(:foreground "blue"))
   (smartparens-global-mode)
   (show-smartparens-global-mode t))
 
@@ -5245,6 +5487,7 @@ GDBは動作しない可能性があります！") (sit-for 2))
 ;; バッファを縞々模様にする。
 ;; M-x stripe-buffer-mode
 (use-package stripe-buffer :defer t
+  :if (featurep 'stripe-buffer-autoloads)
   :init
   (add-hook 'dired-mode-hook 'stripe-listify-buffer)
   ;; 動作が非常に重くなるので中止。
@@ -5327,6 +5570,19 @@ GDBは動作しない可能性があります！") (sit-for 2))
 ;;  (add-to-list 'rotate-command-set
 ;;               '(rotate-tabbar . "Tabbar") t))
 
+;;;; wakatime-mode <elpa>
+(use-package wakatime-mode :defer t
+  :diminish "若"
+  :config
+  (let ((api-key
+         (plist-get
+          (nth 0 (auth-source-search :host "wakatime.com"))
+          :secret)))
+    (when (functionp api-key) (setq api-key (funcall api-key)))
+    (setq wakatime-api-key api-key)
+    (setq wakatime-cli-path "~/cvs/wakatime/wakatime-cli.py")
+    ))
+
 ;;;; winhist (abstain)
 ;;(lazyload (winhist-forward winhist-backward
 ;;           rotate-winhist
@@ -5396,34 +5652,44 @@ GDBは動作しない可能性があります！") (sit-for 2))
 ;;  ;; yasnippetと連携する場合 (キーバインドは自由に)
 ;;  (bind-key "C-," 'zencoding-expand-yas zencoding-mode-keymap))
 
-;;; メジャーモード、および関連マイナーモード
-;;;; abc-mode <elpa> (abstain)
-;; abc音楽ファイルを編集メジャーモード。abcm2ps で楽譜PSファイルに変換。
-;; * 問題
-;;   autoload 時の auto-insert-mode の設定が不適切で autoload にしてエ
-;;   ラーを引き起こすため使用中止（2013/07/08） EmacsWikiでは修正済。
-(use-package abc-mode
-  :mode "\\.ab[cp]\\'"
-  :config (require 'align))
 
-;;;; ac-c-headers <elpa>
-;; #include <s[tdio.h>]   <- ac-source-c-headers
-;; pr[intf]               <- ac-source-c-header-symbols
-(use-package ac-c-headers :defer t
-  :init
-  (add-hook 'c-mode-hook
-            (lambda ()
-              (when (and (require 'auto-complete nil :no-error)
-                         (require 'ac-c-headers 'nil :no-error))
-                (add-to-list 'ac-sources 'ac-source-c-headers)
-                (add-to-list 'ac-sources 'ac-source-c-header-symbols t)))))
+;;; 非標準入力ツール
+;;;; ac-dabbrev <elpa> (abstain)
+;;(use-package ac-dabbrev :defer t
+;;  :init
+;;  (with-eval-after-load 'auto-complete
+;;    (add-to-list 'ac-sources 'ac-source-dabbrev))
+;;  :config
+;;  ;; 3rd party ac-dict を追加する。（手作業）
+;;  (let ((dir "~/.emacs.d/ac-dict/dotfiles/.emacs.d/ac-dict/"))
+;;    (when (file-directory-p dir)
+;;      (add-to-list 'ac-dictionary-directories dir))))
 
-;;;; ac-js2 <elpa>
-(use-package ac-js2
-  :init
-  (add-hook 'js2-mode-hook 'ac-js2-mode))
+;;;; ac-emmet <elpa> (abstain)
+;; emmet の auto-complete 版
+;;(use-package ac-emmet :defer t
+;;  :init
+;;  (add-hook 'css-mode-hook 'ac-emmet-css-setup)
+;;  (add-hook 'sgml-mode-hook 'ac-emmet-html-setup)
+;;  (add-hook 'web-mode-hook 'ac-emmet-html-setup))
 
-;;;; ac-math <elpa>
+;;;; ac-ispell <elpa> (abstain)
+;; ispell/aspell を使い英文のスペルチェック。
+;;(use-package ac-ispell
+;;  :init
+;;  (defun tkw/enable-ac-ispell ()
+;;    (add-to-list 'ac-sources 'ac-source-ispell))
+;;  (add-hook 'git-commit-mode-hook 'tkw/enable-ac-ispell)
+;;  (add-hook 'mail-mode-hook 'tkw/enable-ac-ispell)
+;;  :config
+;;  (with-eval-after-load 'auto-complete
+;;    (ac-ispell-setup)))
+
+;;;; ac-ja <elpa> (abstain)
+;; 日本語の自動補完。
+;; ホームディレクトリに SKK-JISYO.L のリンクを入れておく。
+
+;;;; ac-math <elpa> (abstain)
 ;; → math-symbols へ移行。
 ;; - 参照 :: https://github.com/vitoshka/ac-math#readme
 ;;(use-package ac-math
@@ -5431,1307 +5697,10 @@ GDBは動作しない可能性があります！") (sit-for 2))
 ;;  (with-eval-after-load 'auto-complete
 ;;    (add-to-list 'ac-modes 'latex-mode)))
 
-;;;; ac-nrepl <elpa>
-;; Clojure に対する、ciderを用いた自動補完
-;; M-x cider, M-x cider-jack-in
-;;(lazyload () "cider-repl-mode"
-;;  (when (functionp 'ac-nrepl-setup)
-;;    (add-hook 'cider-repl-mode-hook 'ac-nrepl-setup))
-;;)
-
-;;(lazyload () "cider-interaction"
-;;(when (functionp 'ac-nrepl-setup)
-;;  (add-hook 'cider-interaction-mode-hook 'ac-nrepl-setup))
-;;)
-
-;;;; ada-mode <elpa>
-;; Mac版ada のインストールは、GNATをダウンロードして、
-;; ./doinstall スクリプトを実行 → /usr/local/gnat/ にインストールされる。
-
-;;;; agda2-mode
-;; * インストール
-;;   : % export PATH=$HOME/Library/Haskell/bin:$PATH
-;;   : % cabal update
-;;   : % cabal install cabal-install
-;;   : % cabal install agda
-;; * トラブルシューティング
-;;   : % ghc-pkg check
-;;   : % sudo ghc-pkg recache
-;;   : % cabal install --reinstall --force-reinstall <pkg-name>
-(use-package agda2-mode :defer t
-  :mode ("\\.l?agda\\'" . agda2-mode))
-
-;;;; asn1-mode <elpa>
-(use-package asn1-mode :defer t
-  :mode (("\\.mo$" . asn1-mode)
-         ("\\.asn1$" . asn1-mode)
-         ("\\.gdmo$" . asn1-mode))
-  :config
-  (add-hook 'asn1-mode-hook
-            (lambda ()
-              (setq tab-width 4)
-              (setq indent-tabs-mode t))))
-
-;;;; apache-mode <elpa>
-(use-package apache-mode
-  :mode
-  (("\\.htaccess\\'"   . apache-mode)
-   ("httpd\\.conf\\'"  . apache-mode)
-   ("srm\\.conf\\'"    . apache-mode)
-   ("access\\.conf\\'" . apache-mode)
-   ("sites-\\(available\\|enabled\\)/" . apache-mode)))
-
-;;;; apples-mode <elpa>
-;; http://d.hatena.ne.jp/sandai/20120613/p2
-;; M-x apples-open-scratch
-(use-package apples-mode :defer t
-  :mode (("\\.applescript$" . applescript-mode)
-         ("\\.scpt$" . applescript-mode)))
-
-;;;; applescript-mode<elpa>
-;; → apples-mode へ移行。
-;;(lazyload ((add-to-auto-mode-alist '("\\.applescript$" . applescript-mode)))
-;;    "applescript-mode")
-
-;;;; auctex <elpa>
-;;;;; メモ
-;; auto-mode-alist は自動追加される。
-;; http://oku.edu.mie-u.ac.jp/~okumura/texfaq/auctex.html
-;; http://oku.edu.mie-u.ac.jp/~okumura/texwiki/?AUCTeX#db9dca5d
-;; http://ftp.gnu.org/pub/gnu/auctex/11.86-extra/tex-ref.pdf
-;; Emacs 24.4 以降は、autoload からのファイル参照を許さないため、
-;; auctex-autoloades.el の (require 'tex-site) は削除した方が無難か。
-(require 'tex-site nil :noerror)
-;;;;; auctex/tex
-(defvar TeX-engine 'euptex) ; tkw-TeX-engine-set で変更。
-
-;; - LatexMk Options
-;; |        | opt                                  | PDF出力 | DVI出力 |
-;; |--------+--------------------------------------+---------+---------|
-;; | euptex | -latex='uplatex -synctex=1 ...'      | -pdfdvi | -dvi    |
-;; | luatex | -pdflatex='lualatex --synctex=1 ...' | -pdf    |         |
-;; | xetex  | -pdflatex='xelatex -synctex=1 ...'   | -pdf    |         |
-;; - 表示ソフト（SyncTeX対応）
-;;   + MacOS :: Skia
-;;   + Linux :: Evince
-;;   + Windows :: SumatraPDF
-(defun tkw-latexmk-command (latex options &optional target output)
-  "Generate LatexMk command line for LATEX, (LatexMk-)OPTIONS, TARGET and OUTPUT directory."
-  (let* ((latex-options
-         '("-src-specials" "-file-line-error" "-interaction=nonstopmode"
-           "-shell-escape" "-synctex=1"))
-         (luatex-option
-          (mapconcat (lambda (opt) (concat "-" opt)) latex-options " "))
-         (latex-option
-          (mapconcat 'identity latex-options " ")))
-    (concat "latexmk -gg " options " "
-            (case latex
-              ('euptex "-pdfdvi -latex='uplatex ")
-              ('xetex  "-pdf -pdflatex='xelatex ")
-              ('luatex "-pdf -pdflatex='lualatex "))
-            (case latex
-              ('luatex luatex-option)
-              (t latex-option))
-            "' "
-            (if output (concat "-output-directory=" output " "))
-            target)))
-
-(use-package tex
-  :commands (tkw-TeX-engine-set)
-  :config
-  (require 'latex)
-  (setq TeX-engine-alist
-        '(;;(symbol name %(tex) %(latex) ConText)
-          (euptex "eupTeX" "euptex" "uplatex" "euptex")
-          (xetex "XeTeX" "xetex" "xelatex" "xetex")
-          (luatex "LuaTeX" "luatex" "lualatex" "luatex")))
-  ;; 以下の設定は、複数ファイルをソースにするときの情報
-  (setq TeX-auto-save t) ; 保存時にスタイル情報も保存
-  (setq TeX-parse-self t) ; 読み込み時にファイルをパーズ
-  (setq-default TeX-master nil) ; ?
-  ;; [[info:auctex#Japanese]]
-  ;;(setq TeX-default-mode 'japanese-latex-mode)
-  ;; 上記の設定で、TeX-Commandの参照先が japanese-(La)TeX-command に切り替わる。
-  (setq TeX-command-default "TeX")
-  ;; TeX-viewer
-  (setq TeX-view-program-selection '((output-pdf "PDF Viewer")))
-  (setq TeX-view-program-list
-        '(("PDF Viewer" "/Applications/Skim.app/Contents/SharedSupport/displayline -b -g %n %o %b")))
-
-  ;; エンジンに応じた設定
-  (defun tkw-TeX-engine-set (&optional engine)
-    (interactive)
-    (if (null engine)
-        (call-interactively 'TeX-engine-set)
-      (setq TeX-engine engine))
-    (setq-default TeX-engine TeX-engine)
-    (case TeX-engine
-      ('luatex
-       (setq LaTeX-default-style   "ltjsarticle")
-       (add-hook 'LaTeX-mode-hook 'TeX-PDF-mode))
-      ('xetex
-       (setq LaTeX-default-style   "bxjsarticle")
-       (add-hook 'LaTeX-mode-hook 'TeX-PDF-mode))
-      ('euptex
-       (setq LaTeX-default-style   "jsarticle")
-       (remove-hook 'LaTeX-mode-hook 'TeX-PDF-mode)
-       (add-to-list
-        'TeX-output-view-style
-        '("^dvi$" "."
-          "%(o?)xdvi -watchfile 1 %dS %d"))
-       (add-to-list
-        'TeX-output-view-style
-        '("^pdf$" "."
-          "/Applications/Skim.app/Contents/SharedSupport/displayline %n %o %b"))))
-    ;; TeX-command-list
-    (setq TeX-command-list (tkw-assoc-delete-all "LatexMk" TeX-command-list))
-    (setq TeX-command-list
-          (cons
-           `("LatexMk"
-             ,(tkw-latexmk-command TeX-engine "-pvc" "%t")
-             TeX-run-TeX nil (latex-mode) :help "Run LatexMk")
-           TeX-command-list))
-    ;;(setq LaTeX-command-default "LatexMk")
-    ))
-
-;;;;; auctex/latex
-(use-package latex :defer t
-  :config
-  (add-hook 'LaTeX-mode-hook 'turn-on-reftex)
-  (add-hook 'LaTeX-mode-hook 'TeX-source-correlate-mode) ; src-specials に対応
-  (add-hook 'LaTeX-mode-hook 'TeX-PDF-mode) ; synctex に対応
-  (add-hook 'LaTeX-mode-hook 'LaTeX-math-mode)
-  (add-hook 'LaTeX-mode-hook 'outline-minor-mode)
-  (add-hook 'LaTeX-mode-hook 'tkw-latex-mode-initialization)
-  (setq LaTeX-indent-level 4)
-  (setq LaTeX-item-indent 2))
-
-(declare-function TeX-match-style "tex")
-(declare-function TeX-engine-set "tex")
-;; TODO TeX-engine-set → tkw-TeX-engine-set
-(defun tkw-latex-mode-initialization ()
-  "Automatically detect appropriate TeX engine from style specification."
-  (require 'tex nil t)
-  (let
-      ((engine
-        (cond
-         ((TeX-match-style "\\`[jt]s?\\(article\\|report\\|book\\)\\'\\|\\`uplatex\\'")
-          'euptex)
-         ((TeX-match-style "\\`bxjs\\(article\\|report\\|book\\)\\'")
-          'xetex)
-         ((TeX-match-style "\\`ltj\\(article\\|report\\|book\\)\\'")
-          'luatex))))
-    (when engine (tkw-TeX-engine-set engine))))
-
-;;;;; auctex/bib-cite
-(use-package bib-cite :defer t
-  :config
-  (setq bib-cite-use-reftex-view-crossref t))
-
-;;;;; auctex-latexmk
-;; M-x TeX-command-master にlatexmkメニュー追加
-;; TeX-command-list を LaTeXMkだけに統一する。
-;; C-c C-c で一発全部Make
-;;(lazyload () "tex"
-;;  (when (functionp 'auctex-latexmk-setup)
-;;    (auctex-latexmk-setup)
-;;    (setq japanese-LaTeX-command-default "LaTexMk")))
-
-;;;; auto-complete-clang-async <elpa>
-;; C/C++ 用 auto-complete。ソースコード解析に libclang を使用する。
-;; - 参照 :: https://github.com/8bit-jzjjy/emacs-clang-complete-async
-;; * インストール
-;;   : % brew install emacs-clang-complete-async
-;;   で、`clang-complete' がインストールされる。
-(use-package auto-complete-clang-async :defer t
-  :if (and (functionp 'ac-cc-mode-setup)
-           (setq ac-clang-complete-executable
-                 (executable-find "clang-complete")))
-  :init
-  (add-hook 'c-mode-common-hook 'ac-cc-mode-setup)
-  :config
-  (defun ac-cc-mode-setup ()
-    (setq ac-sources '(ac-source-clang-async))
-    (ac-clang-launch-completion-process)))
-
-;;;; auto-complete-nxml
-(use-package auto-complete-nxml :defer t
-  :init
-  (with-eval-after-load 'nxml-mode
-    (require 'auto-complete-nxml nil :no-error)))
-
-;;;; auto-compile <elpa>
-;; Elisp ファイルを保存する際に自動的にコンパイルする。
-(use-package auto-compile :defer t
-  :diminish  "♺"
-  :init
-  (add-hook 'emacs-lisp-mode-hook 'auto-compile-mode))
-
-;;;; c-eldoc <elpa>
-(use-package c-eldoc :defer t
-  :init
-  (add-hook 'c-mode-hook 'c-turn-on-eldoc-mode))
-
-;;;; cdlatex
-;; Emacs 24.3では last-command-char が使えないので使用禁止。
-;; (when (functionp 'turn-on-cdlatex)
-;;   (add-hook 'LaTeX-mode-hook 'turn-on-cdlatex)
-;;   (add-hook 'latex-mode-hook 'turn-on-cdlatex))
-;; org-mode でも、M-x org-cdlatex-mode で利用可能。
-
-;;;; caml <elpa>
-;; → tuareg に移行。
-
-;;;; ceylon-mode
-;; - samples :: /usr/share/doc/ceylon-1.0.0/samples/
-;; - man (1) :: ceylon, ceylon-doc, ceylon-doc-tool, ceylon-compile-js, ceylon-run-js, etc.
-(use-package cc-mode
-  :mode ("\\.ceylon$" . ceylon-mode)
-  :config
-  (define-derived-mode ceylon-mode prog-mode "Java"
-    "Major mode for editing Ceylon code."
-    (c-initialize-cc-mode t)
-    (set-syntax-table java-mode-syntax-table)
-    (setq local-abbrev-table java-mode-abbrev-table
-          abbrev-mode t)
-    (use-local-map java-mode-map)
-    (c-init-language-vars-for 'java-mode)
-    (c-common-init 'java-mode)
-    (easy-menu-add c-java-menu)
-    (cc-imenu-init cc-imenu-java-generic-expression)
-    (c-run-mode-hooks 'c-mode-common-hook 'java-mode-hook)
-    (c-update-modeline)))
-
-;;;; cider <elpa>
-;; ref. https://github.com/clojure-emacs/cider
-;; M-x cider-jack-in (in leiningen mode)
-;; M-x cider (`% lein repl' is executed)
-(use-package cider-repl-mode :defer t
-  :config
-  ;; (when (require 'auto-complete nil :no-error)
-  ;;   (add-to-list 'ac-modes 'cider-repl-mode))
-  ;; (when (functionp 'cider-turn-on-eldoc-mode)
-  ;;   (add-to-list 'cider-repl-mode-hook 'cider-turn-on-eldoc-mode))
-  ;; *nrepl-connection* と *nrepl-server* を隠す
-  ;; (setq nrepl-hide-special-buffers t)
-  ;; (setq cider-repl-tab-command 'indent-for-tab-command)
-  ;; (setq cider-repl-pop-to-buffer-on-connect nil)
-  ;; (setq cider-popup-stacktraces nil)
-  ;;(setq cider-repl-popup-stacktraces t)
-  ;;(setq cider-auto-select-error-buffer t)
-  ;; (setq nrepl-buffer-name-separator "-")
-  ;;(setq nrepl-buffer-name-show-port t)
-  ;; (setq cider-repl-display-in-current-window t)
-  ;;(when (functionp 'subword-mode)
-  ;;  (add-hook 'cider-repl-mode-hook 'subword-mode))
-  ;;(when (functionp 'smartparens-strict-mode)
-  ;;  (add-hook 'cider-repl-mode-hook 'smartparens-strict-mode))
-  )
-
-;;;; clojure-cheatsheet <elpa>
-;; nrepl で nREPLサーバと接続されている必要がある。
-;; - clojure-cheatsheet :: helmで選択されたコマンドのドキュメントを表示
-
-;;;; clojure-mode <elpa>
-;; http://github.com/jochu/clojure-mode
-;; 通常はclojureを直接使わず、lein を経由してプログラムする。
-;; % lein new tkw-project
-;; % cd tkw-project
-
-;;;; cmake-mode <elpa>
-;; http://www.cmake.org/CMakeDocs/cmake-mode.el
-(use-package cmake-mode :defer t
-  :mode (("CMakeLists\\.txt\\'" . cmake-mode)
-         ("\\.cmake\\'" . cmake-mode)))
-
-;;;; cobol-mode
-;; http://www.emacswiki.org/emacs/cobol-mode.el
-(use-package cobol-mode
-  :mode ("\\.cob" . cobol-mode))
-
-;;;; cpputils-cmake <elpa>
-;; https://github.com/redguardtoo/cpputils-cmake
-(use-package cpputils-cmake
-  :commands (cppcm-get-exe-path-current-buffer)
-  :init
-  (add-hook 'c-mode-hook (lambda () (cppcm-reload-all)))
-  (add-hook 'c++-mode-hook (lambda () (cppcm-reload-all)))
-  ;; OPTIONAL, somebody reported that they can use this package with Fortran
-  (add-hook 'c90-mode-hook (lambda () (cppcm-reload-all)))
-  ;; OPTIONAL, avoid typing full path when starting gdb
-  (global-set-key (kbd "C-c C-g")
-                  '(lambda ()(interactive) (gud-gdb (concat "gdb --fullname " (cppcm-get-exe-path-current-buffer)))))
-  :config
-  ;; OPTIONAL, some users need specify extra flags forwarded to compiler
-  (setq cppcm-extra-preprocss-flags-from-user '("-I/usr/src/linux/include" "-DNDEBUG")))
-
-;;;; crontab-mode <elpa>
-(use-package crontab-mode :defer t
-  :mode (("\\.cron\\(tab\\)?\\'" . crontab-mode)
-         ("cron\\(tab\\)?\\."    . crontab-mode)))
-
-;;;; d-mode <elpa>
-;; http://prowiki.org/wiki4d/wiki.cgi?EditorSupport/EmacsEditor
-;; http://www.emacswiki.org/emacs/FlyMakeD
-;; http://qiita.com/tm_tn/items/1d01c4500e1ca7632140
-;; auto-mode-alist などは autoloadで設定済み
-(use-package d-mode :defer t
-  :config
-  ;; flymake
-  (require 'flymake)
-  (defun flymake-D-init ()
-    (let* ((temp-file (flymake-init-create-temp-buffer-copy
-                       'flymake-create-temp-inplace))
-           (local-file (file-relative-name
-                        temp-file
-                        (file-name-directory buffer-file-name))))
-      (list "dmd" (list "-c" local-file))))
-  (add-to-list 'flymake-allowed-file-name-masks
-               '(".+\\.d$" flymake-D-init
-                 flymake-simple-cleanup flymake-get-real-file-name))
-  (add-to-list 'flymake-err-line-patterns
-               '("^\\([^ :]+\\)(\\([0-9]+\\)): \\(.*\\)$" 1 2 nil 3)))
-
-;;;; docbook <elpa>
-;; M-x docbook-find-file
-
-;;;; docker-mode <elpa>
-;; sh-mode の拡張
-;; [autoload設定済] auto-mode-alist
-
-;;;; dokuwiki-mode <elpa>
-;; `dokuwiki-mode' is autoloaded.
-
-;;;; doxymacs
-;; doxygen mode for emacs.
-;;(if (locate-library "doxymacs")
-;;    (require 'doxymacs))
-
-;;;; eclim <elpa>
-;; https://github.com/senny/emacs-eclim
-;; Installation : http://eclim.org/install.html
-(use-package eclim
-  :commands (global-eclim-mode)
-  :config
-  (help-at-pt-set-timer)
-  (setq eclim-auto-save nil)
-  (when (require 'ac-emacs-eclim-source nil :no-error)
-    (ac-emacs-eclim-config))
-  ;;(when (and (require 'company nil :no-error)
-  ;;           (require 'company-emacs-eclim nil :no-error))
-  ;;  (company-emacs-eclim-setup)
-  (require 'eclimd))
-
-(use-package eclimd :defer t
-  :config
-  (let ((workspace "~/Documents/workspace"))
-    (when (file-directory-p workspace)
-      (setq eclimd-default-workspace workspace))))
-
-;;;; egison-mode <elpa>
-;; - 参照 :: http://www.egison.org/
-;; * Install
-;;   : % cabal update
-;;   : % cabal install egison
-(use-package egison-mode
-  :mode ("\\.egi$" . egison-mode))
-
-;;;; eldoc-eval <elpa>
-;; ミニバッファのeldoc表示を行なう。
-;; また、ミニバッファでの評価結果は新しいバッファで表示する。
-;; 注意！ Emacs 24.4 では不要。
-;;(when (version< emacs-version "24.4")
-;;  (lazyload (;;eldoc-eval-expression
-;;             ;;(bind-key "M-:" 'eldoc-eval-expression)
-;;             ) "eldoc-eval"
-;;    (setq eldoc-in-minibuffer-mode-lighter
-;;          (if (eq window-system 'mac) "💁" "評"))))
-;;
-;;(when-interactive-and (functionp 'eldoc-in-minibuffer-mode)
-;;  (eldoc-in-minibuffer-mode t))
-
-;;;; elixir-mode <elpa>
-;; http://elixir-lang.org/
-;; autoload :: ("\\.exs$" . elixir-mode) ("\\.exs$" . elixir-mode)
-;;             ("\\.ex$" . elixir-mode)
-
-;;;; elixir-mix <elpa>
-;; elixir package management
-(use-package elixir-mix :defer t
-  :if (functionp 'elixir-mode)
-  :init
-  (add-hook 'elixir-mode-hook 'global-elixir-mix-mode))
-
-;;;; emathica
-;; Mathematica開発モード。 → math++.elに移行。
-;;(defvar emathica-comint-program-name
-;;  (executable-find "/Applications/Mathematica.app/Contents/MacOS/MathKernel"))
-;;(when emathica-comint-program-name
-;;  (lazyload (emathica-m-mode
-;;             (add-to-auto-mode-alist '("\\.m\\'" . emathica-m-mode)))
-;;      "emathica"))
-
-;;;; epsilon
-;; プログラミング言語 GNU epsilon
-;; http://arxiv.org/pdf/1212.5210v5.pdf
-;; http://www.gnu.org/software/epsilon
-(use-package epsilon
-  :mode ("\\.e$" . epsilon-mode))
-
-;;;; enh-ruby-mode <elpa>
-;; auto-mode-alist は gemspec, Rakefile, rb を設定済。
-;; % cd ~/.emacs.d/elpa/yasnippet-201*/snippets
-;; % cp -pr ruby-mode enh-ruby-mode
-(use-package enh-ruby-mode
-  :mode (("Gemfile" . ruby-mode)
-         ("Capfile" . ruby-mode)
-         ("Vagrantfile" . ruby-mode))
-  :config
-  (when (require 'auto-complete nil :no-error)
-    (add-to-list 'ac-modes 'enh-ruby-mode))
-  (setq enh-ruby-bounce-deep-indent t)
-  (setq enh-ruby-hanging-brace-indent-level 2))
-
-;;;; ensime <elpa>
-;; * 注意
-;;   2013.10 現在、きちんと動作しない。
-;; * マニュアル
-;;   http://aemoncannon.github.io/ensime/index.html
-;; * 導入ブログ
-;;   http://blog.recursivity.com/post/21844929303/using-emacs-for-scala-development-a-setup-tutorial
-;;   http://rktm.blogspot.com/2012/12/emacsscala.html
-;;   http://d.hatena.ne.jp/tototoshi/20100927/1285595939
-;; * SBT の利用
-;;   $ mkdir hello
-;;   $ cd hello
-;;   $ echo 'object Hi { def main(args: Array[String]) = println("Hi!") }' > hw.scala
-;;   $ sbt
-;;   > run
-;;   (慣れたら project/plugin/src ディレクトリに分割し、build.sbt ファイルを作成する。)
-;; * セットアップ手順
-;;   - ~/.sbt/plugins/plugins.sbt または /PROJECT/project/plugins.sbt に、
-;;      'addSbtPlugin("org.ensime" % "ensime-sbt-cmd" % "0.1.2")' を記述。
-;;     （ここの 0.1.2 の数字は https://github.com/aemoncannon/ensime-sbt-cmd を参照して適宜変更）
-;; * 利用手順
-;;   (1) SBTプロジェクトの流儀に従いソースコードを配置し、フォルダ内で、
-;;       % sbt "ensime generate"
-;;       を実行すると、デバッガに必要な情報を収集した .ensime ファイルが生成される。
-;;   (2) M-x ensime を実行すると、 <ensime>/bin/server → <ensime>/lib/ensime-XX.jar が起動して、通信を開始。
-
-(use-package scala-mode2 :defer t
-  :config
-  (when (require 'ensime nil :no-error)
-    (add-hook 'scala-mode-hook 'ensime-scala-mode-hook)))
-
-;;;; erefactor <elpa>
-;; autoloaded : erefactor-map
-(use-package erefactor :defer t
-  :init
-  (add-hook 'emacs-lisp-mode-hook 'erefactor-lazy-highlight-turn-on)
-  (add-hook 'lisp-interaction-mode-hook 'erefactor-lazy-highlight-turn-on)
-  :config
-  (with-eval-after-load 'lisp-mode
-    (when (boundp 'erefactor-map)
-      (bind-key "C-c C-v" erefactor-map emacs-lisp-mode-map))))
-
-;;;; erlang <elpa>
-;; autoload にて、 .escript, .erl, .hrl のauto-mode-alistへの追加が自動的に行われる。
-(use-package erlang :defer t
-  :config
-  (require 'erlang-flymake nil :no-error))
-
-;;;; ess <elpa>
-;; ドキュメント : http://ess.r-project.org/Manual/ess.html#Command_002dline-editing
-;; M-x R で起動
-(use-package ess-site :defer t
-  :mode ("\\.[rR]\\'" . R-mode))
-
-;;;; evernote-mode
-;; evernote-mode は、autoload時 に ruby へのアクセスをして（お行儀が悪
-;; い）、rubyがインストールされていない環境では回避不可なエラーを出すの
-;; で当面は利用中止。
-;; http://emacs-evernote-mode.googlecode.com/svn/branches/0_21/doc/readme_ja.html
-;; /bin の enclient.rb は、PATHのどこかに入れること。
-;; EN_PROXY環境変数を設定しておくこと。
-;;(when (locate-library "evernote-mode")
-;;  (setq evernote-enml-formatter-command
-;;        '("w3m" "-dump" "-I" "UTF8" "-O" "UTF8")) ; optional
-;;  (require 'evernote-mode)
-;;  (bind-key "C-c e c" 'evernote-create-note)
-;;  (bind-key "C-c e o" 'evernote-open-note)
-;;  (bind-key "C-c e s" 'evernote-search-notes)
-;;  (bind-key "C-c e S" 'evernote-do-saved-search)
-;;  (bind-key "C-c e w" 'evernote-write-note)
-;;  (bind-key "C-c e p" 'evernote-post-region)
-;;  (bind-key "C-c e b" 'evernote-browser))
-
-;;;; feature-mode <elpa>
-;; Cucumber/Ecukes の編集用モード
-
-;;;; flymake-clang-c++
-;; https://github.com/necaris/emacs-config/blob/master/.emacs.d/flymake-clang-c%2B%2B.el
-(use-package flymake-clang-c++ :defer t
-  :commands (flymake-clang-c++-load)
-  :init
-  (add-hook 'c++-mode-hook 'flymake-clang-c++-load))
-
-;;;; flymake-elixir <elpa>
-(use-package flymake-elixir :defer t
-  :init
-  (add-hook 'elixir-mode-hook 'flymake-elixir-load))
-
-;;;; flymake-go <elpa>
-(use-package flymake-go :defer t
-  :init
-  (with-eval-after-load 'go-mode
-    (require 'flymake-go nil :no-error)))
-
-;;;; flymake-json <elpa>
-;; % npm install jsonlint -g
-;; TODO json-schema への対応
-(use-package flymake-json :defer t
-  :init
-  (add-hook 'json-mode 'flymake-json-load))
-
-;;;; flymake-ruby <elpa>
-(use-package flymake-ruby :defer t
-  :init
-  (add-hook 'ruby-mode-hook 'flymake-ruby-load)
-  (add-hook 'enh-ruby-mode-hook 'flymake-ruby-load))
-
-;;;; flymake-shell <elpa>
-(use-package sh-script :defer t
-  :init
-  (add-hook 'sh-set-shell-hook 'flymake-shell-load))
-
-;;;; fsharp-mode <elpa>
-;; https://github.com/fsharp/fsharpbinding/tree/master/emacs
-;; autoload :: auto-mode-alist
-;; コンパイラは Mac の場合は Mono Development Kit に同梱。
-;; （インストールすると /usr/bin にシンボリックリンクが設定される。）
-;; - fsharpi :: インタプリタ
-;; - fsharpc :: コンパイラ
-
-;;;; gauche-manual
-;; https://code.google.com/p/gauche-manual-el/
-(use-package gauche-manual
-  :commands gauche-manual
-  :defines scheme-mode-map
-  :config
-  (add-hook 'scheme-mode-hook
-            (lambda ()
-              (bind-key "C-c C-f" 'gauche-manual scheme-mode-map))))
-
-;;;; gccsense (obsolete)
-;; → auto-complete-clang-async に移行
-;; http://cx4a.org/software/gccsense/manual.ja.html
-;; <2013/02>
-;; gcc-code-assist をコンパイルしようとすると、
-;; mpfr がインストールされているにも関わらず、
-;;   ld: library not found for -lmpfr
-;; と出てくる。ライブラリのインストール方法の問題か。
-;; (and
-;;  (executable-find "gcc-code-assist")
-;;  (executable-find "g++-code-assist")
-;;  (lazyload
-;;      (gccsense-complete
-;;       gccsense-flymake-setup
-;;       ac-complete-gccsense
-;;       (add-hook
-;;        'c-mode-common-hook
-;;        (lambda ()
-;;           (local-set-key (kbd "C-c .") 'ac-complete-gccsense))))
-;;      "gccsense"))
-
-;;;; geben <elpa>
-;; DBGp プロトコルを使ったデバッガ
-;; https://code.google.com/p/geben-on-emacs/
-;; PHPでは XDEBUG_SESSION_START を設定
-(use-package geben
-  :commands (geben))
-
-;;;; geiser-mode <elpa>
-;; Scheme REPL and documentation browser.
-;; following is defined in autoload.
-;; (add-hook 'scheme-mode-hook 'geiser-mode--maybe-activate)
-
-;;;; ghc <elpa>
-;; haskell-mode の文書参照等の強化
-(use-package ghc :defer t
-  :init
-  (add-hook 'haskell-mode-hook (lambda () (ghc-init) (flymake-mode))))
-
-;;;; git-commit-mode <elpa>
-;; autoload により、 magit 利用時に自動的に読み込まれる。
-
-;;;; git-gutter+-fringe <elpa>
-;; fringe 版を使う。（本家は遅い）
-(use-package git-gutter-fringe+
-  :bind ("C-c M" . git-gutter+-toggle-fringe)
-  :config
-  (setq git-gutter+-lighter
-        (propertize "溝" 'face '(:foreground "blue"))))
-
-;;;; go-eldoc <elpa>
-;; http://golang.org/
-;; http://golang.org/doc/gdb
-;; http://unknownplace.org/archives/golang-gdb-osx.html
-(use-package go-eldoc :defer t
-  :init
-  (add-hook 'go-mode-hook 'go-eldoc-setup))
-
-;;;; go-mode <elpa>
-;; autoload で auto-mode-alist は自動設定
-;; M-x helm-go-packages
-(use-package go-mode :defer t
-  :config
-  (when (functionp 'helm-go-package)
-    (substitute-key-definition 'go-import-add 'helm-go-package go-mode-map))
-  (with-eval-after-load 'smart-compile
-    (add-to-list 'smart-compile-alist '("\\.go$" . "go build %f"))))
-
-;;;; graphviz-dot-mode <elpa>
-;; 'auto-mode-alist への追加は autoload 済
-
-;;;; grizzl <elpa>
-;; Emacs Lisp の検索ツール
-(use-package grizzl :defer t
-  :init
-  (with-eval-after-load 'projectile
-    (setq projectile-completion-system 'grizzl)))
-
-;;;; groovy-mode <elpa>
-;; http://groovy.codehaus.org/
-;; auto-mode-alist 追加は自動で行われる。
-
-;;;; haml-mode <elpa>
-;; HTMLやそのテンプレートをより見やすい構文で扱う。
-;; RoRやmerbで利用。
-
-;;;; haskell-mode <elpa>
-;; Haskell の関数名を、実際の記号に置換するfont-lock
-;; * MacOS
-;;   uninstall: /Library/Haskell/bin/uninstall-hs
-(use-package haskell-font-lock :defer t
-  :config
-  (setq haskell-font-lock-symbols 'unicode))
-
-;;;; hack
-;; http://hacklang.org/
-;; Macでのインストール： https://github.com/facebook/hhvm/wiki/Building-and-installing-HHVM-on-OSX-10.9
-;; /usr/share/hhvm/hack/emacs,
-
-;;;; html5-el
-;; https://github.com/mavit/html5-el/
-;; 時々、 make relaxng で最新版のスキーマに更新する。
-;; data-*="value" には RelaxNGは対応しきれないので注意。
-(use-package whattf-dt :defer t
-  :init
-  (with-eval-after-load 'nxml-mode
-    (require 'whattf-dt))
-  (with-eval-after-load 'rng-loc
-    (add-to-list 'rng-schema-locating-files
-                 (expand-file-name
-                  "schemas.xml"
-                  (file-name-directory (locate-library "rng-loc"))))))
-
-;;;; idris-mode <elpa>
-;; - web :: http://idris-lang.org/
-;; - source :: https://github.com/idris-hackers/idris-mode
-;; - requirements :: boehmgc, libffi, gmp, llvm
-;; - install :: % cabal install -f-llvm idris  (if not compile with llvm)
-;; - memo :: http://mandel59.hateblo.jp/entry/2013/09/02/184831
-;; - tutorial :: http://eb.host.cs.st-andrews.ac.uk/writings/idris-tutorial.pdf
-;; autoload :: '("\\.idr$" . idris-mode)
-
-;;;; inf-ruby <elpa>
-;; M-x run-ruby
-(use-package inf-ruby :defer t
-  :init
-  (add-hook 'ruby-mode-hook 'inf-ruby-minor-mode)
-  (add-hook 'enh-ruby-mode-hook 'inf-ruby-minor-mode))
-
-;;;; j-mode <elpa>
-;; https://github.com/zellio/j-mode
-(use-package j-mode :defer t
-  :mode ("\\.ij[rstp]$" . j-mode)
-  :config
-  (let ((j-console "/Applications/j64-701/bin/jconsole"))
-    (when (file-exists-p j-console)
-      (setq j-console-cmd j-console))))
-
-;;;; javacc-mode
-;; EmacsWiki
-(use-package javacc-mode
-  :mode ("\\.jj$" . javacc-mode)
-  :config
-  (with-eval-after-load 'smart-compile
-    (add-to-list 'smart-compile-alist '("\\.jj$" . "javacc %f"))
-    (add-to-list 'smart-compile-alist '("\\.jjt$" . "jjtree %f"))))
-
-;;;; javap-mode <elpa>
-;; Java のディスアセンブルファイル用色付けモード
-(use-package javap-mode
-  :mode ("\\.javap$" . javap-mode))
-
-;;;; jinja2-mode
-;; Python用テンプレート言語
-;; auto-mode-alist は自動設定。
-
-;;;; js-comint <elpa>
-;;(setq inferior-js-program-command
-;;      (or (executable-find "js")
-;;          (executable-find "rhino")))
-
-;;;; js-doc <elpa>
-;; Document :: http://d.hatena.ne.jp/mooz/20090820/p1
-(use-package js-doc
-  :commands (js-doc-insert-function-doc
-             js-doc-insert-tag)
-  :init
-  (add-hook 'js2-mode-hook
-            (lambda ()
-              (local-set-key "\C-ci" 'js-doc-insert-function-doc)
-              (local-set-key "@" 'js-doc-insert-tag)))
-  :config
-  (setq js-doc-mail-address user-mail-address
-        js-doc-author (format "KAWABATA Taichi <%s>" js-doc-mail-address)
-        js-doc-url "http://github.com/kawabata/"
-        js-doc-license "The MIT License"))
-
-;;;; js2-mode <elpa>
-(use-package js2-mode
-  :mode ("\\.js$" . js2-mode)
-  ;;:config
-  ;;(setq js2-consistent-level-indent-inner-bracket-p 1)
-  ;;(add-hook 'js2-mode-hook
-  ;;          (lambda ()
-  ;;            (js2-indent-line js2-basic-offset) ))
-  ;;(add-hook 'js2-mode-hook
-  ;;          (lambda ()
-  ;;            (local-set-key (kbd "RET") 'reindent-then-newline-and-indent)))
-  ;;; 後で確認
-  ;;(when (locate-library "smart-tabs-mode")
-  ;;  (add-hook js2-mode-hook 'smart-tabs-advice)
-  )
-
-;;;; js2-refactor <elpa>
-;; js2-mode 用リファクタリングツール
-;; https://www.youtube.com/watch?v=-7yMWD1wUu4
-(use-package js2-refactor :defer t
-  :init
-  (with-eval-after-load 'js2-mode
-    (require 'js2-refactor)))
-
-;;;; js3-mode <elpa> (abstain)
-;; しばらく利用中止。
-
-;;;; json-mode <elpa>
-;; autoload は自動追加
-(defun beautify-json ()
-  "Reformat JSON file."
-  (interactive)
-  (let ((b (if mark-active (min (point) (mark)) (point-min)))
-        (e (if mark-active (max (point) (mark)) (point-max))))
-    (shell-command-on-region
-     b e
-     ;; "python -mjson.tool"
-     "python -c 'import sys,json; data=json.loads(sys.stdin.read()); print json.dumps(data,sort_keys=True,indent=4).decode(\"unicode_escape\").encode(\"utf8\",\"replace\")'"
-     (current-buffer) t)))
-(use-package json-mode :defer t
-  :config
-  (bind-key "C-c C-f" 'beautify-json json-mode-map))
-;; flycheck-define-checker
-;; % npm install jsonlint -g
-;; jsonlint -V schema...
-
-;;;; json-reformat <elpa>
-;; M-x json-reformat-region
-
-;;;; json-snatcher <elpa>
-;; M-x jsons-print-path （値へのパスを表示）
-
-;;;; jss <elpa>
-;; interface to webkit and mozilla debuggers
-
-;;;; julia-mode
-;; http://julialang.org/
-(use-package julia-mode
-  :mode ("\\.jl\\'" . julia-mode))
-
-;;;; kibit-mode <elpa>
-;; clojure用の文法チェッカ
-;; lein のインストールが必要。（cf. kibit-flymake.sh）
-
-;;;; less-css-mode <elpa>
-;; sass に一本化
-
-;;;; lilypond-mode
-(use-package lilypond-mode
-  :mode (("\\.ly$" . LilyPond-mode)
-         ("\\.ily$" . LilyPond-mode)))
-
-;;;; lua-mode <elpa>
-
-;;;; malabar <elpa> (obsolete)
-;; （$ git clone https://github.com/espenhw/malabar-mode.git）
-;; 上記は2012年現在、メンテナンスされていない。
-;; $ git clone https://github.com/buzztaiki/malabar-mode
-;; $ git pull
-;; $ mvn package → 完成したファイルをsite-lisp へインストール
-
-;; * mvn は、version 3.04以降 を使うこと。
-;; * emacs は、23.2 以降を使うこと。
-;;(defvar malabar-dir
-;;  (expand-file-name "~/.emacs.d/site-lisp/malabar-1.5-SNAPSHOT"))
-;;(when (file-directory-p malabar-dir)
-;;  (add-to-list 'load-path (concat malabar-dir "/lisp")))
-;;(when (locate-library "malabar-mode")
-;;  (autoload 'malabar-mode "malabar-mode" nil t)
-;;  (add-to-auto-mode-alist '("\\.java\\'" . malabar-mode))
-;;  (eval-after-load 'malabar-mode
-;;    '(progn
-;;       (require 'cedet)
-;;       (setq malabar-groovy-lib-dir (concat malabar-dir "/lib"))
-;;       ;; 普段使わないパッケージを import 候補から除外
-;;       (add-to-list 'malabar-import-excluded-classes-regexp-list
-;;                    "^java\\.awt\\..*$")
-;;       (add-to-list 'malabar-import-excluded-classes-regexp-list
-;;                    "^com\\.sun\\..*$")
-;;       (add-to-list 'malabar-import-excluded-classes-regexp-list
-;;                    "^org\\.omg\\..*$")
-;;       ;; **** Malabar Groovy : Customization of malabar-mode's inferior Groovy.
-;;       ;; 日本語だとコンパイルエラーメッセージが化ける
-;;       (setq malabar-groovy-java-options '("-Duser.language=en"))
-;;       (add-hook 'malabar-mode-hook
-;;                 (lambda ()
-;;                   (add-hook 'after-save-hook 'malabar-compile-file-silently
-;;                             nil t))))))
-
-;;;; markdown-mode <elpa>
-;; 詳細は http://jblevins.org/projects/markdown-mode/
-;; GitHub Flavored Markdown Mode (gfm-mode) にする。
-(use-package markdown-mode :defer t
-  :mode (("\\.md$" . gfm-mode))
-  :config
-  (setq markdown-coding-system 'utf-8)
-  (setq markdown-content-type " ")
-  (setq markdown-command
-        (or (executable-find "multimarkdown")
-            (executable-find "markdown"))))
-
-;;;; mathematica-mode (obsolete)
-;; → emathica.el に移動
-;;(defvar mathematica-command-line
-;;  (executable-find "/Applications/Mathematica.app/Contents/MacOS/MathKernel"))
-;;(when mathematica-command-line
-;;  (lazyload (mathematica
-;;             mathematica-mode
-;;             (add-to-auto-mode-alist '("\\.m\\'" . mathematica-mode)))
-;;      "mathematica-mode"))
-
-;;;; maxima
-;; /opt/local/share/maxima/5.28.0/emacs/
-;; imaxima で必要なもの：dvips + breqn.sty
-;; macports でインストールする場合は、 port install imaxima とすると
-;; TeXLive がまるまるインストールされようとするのでダメ。
-;; maxima だけインストールしておけば、下記ですぐに imaxima が使える。
-(let ((maxima-path
-       (car (file-expand-wildcards "/opt/local/share/maxima/*/emacs"))))
-  (when (and maxima-path (file-directory-p maxima-path))
-    (add-to-load-path maxima-path)
-    (autoload 'maxima-mode "maxima" "Maxima mode" t)
-    (autoload 'maxima "maxima" "Maxima interaction" t)
-    (autoload 'imaxima "imaxima" "Frontend for maxima with Image support" t)
-    (autoload 'maxima "maxima" "Maxima interaction" t)
-    (autoload 'imath-mode "imath" "Imath mode for math formula input" t)
-    (add-to-auto-mode-alist '("\\.max" . maxima-mode))))
-
-;;;; math++ (obsolete)
-;; → Wolfram-mode に改名
-
-;;;; mediawiki <elpa>
-;; リンクや文字修飾などのMediaWikiを編集するための便利機能が多数。
-;; M-x mediawiki-draft
-;; M-x mediawiki-draft-page
-;; M-x mediawiki-draft-buffer
-
-;; M-x mediawiki-mode
-;; M-x mediawiki-open
-
-;;;; mustache <elpa>
-;; 比較的、言語に中立的なテンプレート。JavaScript等で便利。
-;; Emacs の場合は、キー (:key) ＋非括弧関数 (,) の方が便利。
-;; c.f. tkw-org-publish-gepub-script
-
-;;;; mustache-mode <elpa>
-;; Logic-less template (http://mustache.github.io/)
-(use-package mustache-mode :defer t
-  :mode ("\\.mustache$" . mustache-mode))
-
-;;;; nimrod-mode <elpa>
-;; http://nimrod-lang.org/
-(use-package nimrod-mod
-  :mode ("\\.nim$" . nimrod-mode))
-
-;;;; nrepl (epla)
-;; → cider に移行
-;; - M-x nrepl-jack-in で接続 (lein が必要)
-;; - コマンドラインで "lein repl" で起動して M-x nrepl で 58794 に接続。
-
-;;;; nxhtml-mode (abstain)
-;; 本ディレクトリには".nosearch"があるので、本来は読み込めない。
-;;(when (locate-library "nxhtml/autostart")
-;;  (load-library "nxhtml/autostart"))
-
-;;;; omn-mode <elpa>
-(use-package omn-mode :defer t
-  :mode (("\\.pomn\\'" . omn-mode)
-         ("\\.omn\\'" . omn-mode)))
-
-;;;; php+-mode <elpa> (abstain)
-;; 同梱されている string-utils.el は名前空間規則に従っていない、Roland
-;; Walker氏の同名ツールと衝突する、等の理由でインストール禁止。
-
-;;;; powershell <elpa>
-;; - 参照 :: http://blogs.msdn.com/b/dotnetinterop/archive/2008/04/10/run-powershell-as-a-shell-within-emacs.aspx
-;; - 参考 :: http://www.emacswiki.org/emacs/PowerShell
-(use-package powershell
-  :commands (powershell))
-
-;;;; processing-mode <elpa>
-;; autoload :: ".pde"
-
-;;;; python-mode <elpa>
-
-;;;; rd-mode / rd-mode-plus (obsolete)
-;; RubyDoc は現在、ほとんど使われなくなったため使用中止。
-;;(if (locate-library "rd-mode-plus")
-;;    (autoload 'rd-mode "rd-mode-plus")
-;;  (if (locate-library "rd-mode")
-;;      (autoload 'rd-mode "rd-mode")))
-;;(when (or (locate-library "rd-mode") (locate-library "rd-mode-plus"))
-;;  (add-to-auto-mode-alist '("\\.rd$" . rd-mode))
-;;  ;; howm を RDで管理するのはやめる。
-;;  ;;(add-to-auto-mode-alist '("\\.howm$" . rd-mode))
-;;  )
-;;(eval-after-load 'rd-mode
-;;  '(progn
-;;     (defvar rd-mode-hook nil)          ; =endの“...”への置換防止
-;;     (add-hook 'rd-mode-hook 'rd-show-other-block-all)))
-
-;;;; rnc-mode <elpa>
-;; http://www.pantor.com
-(use-package rnc-mode
-  :mode ("\\.rnc\\'" . rnc-mode)
-  :config
-  (setq rnc-indent-level 2) ;; trangの出力にあわせる。
-  (let ((jing (executable-find "jing.jar")))
-    (when jing
-      (setq rnc-enable-flymake t
-            rnc-jing-jar-file jing))))
-
-;;;; rinari <elpa>
-;; Ruby on Rails 開発環境
-(use-package rinari
-  :commands (global-rinari-mode))
-
-;;;; rsense <elpa>
-;; Rubyのための開発援助ツール.
-;;(defvar rsense-home (expand-file-name "~/src/rsense-0.3"))
-;;(when (file-directory-p rsense-home)
-;;  (load-library "rsense")
-;;  ;; 随時、http://www.ruby-lang.org/ja/man/archive/ からダウンロードして最新版をインストール。
-;;  ;; e.g. ~/Resources/ruby/ruby-refm-1.9.2-dynamic-20100929/
-;;  (setq rsense-rurema-home "~/Resources/ruby")
-;;  (setq rsense-rurema-refe "refe-1_9_2") ;; 上記ディレクトリ下にあること！
-;;  (add-hook 'ruby-mode-hook
-;;            (lambda ()
-;;              (local-set-key (kbd "C-c .") 'ac-complete-rsense))))
-
-;;;; robe <elpa>
-;; Code navigation, documentation lookup and completion for Ruby
-
-;;;; rubocop <elpa>
-;; % gem install rubocop
-;; flycheck が自動的に行うので不要。
-(use-package rubocop :defer t
-  :if (executable-find "rubocop")
-  :init
-  (add-hook 'ruby-mode-hook 'rubocop-run-on-current-file)
-  (add-hook 'enh-ruby-mode-hook 'rubocop-run-on-current-file))
-
-;;;; ruby-block <elpa>
-;; begin ～ end の対応関係をハイライトする。
-(use-package ruby-block :defer t
-  :init
-  (add-hook 'ruby-mode-hook 'ruby-block-mode)
-  (add-hook 'enh-ruby-mode-hook 'ruby-block-mode))
-
-;;;; ruby-electric <elpa>
-;; 括弧の自動挿入・インデント
-(use-package ruby-electric :defer t
-  :init
-  (add-hook 'ruby-mode-hook 'ruby-electric-mode)
-  (add-hook 'enh-ruby-mode-hook 'ruby-electric-mode))
-
-;;;; ruby-mode <elpa>
-;; enh-ruby-mode に移行。
-
-;;;; rubydb3x (obsolete)
-;; realgud に移行したので使用中止。
-;; http://svn.ruby-lang.org/repos/ruby/trunk/misc/rubydb3x.el
-;; (lazyload (rubydb) "rubydb3x")
-
-;;;; rust-mode <elpa>
-;; autoload :: auto-mode-alist
-;; http://gifnksm.hatenablog.jp/entry/2013/07/15/170736 (Rust 基礎文法最速マスター)
-(use-package rust-mode :defer t
-  :config
-  (require 'flymake)
-  (defun flymake-rust-init ()
-    (let* ((temp-file (flymake-init-create-temp-buffer-copy
-                       'flymake-create-temp-inplace))
-           (local-file (file-relative-name
-                        temp-file
-                        (file-name-directory buffer-file-name))))
-      (list "rustc" (list "--no-trans" local-file))))
-  (add-to-list 'flymake-allowed-file-name-masks
-               '(".+\\.r[cs]$" flymake-rust-init
-                 flymake-simple-cleanup flymake-get-real-file-name)))
-
-;;;; scala-mode2 <elpa>
-;; autoload :: (.scala, .sbt) → scala-mode
-
-;;;; sclang
-;; 【注意】パッケージに含まれる tree-widget.el は削除すること！
-;; SuperCollider は直接使わず、overtone をできるだけ使う。
-;; http://sourceforge.net/projects/supercollider/files/Source/3.6/
-;; からソースをダウンロードして、
-;; $ cp -r ./SuperCollider-Source/editors/scel ~/.emacs.d/site-lisp
-;; sclang, scsynth の両方を
-;; ./SuperCollider-Source/platform/mac/MOVED_STUFF.txt
-;; に書かれた通りに設定してパスを通す。
-;; TODO sclang-vars.el.in の編集して sclang-vars.el として保存。
-(use-package sclang
-  :if (and (executable-find "sclang")
-           (executable-find "scsynth"))
-  :mode ("\\.scd$" . sclang-mode))
-
-;;;; skewer-mode <elpa>
-;; JavaScript統合開発環境。
-;; Webページからのジャックインには、skewer-start 後、以下のBookmarkletを用いる。
-;; javascript:(function(){var d=document ;var s=d.createElement('script');s.src='http://localhost:8023/skewer';d.body.appendChild(s);})()
-;; https://github.com/magnars/.emacs.d/blob/master/setup-skewer.el
-(use-package skewer-mode
-  :commands (skewer-demo)
-  :config
-  (progn
-    (defvar css-mode-hook nil) ;; for compatibility with skewer-css, which assumes nonstandard css-mode.
-    (require 'skewer-repl)
-    (require 'skewer-html)
-    (require 'skewer-css)
-
-    (defvar httpd-port nil)
-    (defun skewer-start ()
-      (interactive)
-      (let ((httpd-port 8023))
-        (httpd-start)
-        (message "Ready to skewer the browser. Now jack in with the bookmarklet.")))
-
-    (defun skewer-demo ()
-      (interactive)
-      (let ((httpd-port 8024))
-        (run-skewer)
-        (skewer-repl)))
-
-    (when (require 'mouse-slider-mode nil :no-error)
-      (add-to-list 'mouse-slider-mode-eval-funcs
-                   '(js2-mode . skewer-eval-defun)))))
-
-;;;; slime <elpa>
-(use-package slime
-  :init (add-hook 'lisp-mode-hook 'slime-lisp-mode-hook)
-  :config
-  (slime-setup '(slime-repl)))
-
-;;;; slime-js (使用中止)
-;; skewer-mode に移行するため使用中止。
-;; % cd /path/to/npm-project
-;; (prepare package.json)
-;; % npm install -g swank-js
-;;    → /usr/local/bin/swank-js がインストールされる。（必須）
-;; % swank-js
-;; M-x slime-connect
-;; M-x slime-repl
-;;(lazyload () "slime-js"
-;;  (bind-key "C-x C-e" 'slime-js-eval-current slime-js-minor-mode-map)
-;;  (bind-key "C-c C-e" 'slime-js-eval-and-replace-current slime-js-minor-mode-map))
-;;(lazyload () "css-mode"
-;;  (add-hook ‘css-mode-hook
-;;              (lambda () (define-key css-mode-map “\M-\C-x” ‘slime-js-refresh-css)
-;;                (define-key css-mode-map “\C-c\C-r” ‘slime-js-embed-css))))
-;; https://raw.github.com/magnars/.emacs.d/master/setup-slime-js.el
-;;(lazyload (slime-js-jack-in-node slime-js-jack-in-browser) "setup-slime-js"
-;;  (bind-key [f5] 'slime-js-reload)
-;;  (add-hook 'js2-mode-hook
-;;          (lambda ()
-;;            (slime-js-minor-mode 1))))
-
-;;;; sparql-mode <elpa>
-(use-package sparql-mode
-  :mode ("\\.sparql$" . sparql-mode))
-
-;;;; sql-indent <elpa>
-(use-package sql-indent
-  :defer t
-  :init
-  (with-eval-after-load 'sql
-    (require 'sql-indent))
-  :config
-  (setq sql-indent-offset 4)
-  (setq sql-indent-maybe-tab t))
-
-;;;; taskjuggler-mode
-;; http://www.skamphausen.de/cgi-bin/ska/taskjuggler-mode (official)
-;; org-taskjuggler is better replacement.
-;; % gem install taskjuggler
-;; ~/.rbenv/versions/2.0.0-p195/lib/ruby/gems/2.0.0/gems/taskjuggler-3.5.0/bin/tj3
-(use-package taskjuggler-mode
-  :mode (("\\.tjp\\'" . taskjuggler-mode)
-         ("\\.tji\\'" . taskjuggler-mode)
-         ("\\.tjsp\\'" . taskjuggler-mode)))
-
-;;;; tern <elpa>
-;; javascript analyzer
-;; % git clone https://github.com/marijnh/tern
-;; % cd tern
-;; % sudo npm install
-;;
-;; M-.  Jump to the definition of the thing under the cursor.
-;; M-,  Brings you back to last place you were when you pressed M-..
-;; C-c C-r  Rename the variable under the cursor.
-;; C-c C-c  Find the type of the thing under the cursor.
-;; C-c C-d  Find docs of the thing under the cursor. Press again to open the associated URL (if any).
-
-(use-package tern
-  :commands tern-mode
-  :if (let ((tern-dir "~/Dropbox/cvs/tern"))
-        (when (file-directory-p tern-dir)
-          (add-to-list 'load-path (concat tern-dir "/emacs"))
-          (add-to-list 'exec-path (concat tern-dir "/bin"))))
-  :init
-  (add-hook 'js2-mode-hook (command (tern-mode t))))
-
-;;;; tss <elpa>
-;; https://github.com/aki2o/emacs-tss
-;; typescript-tools (https://github.com/clausreinke/typescript-tools)
-;; を使って、補完・ドキュメント表示・文法チェックを行なう。
-(use-package typescript
-  :defer t
-  :config
-  (when (and (executable-find "tss") (require 'tss nil :no-error))
-    (add-hook 'typescript-mode-hook 'tss-setup t)
-    (setq tss-jump-to-definition-key "C->")))
-
-;;;; ttcn-mode
-;; オリジナルファイルの (kill-all-local-variables) は削除すること。
-;; https://github.com/dholm/ttcn-el/
-(use-package ttcn3
-  :mode ("\\.ttcn3?\\'" . ttcn-3-mode))
-;; Test Managers は必要ないのと、 provide 文がないのでコメントアウト。
-;;(lazyload (forth-mode) "forth")
-;;(lazyload (tm-functions) "tm")
-
-;;;; typescript
-;; http://www.typescriptlang.org/
-;; typescript.el は、公式Webの "tools" からダウンロード
-;; reference は https://developers.google.com/chrome-developer-tools/ を参考に。
-;; （旧）TypeScript.el は、typescript.el とリネームする。
-;; （新）typescript.el は、emacs-tss に含まれているものを使用する。
-(use-package typescript
-  :mode ("\\.ts$" . typescript-mode))
-
-;;;; tuareg <elpa>
-;; - Manual :: http://www.typerex.org/files/cheatsheets/tuareg-mode.pdf
-;; Ocaml の実行・編集・デバッガ
-;; - auto-mode-alist は autoload で設定される。
-;; - tuareg-run-ocaml で実行
-;; - C-x SPC (M-x ocamldebug) :: debugger
-(use-package tuareg
-  :defer t
-  (setq tuareg-use-smie t))
-
-;;;; visual-basic-mode
-(use-package visual-basic-mode
-  :mode ("\\.\\(frm\\|bas\\|cls\\|rvb\\)$" . visual-basic-mode))
-
-;;;; web-mode <elpa>
-;; http://web-mode.org/
-;; http://fukuyama.co/web-mode
-(use-package web-mode
-  :mode (("\\.phtml$"     . web-mode)
-         ("\\.tpl\\.php$" . web-mode)
-         ("\\.jsp$"       . web-mode)
-         ("\\.as[cp]x$"   . web-mode)
-         ("\\.erb$"       . web-mode)
-         ("\\.html?$"     . web-mode))
-  :config
-  (setq web-mode-html-offset   2)
-  (setq web-mode-css-offset    2)
-  (setq web-mode-script-offset 2)
-  (setq web-mode-php-offset    2)
-  (setq web-mode-java-offset   2)
-  (setq web-mode-asp-offset    2)
-  ;; autocomplete
-  (when (require 'auto-complete nil :no-error)
-    (add-to-list 'ac-modes 'web-mode))
-  (add-hook 'web-mode-hook
-            (lambda () (setq tab-width 2)))
-  (bind-key "C-M-n" 'web-mode-element-end web-mode-map)
-  (bind-key "C-M-p" 'web-mode-element-beginning web-mode-map))
-
-;;;; wolfram-mode <elpa>
-;; Wolfram Language
-;; - 文法 ::
-;;  http://reference.wolfram.com/mathematica/tutorial/OperatorInputForms.html
-;; - コマンドラインオプション ::
-;; http://reference.wolfram.com/mathematica/tutorial/MathematicaSessions.html
-;; パッケージ自動読み込み
-;; - (format "Block[{Short=Identity},Get[\"%s\"]]; SetOptions[$Output, PageWidth-> %d];" (emathica-comint-quote-filename file) (- (window-width) 1))
-(defvar wolfram-program "/Applications/Mathematica.app/Contents/MacOS/MathKernel")
-(use-package
-  :if (executable-find wolfram-program)
-  :commands run-wolfram
-  :mode (("\\.m$" . wolfram-mode)
-         ("\\.nb$" . wolfram-mode)
-         ("\\.cdf$" . wolfram-mode))
-  :config
-  ;;(remove-from-auto-mode-alist '("\\.m$" . wolfram-mode)) ;; Objective-C を扱う場合
-  (setq wolfram-mode-program-arguments
-        '("-run"
-          "showit := Module[{}, Export[\"/tmp/math.jpg\",%, ImageSize->{800,600}]; Run[\"open /tmp/math.jpg&\"]]")))
-
-;; Mathematicaプログラミングメモ
-;; http://reference.wolfram.com/mathematica/tutorial/UsingATextBasedInterface.html
-;; http://www.watson.org/~mccann/mathematica.el
-;; Mathematica ノートブックは 標準UIを使うべきだが、
-;; パッケージを書く場合は Emacs の方が便利。
-;; http://stackoverflow.com/questions/6574710/integrating-notebooks-to-mathematicas-documentation-center
-;; http://mathematica.stackexchange.com/questions/29324/creating-mathematica-packages
-;; 「ライセンスが切れた」と表示される場合は、他プロセスを動かしていないか確認する。
-
-;;;; yaml-mode <elpa>
-
-;;;; yang-mode
-;; - 参照 :: http://www.yang-central.org/twiki/pub/Main/YangTools/yang-mode.el
-(use-package yang-mode
-  :mode ("\\.yang\\'" . yang-mode))
-
-;;; 入力ツール
-;;;; ac-ja <elpa>
-;; 日本語の自動補完。
-;; ホームディレクトリに SKK-JISYO.L のリンクを入れておく。
+;;;; ansible <elpa>
+;; ansible 入力のためのマイナーモード
+;; yasnippetとauto-complete が設定される。
+;; M-x ansible で起動。
 
 ;;;; anthy
 (use-package anthy :defer t
@@ -6760,6 +5729,21 @@ GDBは動作しない可能性があります！") (sit-for 2))
 ;;   ("f[" . "ば") ("v[" . "び") ("2[" . "ぶ") ("^[" . "べ") ("-[" . "ぼ")
 ;;   ("f]" . "ぱ") ("v]" . "ぴ") ("2]" . "ぷ") ("^]" . "ぺ") ("-]" . "ぽ")))
 
+;;;; autopair <elpa> (abstain)
+;; smartparen とかぶるので使用中止。
+;;(use-package autopair
+;;  :init
+;;  (autopair-global-mode))
+
+;;;; company <elpa>
+(use-package company-mode :defer t
+  (add-hook 'prog-mode-hook 'company-mode-on)
+  :config
+  (global-company-mode 1))
+
+;;;; company-anaconda <elpa>
+;;;; company-ycmd <elpa>
+
 ;;;; codepage 51932 設定
 (use-package cp5022x
   :config
@@ -6768,20 +5752,20 @@ GDBは動作しない可能性があります！") (sit-for 2))
 ;;;; dabbrev-ja
 ;; 使用中止
 
-;;;; ids-edit <elpa>
+;;;; ids-edit <elpa-posted>
 (use-package ids-edit
   :config
   (global-ids-edit-mode))
 
-;;;; ivariants
+;;;; ivariants <elpa>
 (use-package ivariants
-  :bind ("M-I" . ivariants-insert))
+  :init
+  (with-eval-after-load 'ivariants
+    (require 'ivariants-browse))
+  :bind (("M-I" . ivariants-insert)
+         ("C-c i" . ivariants-browse)))
 
-;;;; ivariants-browse
-(use-package ivariants-browse
-  :bind ("C-c i" . ivariants-browse))
-
-;;;; ivs-edit
+;;;; ivs-edit <elpa>
 (use-package ivs-edit
   :bind ("M-J" . ivs-edit))
 
@@ -6859,7 +5843,7 @@ GDBは動作しない可能性があります！") (sit-for 2))
 ;; 動かない場合がある。(uim-im-alistが空。)
 ;; その場合は、MacUIMを再度インストールすること。
 
-;;;; migemo
+;;;; migemo <elpa>
 ;; cmigemo search
 ;; https://github.com/Hideyuki-SHIRAI/migemo-for-ruby1.9
 ;; 上記の migemo.el を利用する。
@@ -6881,7 +5865,7 @@ GDBは動作しない可能性があります！") (sit-for 2))
                '("/usr/share/cmigemo/utf-8"      ; fedora
                  "/usr/local/share/migemo/utf-8" ; cvs
                  "/usr/share/migemo")))          ; ubuntu
-(use-package "migemo" :defer t
+(use-package migemo :defer t
   :if (and (null noninteractive)
            migemo-command migemo-dictionary)
   :config
@@ -6936,18 +5920,95 @@ GDBは動作しない可能性があります！") (sit-for 2))
            (executable-find "mozc_emacs_helper"))
   (setq default-input-method 'japanese-mozc))
 
-;;;; SKK
-;;(setq skk-user-directory (concat user-emacs-directory "/skk/"))
-;;(eval-after-load 'skk
-;;  '(progn
-;;     (bind-key "C-x C-j" 'skk-mode)
-;;     (bind-key "C-x j" 'skk-auto-fill-mode)
-;;     (setq skk-byte-compile-init-file t)
-;;     (setq skk-show-inline t)
-;;     (setq skk-large-jisyo "~/.emacs.d/skk/SKK-JISYO.L")
-;;     (setq skk-tut-file "~/.emacs.d/skk/SKK.tut")
-;;     ;;(setq skk-show-inline 'vertical)
-;;     ))
+;;;; sekka
+;; (~/.boot2docker/ 確認)
+;; % boot2docker upgrade
+;; % boot2docker init
+;; % boot2docker up
+;; % export DOCKER_HOST=tcp://192.168.59.103:2375
+;; % docker run -p 12929:12929 -t kiyoka/sekka
+(use-package sekka :defer t
+  :if (and (executable-find "nc")
+           (= 0 (call-process "nc" nil nil nil "-z" "localhost" "12929")))
+  :config
+  (setq sekka-server-url "http://127.0.0.1:12929/")
+  (setq current-sekka-server-url "http://127.0.0.1:12929/"))
+
+;;;; DDSKK
+;; http://openlab.ring.gr.jp/skk/maintrunk/
+;; http://openlab.ring.gr.jp/skk/dic.html
+;; http://coexe.web.fc2.com/skkfep.html （網羅的な紹介）
+;;;;; 辞書サーバ
+;; (http://openlab.ring.gr.jp/skk/skkserv.html)
+;; - dbskkd-cdb :: https://github.com/jj1bdx/dbskkd-cdb (2014/5)
+;; - rskkserv :: http://en.sourceforge.jp/projects/rskkserv/ (2005/6)
+;; - mecab-skkserv :: http://chasen.org/~taku/software/mecab-skkserv/ (2007)
+;; - multi-skkserv :: https://github.com/sina-ht/multiskkserv/tree/master (2009)
+
+;;;;; CDB辞書の生成
+;; % cd ~/src/ddskk-14.1/dic
+;; % wget http://openlab.jp/skk/dic/SKK-JISYO.L.gz
+;; % gunzip SKK-JISYO.L.gz
+;; % cd ..
+;; % make cdb
+
+(use-package skk :defer t
+  :bind (("M-O" . skk-mode)
+         ("C-x j" . skk-auto-fill-mode))
+  :config
+  (setq skk-user-directory
+        (expand-file-name "skk" user-emacs-directory))
+  ;;; 辞書設定
+  (let (fname)
+    (cond
+     ((and (executable-find "nc")
+           (= 0 (call-process "nc" nil nil nil "-z" "localhost" "1178")))
+      (setq skk-server-host "127.0.0.1")
+      (setq skk-server-portnum "1178")
+      (setq skk-large-jisyo nil)
+      ;; server completion
+      (add-to-list 'skk-search-prog-list
+                   '(skk-server-completion-search) t)
+      (add-to-list 'skk-search-prog-list
+                   '(skk-comp-by-server-completion) t))
+     ((file-exists-p (setq fname (expand-file-name "SKK-JISYO.L.cdb" skk-user-directory)))
+      (setq skk-cdb-large-jisyo fname))
+     ((file-exists-p (setq fname (expand-file-name "SKK-JISYO.L" skk-user-directory)))
+      (setq skk-large-jisyo fname)))
+    ;;(setq skk-extra-jisyo-file-list
+    ;;     (list "/usr/share/skk/SKK-JISYO.JIS2"
+    ;;           '("/usr/share/skk/SKK-JISYO.JIS3_4" . euc-jisx0213)
+    ;;           "/usr/share/skk/SKK-JISYO.notes"
+    ;;           "/usr/share/skk/SKK-JISYO.assoc"
+    ;;           "/usr/share/skk/SKK-JISYO.edict"
+    ;;           "/usr/share/skk/SKK-JISYO.geo"
+    ;;           "/usr/share/skk/SKK-JISYO.hukugougo"
+    ;;           "/usr/share/skk/SKK-JISYO.jinmei"
+    ;;           "/usr/share/skk/SKK-JISYO.law"
+    ;;           "/usr/share/skk/SKK-JISYO.okinawa"
+    ;;           "/usr/share/skk/SKK-JISYO.propernoun"
+    ;;           "/usr/share/skk/SKK-JISYO.pubdic+"
+    ;;           "/usr/share/skk/SKK-JISYO.station"
+    ;;           "/usr/share/skk/SKK-JISYO.zipcode"
+    ;;           "/usr/share/skk/SKK-JISYO.office.zipcode"))
+    ;;(setq skk-byte-compile-init-file t)
+    ;;; 表示設定
+    (setq skk-show-inline t)
+    (setq skk-show-inline 'vertical)
+    (setq skk-japanese-message-and-error t)
+    ;;; キーボードとチュートリアル
+    ;; かな＆NICOLAを使う場合：
+    ;; % cd ./nicola
+    ;; % make
+    ;; % make install （これができないならば、直接Emacs内部で (compile-nicola-ddskk) を実行。
+    ;;(setq skk-use-kana-keyboard t) ;; t だと 「qwerty」→「たていすかんな」
+    ;;(setq skk-kanagaki-keyboard-type 'nicola-us) ; skk-kanagaki-nicola-us-base-rule-list
+    ;;(setq skk-kanagaki-keyboard-type 'omelet-us) ; skk-kanagaki-omelet-us-rule-list
+    ;;(setq skk-tut-file "/usr/local/share/skk/NICOLA-SKK.tut")
+    ;;; AZIK
+    (setq skk-use-azik t)
+    (setq skk-azik-keyboard-type 'us101)
+    (setq skk-show-candidates-always-pop-to-buffer t)))
 
 ;;;; smartchr <abstain>
 ;; 簡易テンプレート入力機構
@@ -6959,15 +6020,1473 @@ GDBは動作しない可能性があります！") (sit-for 2))
 ;;    (bind-key "%" (smartchr '("%" "%%" "%{`!!'}" ruby-mode-map)))
 ;;    (bind-key "W" (smartchr '("W" "%w[`!!']" "WW"  ruby-mode-map)))))
 
-;;;; tc <elpa>
+;;;; tc <elpa> (abstain)
 ;; tcode/bushu.index2 が見つかりません、等のエラーが出るので中止。
 ;; isearch-search を行儀悪く上書きするので使用中止。
 
-;;; アプリケーション
-;;;; ac-inf-ruby <elpa>
-(use-package ac-inf-ruby :defer t
+;;; 非標準メジャーモード、および関連マイナーモード
+;;;; abc-mode <elpa>
+;; abc音楽ファイルを編集メジャーモード。abcm2ps で楽譜PSファイルに変換。
+;; * 問題
+;;   autoload 時の auto-insert-mode の設定が不適切で autoload にしてエ
+;;   ラーを引き起こすため使用中止（2013/07/08） EmacsWikiでは修正済。
+(use-package abc-mode
+  :mode "\\.ab[cp]\\'"
+  :config (require 'align))
+
+;;;; ac-c-headers <elpa> (abstain)
+;; #include <s[tdio.h>]   <- ac-source-c-headers
+;; pr[intf]               <- ac-source-c-header-symbols
+;;(use-package ac-c-headers :defer t
+;;  :init
+;;  (add-hook 'c-mode-hook
+;;            (lambda ()
+;;              (when (and (require 'auto-complete nil :no-error)
+;;                         (require 'ac-c-headers 'nil :no-error))
+;;                (add-to-list 'ac-sources 'ac-source-c-headers)
+;;                (add-to-list 'ac-sources 'ac-source-c-header-symbols t)))))
+
+;;;; ac-js2 <elpa> (abstain)
+;; Auto-complete source for Js2-mode
+;;(use-package ac-js2 :defer t
+;;  :init
+;;  (add-hook 'js2-mode-hook 'ac-js2-mode))
+
+;;;; ac-nrepl <elpa> (abstain)
+;; Clojure に対する、ciderを用いた自動補完
+;; M-x cider, M-x cider-jack-in
+;;(lazyload () "cider-repl-mode"
+;;  (when (functionp 'ac-nrepl-setup)
+;;    (add-hook 'cider-repl-mode-hook 'ac-nrepl-setup))
+;;)
+
+;;(lazyload () "cider-interaction"
+;;(when (functionp 'ac-nrepl-setup)
+;;  (add-hook 'cider-interaction-mode-hook 'ac-nrepl-setup))
+;;)
+
+;;;; ac-slime <elpa> (abstain)
+;;(use-package ac-slime :defer t
+;;  :init
+;;  (add-hook 'slime-mode-hook 'set-up-slime-ac)
+;;  (add-hook 'slime-repl-mode-hook 'set-up-slime-ac)
+;;  (with-eval-after-load 'auto-complete
+;;    (add-to-list 'ac-modes 'slime-repl-mode)))
+
+;;;; agda2-mode
+;; * インストール
+;;   : % export PATH=$HOME/Library/Haskell/bin:$PATH
+;;   : % cabal update
+;;   : % cabal install cabal-install
+;;   : % cabal install agda
+;; * トラブルシューティング
+;;   : % ghc-pkg check
+;;   : % sudo ghc-pkg recache
+;;   : % cabal install --reinstall --force-reinstall <pkg-name>
+(use-package agda2-mode :defer t
+  :mode ("\\.l?agda\\'" . agda2-mode))
+
+;;;; anaconda-mode <elpa>
+;; Python プログラミングモード
+;; TODO: 実験
+
+;;;; asn1-mode <elpa>
+(use-package asn1-mode :defer t
+  :mode (("\\.mo$" . asn1-mode)
+         ("\\.asn1$" . asn1-mode)
+         ("\\.gdmo$" . asn1-mode))
+  :config
+  (add-hook 'asn1-mode-hook
+            (lambda ()
+              (setq tab-width 4)
+              (setq indent-tabs-mode t))))
+
+;;;; apache-mode <elpa>
+(use-package apache-mode
+  :mode
+  (("\\.htaccess\\'"   . apache-mode)
+   ("httpd\\.conf\\'"  . apache-mode)
+   ("srm\\.conf\\'"    . apache-mode)
+   ("access\\.conf\\'" . apache-mode)
+   ("sites-\\(available\\|enabled\\)/" . apache-mode)))
+
+;;;; apples-mode <elpa>
+;; http://d.hatena.ne.jp/sandai/20120613/p2
+;; M-x apples-open-scratch
+(use-package apples-mode :defer t
+  :mode (("\\.applescript$" . applescript-mode)
+         ("\\.scpt$" . applescript-mode)))
+
+;;;; applescript-mode <elpa> (obsolete)
+;; → apples-mode へ移行。
+;;(lazyload ((add-to-auto-mode-alist '("\\.applescript$" . applescript-mode)))
+;;    "applescript-mode")
+
+;;;; ats-mode
+;; http://svn.code.sf.net/p/ats-lang/code/trunk/utils/emacs/ats-mode.el
+(use-package ats-mode
+  :mode (("\\.ats\\'" . ats-mode)
+         ("\\.yats\\'" . ats-parser-mode)
+         ("\\.lats\\'" . ats-lexer-mode)
+         ("\\.\\(d\\|s\\)ats\\'" . ats-two-mode-mode)))
+
+;;;; auctex <elpa>
+;;;;; メモ
+;; auto-mode-alist は自動追加される。
+;; http://oku.edu.mie-u.ac.jp/~okumura/texfaq/auctex.html
+;; http://oku.edu.mie-u.ac.jp/~okumura/texwiki/?AUCTeX#db9dca5d
+;; http://ftp.gnu.org/pub/gnu/auctex/11.86-extra/tex-ref.pdf
+;; Emacs 24.4 以降は、autoload からのファイル参照を許さないため、
+;; auctex-autoloades.el の (require 'tex-site) は削除した方が無難か。
+;; (require 'tex-site nil :noerror)
+;;;;; auctex/tex
+(defvar TeX-engine 'euptex) ; tkw-TeX-engine-set で変更。
+
+;; - LatexMk Options
+;; |        | opt                                  | PDF出力 | DVI出力 |
+;; |--------+--------------------------------------+---------+---------|
+;; | euptex | -latex='uplatex -synctex=1 ...'      | -pdfdvi | -dvi    |
+;; | luatex | -pdflatex='lualatex --synctex=1 ...' | -pdf    |         |
+;; | xetex  | -pdflatex='xelatex -synctex=1 ...'   | -pdf    |         |
+;; - 表示ソフト（SyncTeX対応）
+;;   + MacOS :: Skia
+;;   + Linux :: Evince
+;;   + Windows :: SumatraPDF
+(defun tkw-latexmk-command (latex options &optional target output)
+  "Generate LatexMk command line for LATEX, (LatexMk-)OPTIONS, TARGET and OUTPUT directory."
+  (let* ((latex-options
+         '("-src-specials" "-file-line-error" "-interaction=nonstopmode"
+           "-shell-escape" "-synctex=1"))
+         (luatex-option
+          (mapconcat (lambda (opt) (concat "-" opt)) latex-options " "))
+         (latex-option
+          (mapconcat 'identity latex-options " ")))
+    (concat "latexmk -gg " options " "
+            (case latex
+              ('euptex "-pdfdvi -latex='uplatex ")
+              ('xetex  "-pdf -pdflatex='xelatex ")
+              ('luatex "-pdf -pdflatex='lualatex "))
+            (case latex
+              ('luatex luatex-option)
+              (t latex-option))
+            "' "
+            (if output (concat "-output-directory=" output " "))
+            target)))
+
+(use-package auctex
+  :commands (tkw-TeX-engine-set)
+  :config
+  (require 'latex)
+  (setq TeX-engine-alist
+        '(;;(symbol name %(tex) %(latex) ConText)
+          (euptex "eupTeX" "euptex" "uplatex" "euptex")
+          (xetex "XeTeX" "xetex" "xelatex" "xetex")
+          (luatex "LuaTeX" "luatex" "lualatex" "luatex")))
+  ;; 以下の設定は、複数ファイルをソースにするときの情報
+  (setq TeX-auto-save t) ; 保存時にスタイル情報も保存
+  (setq TeX-parse-self t) ; 読み込み時にファイルをパーズ
+  (setq-default TeX-master nil) ; ?
+  ;; [[info:auctex#Japanese]]
+  ;;(setq TeX-default-mode 'japanese-latex-mode)
+  ;; 上記の設定で、TeX-Commandの参照先が japanese-(La)TeX-command に切り替わる。
+  (setq TeX-command-default "TeX")
+  ;; TeX-viewer
+  (setq TeX-view-program-selection '((output-pdf "PDF Viewer")))
+  (setq TeX-view-program-list
+        '(("PDF Viewer" "/Applications/Skim.app/Contents/SharedSupport/displayline -b -g %n %o %b")))
+
+  ;; エンジンに応じた設定
+  (defun tkw-TeX-engine-set (&optional engine)
+    (interactive)
+    (if (null engine)
+        (call-interactively 'TeX-engine-set)
+      (setq TeX-engine engine))
+    (setq-default TeX-engine TeX-engine)
+    (case TeX-engine
+      ('luatex
+       (setq LaTeX-default-style   "ltjsarticle")
+       (add-hook 'LaTeX-mode-hook 'TeX-PDF-mode))
+      ('xetex
+       (setq LaTeX-default-style   "bxjsarticle")
+       (add-hook 'LaTeX-mode-hook 'TeX-PDF-mode))
+      ('euptex
+       (setq LaTeX-default-style   "jsarticle")
+       (remove-hook 'LaTeX-mode-hook 'TeX-PDF-mode)
+       (add-to-list
+        'TeX-output-view-style
+        '("^dvi$" "."
+          "%(o?)xdvi -watchfile 1 %dS %d"))
+       (add-to-list
+        'TeX-output-view-style
+        '("^pdf$" "."
+          "/Applications/Skim.app/Contents/SharedSupport/displayline %n %o %b"))))
+    ;; TeX-command-list
+    (setq TeX-command-list (tkw-assoc-delete-all "LatexMk" TeX-command-list))
+    (setq TeX-command-list
+          (cons
+           `("LatexMk"
+             ,(tkw-latexmk-command TeX-engine "-pvc" "%t")
+             TeX-run-TeX nil (latex-mode) :help "Run LatexMk")
+           TeX-command-list))
+    ;;(setq LaTeX-command-default "LatexMk")
+    ))
+
+;;;;; auctex/latex
+(use-package auctex :defer t
+  :config
+  (add-hook 'LaTeX-mode-hook 'turn-on-reftex)
+  (add-hook 'LaTeX-mode-hook 'TeX-source-correlate-mode) ; src-specials に対応
+  (add-hook 'LaTeX-mode-hook 'TeX-PDF-mode) ; synctex に対応
+  (add-hook 'LaTeX-mode-hook 'LaTeX-math-mode)
+  (add-hook 'LaTeX-mode-hook 'outline-minor-mode)
+  (add-hook 'LaTeX-mode-hook 'tkw-latex-mode-initialization)
+  (setq LaTeX-indent-level 4)
+  (setq LaTeX-item-indent 2))
+
+(declare-function TeX-match-style "tex")
+(declare-function TeX-engine-set "tex")
+;; TODO TeX-engine-set → tkw-TeX-engine-set
+(defun tkw-latex-mode-initialization ()
+  "Automatically detect appropriate TeX engine from style specification."
+  (require 'tex nil t)
+  (let
+      ((engine
+        (cond
+         ((TeX-match-style "\\`[jt]s?\\(article\\|report\\|book\\)\\'\\|\\`uplatex\\'")
+          'euptex)
+         ((TeX-match-style "\\`bxjs\\(article\\|report\\|book\\)\\'")
+          'xetex)
+         ((TeX-match-style "\\`ltj\\(article\\|report\\|book\\)\\'")
+          'luatex))))
+    (when engine (tkw-TeX-engine-set engine))))
+
+;;;;; auctex/bib-cite
+(use-package bib-cite :defer t
+  :config
+  (setq bib-cite-use-reftex-view-crossref t))
+
+;;;;; auctex-latexmk
+;; M-x TeX-command-master にlatexmkメニュー追加
+;; TeX-command-list を LaTeXMkだけに統一する。
+;; C-c C-c で一発全部Make
+;;(lazyload () "tex"
+;;  (when (functionp 'auctex-latexmk-setup)
+;;    (auctex-latexmk-setup)
+;;    (setq japanese-LaTeX-command-default "LaTexMk")))
+
+;;;; auctex-lua <elpa>
+;; - M-x LaTeX-edit-Lua-code-start
+
+;;;; auto-complete-clang <elpa> (abstain)
+;; auto-complete-clang-async へ移行。
+
+;;;; auto-complete-clang-async <elpa> (abstain)
+;; C/C++ 用 auto-complete。ソースコード解析に libclang を使用する。
+;; - 参照 :: https://github.com/8bit-jzjjy/emacs-clang-complete-async
+;; * インストール
+;;   : % brew install emacs-clang-complete-async
+;;   で、`clang-complete' がインストールされる。
+;;(use-package auto-complete-clang-async :defer t
+;;  :if (and (functionp 'ac-cc-mode-setup)
+;;           (setq ac-clang-complete-executable
+;;                 (executable-find "clang-complete")))
+;;  :init
+;;  (add-hook 'c-mode-common-hook 'ac-cc-mode-setup)
+;;  :config
+;;  (defun ac-cc-mode-setup ()
+;;    (setq ac-sources '(ac-source-clang-async))
+;;    (ac-clang-launch-completion-process)))
+
+;;;; auto-complete-nxml <elpa> (abstain)
+;;(use-package auto-complete-nxml :defer t
+;;  :init
+;;  (with-eval-after-load 'nxml-mode
+;;    (require 'auto-complete-nxml nil :no-error)))
+
+;;;; auto-compile <elpa>
+;; Elisp ファイルを保存する際に自動的にコンパイルする。
+(use-package auto-compile :defer t
+  :diminish "♺"
   :init
-  (add-hook 'inf-ruby-mode-hook 'ac-inf-ruby-enable))
+  (add-hook 'emacs-lisp-mode-hook 'auto-compile-mode))
+
+;;;; c-eldoc <elpa>
+(use-package c-eldoc :defer t
+  :init
+  (add-hook 'c-mode-hook 'c-turn-on-eldoc-mode))
+
+;;;; cdlatex
+;; Emacs 24.3では last-command-char が使えないので使用禁止。
+;; (when (functionp 'turn-on-cdlatex)
+;;   (add-hook 'LaTeX-mode-hook 'turn-on-cdlatex)
+;;   (add-hook 'latex-mode-hook 'turn-on-cdlatex))
+;; org-mode でも、M-x org-cdlatex-mode で利用可能。
+
+;;;; caml <elpa>
+;; → tuareg に移行。
+
+;;;; ceylon-mode
+;; - samples :: /usr/share/doc/ceylon-1.0.0/samples/
+;; - man (1) :: ceylon, ceylon-doc, ceylon-doc-tool, ceylon-compile-js, ceylon-run-js, etc.
+(use-package cc-mode
+  :mode ("\\.ceylon$" . ceylon-mode)
+  :config
+  (define-derived-mode ceylon-mode prog-mode "Java"
+    "Major mode for editing Ceylon code."
+    (c-initialize-cc-mode t)
+    (set-syntax-table java-mode-syntax-table)
+    (setq local-abbrev-table java-mode-abbrev-table
+          abbrev-mode t)
+    (use-local-map java-mode-map)
+    (c-init-language-vars-for 'java-mode)
+    (c-common-init 'java-mode)
+    (easy-menu-add c-java-menu)
+    (cc-imenu-init cc-imenu-java-generic-expression)
+    (c-run-mode-hooks 'c-mode-common-hook 'java-mode-hook)
+    (c-update-modeline)))
+
+;;;; cider <elpa>
+;; ref. https://github.com/clojure-emacs/cider
+;; M-x cider-jack-in (in leiningen mode)
+;; M-x cider (`% lein repl' is executed)
+(use-package cider :defer t
+  :config
+  ;; (when (require 'auto-complete nil :no-error)
+  ;;   (add-to-list 'ac-modes 'cider-repl-mode))
+  ;; (when (functionp 'cider-turn-on-eldoc-mode)
+  ;;   (add-to-list 'cider-repl-mode-hook 'cider-turn-on-eldoc-mode))
+  ;; *nrepl-connection* と *nrepl-server* を隠す
+  ;; (setq nrepl-hide-special-buffers t)
+  ;; (setq cider-repl-tab-command 'indent-for-tab-command)
+  ;; (setq cider-repl-pop-to-buffer-on-connect nil)
+  ;; (setq cider-popup-stacktraces nil)
+  ;;(setq cider-repl-popup-stacktraces t)
+  ;;(setq cider-auto-select-error-buffer t)
+  ;; (setq nrepl-buffer-name-separator "-")
+  ;;(setq nrepl-buffer-name-show-port t)
+  ;; (setq cider-repl-display-in-current-window t)
+  ;;(when (functionp 'subword-mode)
+  ;;  (add-hook 'cider-repl-mode-hook 'subword-mode))
+  ;;(when (functionp 'smartparens-strict-mode)
+  ;;  (add-hook 'cider-repl-mode-hook 'smartparens-strict-mode))
+  )
+
+;;;; clojure-cheatsheet <elpa>
+;; nrepl で nREPLサーバと接続されている必要がある。
+;; - clojure-cheatsheet :: helmで選択されたコマンドのドキュメントを表示
+
+;;;; clojure-mode <elpa>
+;; http://github.com/jochu/clojure-mode
+;; 通常はclojureを直接使わず、lein を経由してプログラムする。
+;; % lein new tkw-project
+;; % cd tkw-project
+
+;;;; clojure-test-mode <elpa>
+;; http://clojure-doc.org/articles/tutorials/emacs.html
+
+;;;; cmake-mode <elpa>
+;; http://www.cmake.org/CMakeDocs/cmake-mode.el
+(use-package cmake-mode :defer t
+  :mode (("CMakeLists\\.txt\\'" . cmake-mode)
+         ("\\.cmake\\'" . cmake-mode)))
+
+;;;; cobol-mode
+;; http://www.emacswiki.org/emacs/cobol-mode.el
+(use-package cobol-mode
+  :mode ("\\.cob" . cobol-mode))
+
+;;;; coffee-mode <elpa>
+;; - autoloaded-mode :: .coffee, .iced, Cakefile, coffee
+
+;;;; company-auctex <elpa>
+;;;; company-c-headers <elpa>
+;;;; company-edbi <elpa>
+;;;; company-ghc <elpa>
+;;;; company-go <elpa>
+;;;; company-inf-ruby <elpa>
+;;;; company-tern <elpa>
+;;;; cpputils-cmake <elpa>
+;; https://github.com/redguardtoo/cpputils-cmake
+(use-package cpputils-cmake
+  :commands (cppcm-get-exe-path-current-buffer)
+  :init
+  (add-hook 'c-mode-hook (lambda () (cppcm-reload-all)))
+  (add-hook 'c++-mode-hook (lambda () (cppcm-reload-all)))
+  ;; OPTIONAL, somebody reported that they can use this package with Fortran
+  (add-hook 'c90-mode-hook (lambda () (cppcm-reload-all)))
+  ;; OPTIONAL, avoid typing full path when starting gdb
+  (global-set-key (kbd "C-c M-g")
+                  '(lambda ()(interactive) (gud-gdb (concat "gdb --fullname " (cppcm-get-exe-path-current-buffer)))))
+  :config
+  ;; OPTIONAL, some users need specify extra flags forwarded to compiler
+  (setq cppcm-extra-preprocss-flags-from-user '("-I/usr/src/linux/include" "-DNDEBUG")))
+
+;;;; crontab-mode <elpa>
+(use-package crontab-mode :defer t
+  :mode (("\\.cron\\(tab\\)?\\'" . crontab-mode)
+         ("cron\\(tab\\)?\\."    . crontab-mode)))
+
+;;;; csharp-mode <elpa>
+
+;;;; d-mode <elpa>
+;; http://prowiki.org/wiki4d/wiki.cgi?EditorSupport/EmacsEditor
+;; http://www.emacswiki.org/emacs/FlyMakeD
+;; http://qiita.com/tm_tn/items/1d01c4500e1ca7632140
+;; auto-mode-alist などは autoloadで設定済み
+(use-package d-mode :defer t
+  :config
+  ;; flymake
+  (require 'flymake)
+  (defun flymake-D-init ()
+    (let* ((temp-file (flymake-init-create-temp-buffer-copy
+                       'flymake-create-temp-inplace))
+           (local-file (file-relative-name
+                        temp-file
+                        (file-name-directory buffer-file-name))))
+      (list "dmd" (list "-c" local-file))))
+  (add-to-list 'flymake-allowed-file-name-masks
+               '(".+\\.d$" flymake-D-init
+                 flymake-simple-cleanup flymake-get-real-file-name))
+  (add-to-list 'flymake-err-line-patterns
+               '("^\\([^ :]+\\)(\\([0-9]+\\)): \\(.*\\)$" 1 2 nil 3)))
+
+;;;; dedukti-mode <elpa>
+;; Dedukti is a universal proof checker, based on the λΠ-calculus modulo.
+;; https://www.rocq.inria.fr/deducteam/Dedukti/
+(use-package dedukti-mode :defer t
+  :mode ("\\.dk$" . deduki-mode)
+  :config
+  (setq dedukti-path (executable-find "dkcheck")))
+
+;;;; docbook <elpa> (abstain)
+;; M-x docbook-find-file
+
+;;;; dockerfile-mode <elpa>
+;; sh-mode の拡張
+;; [autoload設定済] auto-mode-alist
+
+;;;; dokuwiki-mode <elpa>
+;; `dokuwiki-mode' is autoloaded.
+
+;;;; doxymacs
+;; doxygen mode for emacs.
+;;(if (locate-library "doxymacs")
+;;    (require 'doxymacs))
+
+;;;; emacs-eclim <elpa>
+;; https://github.com/senny/emacs-eclim
+;; Installation : http://eclim.org/install.html
+(use-package eclim
+  :commands (global-eclim-mode)
+  :config
+  (help-at-pt-set-timer)
+  (setq eclim-auto-save nil)
+  ;;(when (require 'ac-emacs-eclim-source nil :no-error)
+  ;;  (ac-emacs-eclim-config))
+  ;;(when (and (require 'company nil :no-error)
+  ;;           (require 'company-emacs-eclim nil :no-error))
+  ;;  (company-emacs-eclim-setup)
+  (require 'eclimd))
+
+(use-package eclimd :defer t
+  :config
+  (let ((workspace "~/Documents/workspace"))
+    (when (file-directory-p workspace)
+      (setq eclimd-default-workspace workspace))))
+
+;;;; egison-mode <elpa>
+;; - 参照 :: http://www.egison.org/
+;; * Install
+;;   : % cabal update
+;;   : % cabal install egison
+(use-package egison-mode
+  :mode ("\\.egi$" . egison-mode))
+
+;;;; eldoc-eval <elpa>
+;; ミニバッファのeldoc表示を行なう。
+;; また、ミニバッファでの評価結果は新しいバッファで表示する。
+;; 注意！ Emacs 24.4 では不要。
+;;(when (version< emacs-version "24.4")
+;;  (lazyload (;;eldoc-eval-expression
+;;             ;;(bind-key "M-:" 'eldoc-eval-expression)
+;;             ) "eldoc-eval"
+;;    (setq eldoc-in-minibuffer-mode-lighter
+;;          (if (eq window-system 'mac) "💁" "評"))))
+;;
+;;(when-interactive-and (functionp 'eldoc-in-minibuffer-mode)
+;;  (eldoc-in-minibuffer-mode t))
+
+;;;; elisp-slime-nav <elpa>
+;; M-. で定義に行って、M-, で戻る。
+(use-package elisp-slime-nav
+  :init
+  (dolist (hook '(emacs-lisp-mode-hook
+                  ielm-mode-hook
+                  lisp-interaction-mode-hook))
+    (add-hook hook 'turn-on-elisp-slime-nav-mode)))
+
+;;;; elixir-mode <elpa>
+;; http://elixir-lang.org/
+;; - autoload :: ("\\.exs$" . elixir-mode) ("\\.exs$" . elixir-mode)
+;;               ("\\.ex$" . elixir-mode)
+
+;;;; elixir-mix <elpa>
+;; elixir package management
+(use-package elixir-mix :defer t
+  :if (functionp 'elixir-mode)
+  :init
+  (add-hook 'elixir-mode-hook 'global-elixir-mix-mode))
+
+;;;; eww-lnum <elpa>
+;; ewwのリンクのショートカット番号をつけたり、またはリンク先を
+;; ダウンロード・URLコピーする機能。
+(use-package eww-lnum :defer t
+  :init
+  (with-eval-after-load "eww"
+  (define-key eww-mode-map "f" 'eww-lnum-follow)
+  (define-key eww-mode-map "F" 'eww-lnum-universal)))
+
+;;;; emathica (obsolete)
+;; Mathematica開発モード。 → math++.elに移行。
+;;(defvar emathica-comint-program-name
+;;  (executable-find "/Applications/Mathematica.app/Contents/MacOS/MathKernel"))
+;;(when emathica-comint-program-name
+;;  (lazyload (emathica-m-mode
+;;             (add-to-auto-mode-alist '("\\.m\\'" . emathica-m-mode)))
+;;      "emathica"))
+
+;;;; epsilon
+;; プログラミング言語 GNU epsilon
+;; http://arxiv.org/pdf/1212.5210v5.pdf
+;; http://www.gnu.org/software/epsilon
+(use-package epsilon
+  :mode ("\\.e$" . epsilon-mode))
+
+;;;; enh-ruby-mode <elpa>
+;; auto-mode-alist は gemspec, Rakefile, rb を設定済。
+;; % cd ~/.emacs.d/elpa/yasnippet-201*/snippets
+;; % cp -pr ruby-mode enh-ruby-mode
+(use-package enh-ruby-mode
+  :mode (("Gemfile" . enh-ruby-mode)
+         ("Capfile" . enh-ruby-mode)
+         ("Vagrantfile" . enh-ruby-mode))
+  :config
+  ;;(when (require 'auto-complete nil :no-error)
+  ;;  (add-to-list 'ac-modes 'enh-ruby-mode))
+  (setq enh-ruby-bounce-deep-indent t)
+  (setq enh-ruby-hanging-brace-indent-level 2))
+
+;;;; ensime <elpa>
+;; * 注意
+;;   2013.10 現在、きちんと動作しない。
+;; * マニュアル
+;;   http://aemoncannon.github.io/ensime/index.html
+;; * 導入ブログ
+;;   http://blog.recursivity.com/post/21844929303/using-emacs-for-scala-development-a-setup-tutorial
+;;   http://rktm.blogspot.com/2012/12/emacsscala.html
+;;   http://d.hatena.ne.jp/tototoshi/20100927/1285595939
+;; * SBT の利用
+;;   $ mkdir hello
+;;   $ cd hello
+;;   $ echo 'object Hi { def main(args: Array[String]) = println("Hi!") }' > hw.scala
+;;   $ sbt
+;;   > run
+;;   (慣れたら project/plugin/src ディレクトリに分割し、build.sbt ファイルを作成する。)
+;; * セットアップ手順
+;;   - ~/.sbt/plugins/plugins.sbt または /PROJECT/project/plugins.sbt に、
+;;      'addSbtPlugin("org.ensime" % "ensime-sbt-cmd" % "0.1.2")' を記述。
+;;     （ここの 0.1.2 の数字は https://github.com/aemoncannon/ensime-sbt-cmd を参照して適宜変更）
+;; * 利用手順
+;;   (1) SBTプロジェクトの流儀に従いソースコードを配置し、フォルダ内で、
+;;       % sbt "ensime generate"
+;;       を実行すると、デバッガに必要な情報を収集した .ensime ファイルが生成される。
+;;   (2) M-x ensime を実行すると、 <ensime>/bin/server → <ensime>/lib/ensime-XX.jar が起動して、通信を開始。
+
+(use-package scala-mode2 :defer t
+  :config
+  (when (require 'ensime nil :no-error)
+    (add-hook 'scala-mode-hook 'ensime-scala-mode-hook)))
+
+;;;; erefactor <elpa>
+;; autoloaded : erefactor-map
+(use-package erefactor :defer t
+  :init
+  (add-hook 'emacs-lisp-mode-hook 'erefactor-lazy-highlight-turn-on)
+  (add-hook 'lisp-interaction-mode-hook 'erefactor-lazy-highlight-turn-on)
+  :config
+  (with-eval-after-load 'lisp-mode
+    (when (boundp 'erefactor-map)
+      (bind-key "C-c C-v" erefactor-map emacs-lisp-mode-map))))
+
+;;;; erlang <elpa>
+;; autoload にて、 .escript, .erl, .hrl のauto-mode-alistへの追加が自動的に行われる。
+(use-package erlang :defer t
+  :config
+  (require 'erlang-flymake nil :no-error))
+
+;;;; ess <elpa>
+;; ドキュメント : http://ess.r-project.org/Manual/ess.html#Command_002dline-editing
+;; M-x R で起動
+(use-package ess-site :defer t
+  :mode ("\\.[rR]\\'" . R-mode))
+
+;;;; feature-mode <elpa>
+;; Cucumber/Ecukes の編集用モード
+
+;;;; flymake-clang-c++
+;; https://github.com/necaris/emacs-config/blob/master/.emacs.d/flymake-clang-c%2B%2B.el
+(use-package flymake-clang-c++ :defer t
+  :commands (flymake-clang-c++-load)
+  :init
+  (add-hook 'c++-mode-hook 'flymake-clang-c++-load))
+
+;;;; flymake-elixir <elpa>
+(use-package flymake-elixir :defer t
+  :init
+  (add-hook 'elixir-mode-hook 'flymake-elixir-load))
+
+;;;; flymake-go <abstain>
+;; 2014.11 flymake 0.4.13 を要求してうまく動作しない。
+(use-package flymake-go :defer t
+  :init
+  (with-eval-after-load 'go-mode
+    (require 'flymake-go nil :no-error)))
+
+;;;; flymake-json <elpa>
+;; → flycheck へ移行。
+;; % npm install jsonlint -g
+;; TODO json-schema への対応
+;;(use-package flymake-json :defer t
+;;  :init
+;;  (add-hook 'json-mode 'flymake-json-load))
+
+;;;; flymake-ruby <elpa>
+;; → flycheck へ移行
+;; (use-package flymake-ruby :defer t
+;;   :init
+;;   (add-hook 'ruby-mode-hook 'flymake-ruby-load)
+;;   (add-hook 'enh-ruby-mode-hook 'flymake-ruby-load))
+
+;;;; flymake-shell <elpa>
+;; → flycheck へ移行。
+;; (use-package flymake-shell :defer t
+;;   :init
+;;   (add-hook 'sh-set-shell-hook 'flymake-shell-load))
+
+;;;; fsharp-mode <elpa>
+;; https://github.com/fsharp/fsharpbinding/tree/master/emacs
+;; - autoload :: '("\\.fs[iylx]?$" . fsharp-mode)
+;; コンパイラは Mac の場合は Mono Development Kit に同梱。
+;; （インストールすると /usr/bin にシンボリックリンクが設定される。）
+;; - fsharpi :: インタプリタ
+;; - fsharpc :: コンパイラ
+
+;;;; fuel <elpa>
+;; Factor Programming Language (http://factorcode.org/)
+;; - auto-mode-alist :: ".factor"
+;; - interpreter :: factor
+(use-package fuel :defer t)
+
+;;;; gauche-manual
+;; https://code.google.com/p/gauche-manual-el/
+(use-package gauche-manual
+  :commands gauche-manual
+  :defines scheme-mode-map
+  :config
+  (add-hook 'scheme-mode-hook
+            (lambda ()
+              (bind-key "C-c C-f" 'gauche-manual scheme-mode-map))))
+
+;;;; gccsense (obsolete)
+;; → auto-complete-clang-async に移行
+;; http://cx4a.org/software/gccsense/manual.ja.html
+;; <2013/02>
+;; gcc-code-assist をコンパイルしようとすると、
+;; mpfr がインストールされているにも関わらず、
+;;   ld: library not found for -lmpfr
+;; と出てくる。ライブラリのインストール方法の問題か。
+;; (and
+;;  (executable-find "gcc-code-assist")
+;;  (executable-find "g++-code-assist")
+;;  (lazyload
+;;      (gccsense-complete
+;;       gccsense-flymake-setup
+;;       ac-complete-gccsense
+;;       (add-hook
+;;        'c-mode-common-hook
+;;        (lambda ()
+;;           (local-set-key (kbd "C-c .") 'ac-complete-gccsense))))
+;;      "gccsense"))
+
+;;;; geben <elpa>
+;; DBGp プロトコルを使ったデバッガ
+;; https://code.google.com/p/geben-on-emacs/
+;; PHPでは XDEBUG_SESSION_START を設定
+(use-package geben
+  :commands (geben))
+
+;;;; geiser-mode (obsolete)
+;; Scheme REPL and documentation browser.
+;; following is defined in autoload.
+;; (add-hook 'scheme-mode-hook 'geiser-mode--maybe-activate)
+
+;;;; ghc <elpa>
+;; haskell-mode の文書参照等の強化
+;; % cabal install ghc-mod
+(use-package ghc :defer t
+  :init
+  (add-hook 'haskell-mode-hook (lambda () (ghc-init) (flymake-mode))))
+
+;;;; git-commit-mode <elpa>
+;; - autoload :: '("/COMMIT_EDITMSG\\'" "/NOTES_EDITMSG\\'"
+;;                 "/MERGE_MSG\\'" "/TAG_EDITMSG\\'"
+;;                 "/PULLREQ_EDITMSG\\'")
+
+;;;; git-gutter-fringe+ <elpa>
+;; fringe 版を使う。（本家は遅い）
+(use-package git-gutter-fringe+
+  :bind ("C-c M" . git-gutter+-toggle-fringe)
+  :config
+  (setq git-gutter+-lighter
+        (propertize "溝" 'face '(:foreground "blue"))))
+
+;;;; gnu-apl-mode <elpa>
+;; % brew install gnu-apl
+;; quail input method "APL-Z" is also registered.
+;; http://commons.wikimedia.org/wiki/File:GNU_APL_keyboard_layout.png
+(use-package gnu-apl-mode
+  ;; :init
+  ;; (register-input-method "APL-Z" "Input mode for APL"
+  ;;                        'apl-mode "APL-Z")
+  :mode ("\\.apl\\'" . gnu-apl-mode)
+  :interpreter ("gnu-apl" . gnu-apl-mode))
+
+;;;; go-autocomplete <elpa>
+(use-package go-autocomplete :defer t
+  :init
+  (with-eval-after-load 'go-mode
+    (require 'go-autocomplete)))
+
+;;;; go-eldoc <elpa>
+;; http://golang.org/
+;; http://golang.org/doc/gdb
+;; http://unknownplace.org/archives/golang-gdb-osx.html
+(use-package go-eldoc :defer t
+  :init
+  (add-hook 'go-mode-hook 'go-eldoc-setup))
+
+;;;; go-mode <elpa>
+;; - autoload :: ("\\.go\\'" . 'go-mode)
+;; M-x helm-go-packages
+(use-package go-mode :defer t
+  :config
+  (when (functionp 'helm-go-package)
+    (substitute-key-definition 'go-import-add 'helm-go-package go-mode-map))
+  (with-eval-after-load 'smart-compile
+    (add-to-list 'smart-compile-alist '("\\.go$" . "go build %f"))))
+
+;;;; gradle-mode <elpa>
+;; Ant/Maven に代わる groovy DSL 型ビルドツール
+(use-package gradle-mode
+  :mode ("\\.gradle$" . gradle-mode))
+
+;;;; graphviz-dot-mode <elpa>
+;; - autoload :: ("\\.dot\\'" . graphviz-dot-mode) ("\\.gv\\'" . graphviz-dot-mode)
+
+;;;; grizzl <elpa>
+;; Emacs Lisp の検索ツール
+(use-package grizzl :defer t
+  :init
+  (with-eval-after-load 'projectile
+    (setq projectile-completion-system 'grizzl)))
+
+;;;; groovy-mode <elpa>
+;; http://groovy.codehaus.org/
+;; auto-mode-alist 追加は自動で行われる。
+
+;;;; haml-mode <elpa>
+;; HTMLやそのテンプレートをより見やすい構文で扱う。
+;; RoRやmerbで利用。
+
+;;;; haskell-mode <elpa>
+;; Haskell の関数名を、実際の記号に置換するfont-lock
+;; * MacOS
+;;   uninstall: /Library/Haskell/bin/uninstall-hs
+;; - autoload :: haskell-mode haskell-hayoo haskell-hoogle
+;;               ("\\.\\(?:[gh]s\\|hi\\)\\'" . haskell-mode)
+;;               ("\\.l[gh]s\\'" . literate-haskell-mode)
+;;               ("runghc" . haskell-mode)
+(use-package haskell-mode :defer t
+  :mode ("\\.purs\\'" . haskell-mode) ;; PureScript でも haskell-mode を利用する。
+  :config
+  (with-eval-after-load 'haskell-font-lock
+    (setq haskell-font-lock-symbols 'unicode)))
+
+;;;; hack
+;; http://hacklang.org/
+;; Macでのインストール： https://github.com/facebook/hhvm/wiki/Building-and-installing-HHVM-on-OSX-10.9
+;; /usr/share/hhvm/hack/emacs,
+
+;;;; html5-el
+;; https://github.com/mavit/html5-el/
+;; 時々、 make relaxng で最新版のスキーマに更新する。
+;; data-*="value" には RelaxNGは対応しきれないので注意。
+(use-package whattf-dt :defer t
+  :init
+  (with-eval-after-load 'nxml-mode
+    (require 'whattf-dt))
+  (with-eval-after-load 'rng-loc
+    (add-to-list 'rng-schema-locating-files
+                 (expand-file-name
+                  "schemas.xml"
+                  (file-name-directory (locate-library "rng-loc"))))))
+
+;;;; idris-mode <elpa>
+;; - web :: http://idris-lang.org/
+;; - source :: https://github.com/idris-hackers/idris-mode
+;; - requirements :: boehmgc, libffi, gmp, llvm
+;; - install :: % cabal install -f-llvm idris  (if not compile with llvm)
+;; - memo :: http://mandel59.hateblo.jp/entry/2013/09/02/184831
+;; - tutorial :: http://eb.host.cs.st-andrews.ac.uk/writings/idris-tutorial.pdf
+;; - autoload :: '("\\.idr$" . idris-mode)
+
+;;;; inf-ruby <elpa>
+;; M-x run-ruby
+(use-package inf-ruby :defer t
+  :init
+  (add-hook 'ruby-mode-hook 'inf-ruby-minor-mode)
+  (add-hook 'enh-ruby-mode-hook 'inf-ruby-minor-mode))
+
+;;;; j-mode <elpa>
+;; https://github.com/zellio/j-mode
+(use-package j-mode :defer t
+  :mode ("\\.ij[rstp]$" . j-mode)
+  :config
+  (let ((j-console "/Applications/j64-701/bin/jconsole"))
+    (when (file-exists-p j-console)
+      (setq j-console-cmd j-console))))
+
+;;;; javacc-mode
+;; EmacsWiki
+(use-package javacc-mode
+  :mode ("\\.jj$" . javacc-mode)
+  :config
+  (with-eval-after-load 'smart-compile
+    (setf (alist-get "\\.jj$" smart-compile-alist) "javacc %f")
+    (setf (alist-get "\\.jjt$" smart-compile-alist) "jjtree %f")))
+
+;;;; javap-mode <elpa>
+;; Java のディスアセンブルファイル用色付けモード
+(use-package javap-mode
+  :mode ("\\.javap$" . javap-mode))
+
+;;;; jinja2-mode
+;; Python用テンプレート言語
+;; auto-mode-alist は自動設定。
+
+;;;; js-comint <elpa>
+;;(setq inferior-js-program-command
+;;      (or (executable-find "js")
+;;          (executable-find "rhino")))
+
+;;;; js-doc <elpa>
+;; Document :: http://d.hatena.ne.jp/mooz/20090820/p1
+(use-package js-doc
+  :commands (js-doc-insert-function-doc
+             js-doc-insert-tag)
+  :init
+  (add-hook 'js2-mode-hook
+            (lambda ()
+              (local-set-key "\C-ci" 'js-doc-insert-function-doc)
+              (local-set-key "@" 'js-doc-insert-tag)))
+  :config
+  (setq js-doc-mail-address user-mail-address
+        js-doc-author (format "KAWABATA Taichi <%s>" js-doc-mail-address)
+        js-doc-url "http://github.com/kawabata/"
+        js-doc-license "The MIT License"))
+
+;;;; js2-mode <elpa>
+(use-package js2-mode
+  :mode ("\\.js$" . js2-mode)
+  ;;:config
+  ;;(setq js2-consistent-level-indent-inner-bracket-p 1)
+  ;;(add-hook 'js2-mode-hook
+  ;;          (lambda ()
+  ;;            (js2-indent-line js2-basic-offset) ))
+  ;;(add-hook 'js2-mode-hook
+  ;;          (lambda ()
+  ;;            (local-set-key (kbd "RET") 'reindent-then-newline-and-indent)))
+  ;;; 後で確認
+  ;;(when (locate-library "smart-tabs-mode")
+  ;;  (add-hook js2-mode-hook 'smart-tabs-advice)
+  )
+
+;;;; js2-refactor <elpa>
+;; js2-mode 用リファクタリングツール
+;; https://www.youtube.com/watch?v=-7yMWD1wUu4
+(use-package js2-refactor :defer t
+  :init
+  (with-eval-after-load 'js2-mode
+    (require 'js2-refactor)))
+
+;;;; js3-mode <elpa> (abstain)
+;; しばらく利用中止。
+
+;;;; json-mode <elpa>
+;; - autoload :: ("\\.json$" . json-mode)
+;; flycheck-define-checker
+;; % npm install jsonlint -g
+;; jsonlint -V schema...
+
+;;;; json-reformat <elpa>
+;; M-x json-reformat-region
+
+;;;; json-snatcher <elpa>
+;; M-x jsons-print-path （値へのパスを表示）
+
+;;;; jss <elpa>
+;; interface to webkit and mozilla debuggers
+
+;;;; julia-mode <elpa>
+;; http://julialang.org/
+(use-package julia-mode
+  :mode ("\\.jl\\'" . julia-mode))
+
+;;;; kibit-mode <elpa>
+;; clojure用の文法チェッカ
+;; lein のインストールが必要。（cf. kibit-flymake.sh）
+
+;;;; less-css-mode <elpa>
+;; sass に一本化
+
+;;;; lilypond-mode
+(use-package lilypond-mode
+  :mode (("\\.ly$" . LilyPond-mode)
+         ("\\.ily$" . LilyPond-mode)))
+
+;;;; lua-mode <elpa>
+;; - autoload :: ("\\.lua$" . lua-mode)
+
+;;;; malabar <elpa> (obsolete)
+;; （$ git clone https://github.com/espenhw/malabar-mode.git）
+;; 上記は2012年現在、メンテナンスされていない。
+;; $ git clone https://github.com/buzztaiki/malabar-mode
+;; $ git pull
+;; $ mvn package → 完成したファイルをsite-lisp へインストール
+
+;; * mvn は、version 3.04以降 を使うこと。
+;; * emacs は、23.2 以降を使うこと。
+;;(defvar malabar-dir
+;;  (expand-file-name "~/.emacs.d/site-lisp/malabar-1.5-SNAPSHOT"))
+;;(when (file-directory-p malabar-dir)
+;;  (add-to-list 'load-path (concat malabar-dir "/lisp")))
+;;(when (locate-library "malabar-mode")
+;;  (autoload 'malabar-mode "malabar-mode" nil t)
+;;  (add-to-auto-mode-alist '("\\.java\\'" . malabar-mode))
+;;  (eval-after-load 'malabar-mode
+;;    '(progn
+;;       (require 'cedet)
+;;       (setq malabar-groovy-lib-dir (concat malabar-dir "/lib"))
+;;       ;; 普段使わないパッケージを import 候補から除外
+;;       (add-to-list 'malabar-import-excluded-classes-regexp-list
+;;                    "^java\\.awt\\..*$")
+;;       (add-to-list 'malabar-import-excluded-classes-regexp-list
+;;                    "^com\\.sun\\..*$")
+;;       (add-to-list 'malabar-import-excluded-classes-regexp-list
+;;                    "^org\\.omg\\..*$")
+;;       ;; **** Malabar Groovy : Customization of malabar-mode's inferior Groovy.
+;;       ;; 日本語だとコンパイルエラーメッセージが化ける
+;;       (setq malabar-groovy-java-options '("-Duser.language=en"))
+;;       (add-hook 'malabar-mode-hook
+;;                 (lambda ()
+;;                   (add-hook 'after-save-hook 'malabar-compile-file-silently
+;;                             nil t))))))
+
+;;;; markdown-mode <elpa>
+;; 詳細は http://jblevins.org/projects/markdown-mode/
+;; GitHub Flavored Markdown Mode (gfm-mode) にする。
+(use-package markdown-mode :defer t
+  :mode (("\\.md$" . gfm-mode))
+  :config
+  (setq markdown-coding-system 'utf-8)
+  (setq markdown-content-type " ")
+  (setq markdown-command
+        (or (executable-find "multimarkdown")
+            (executable-find "markdown"))))
+
+;;;; mathematica-mode (obsolete)
+;; → emathica.el に移動
+;;(defvar mathematica-command-line
+;;  (executable-find "/Applications/Mathematica.app/Contents/MacOS/MathKernel"))
+;;(when mathematica-command-line
+;;  (lazyload (mathematica
+;;             mathematica-mode
+;;             (add-to-auto-mode-alist '("\\.m\\'" . mathematica-mode)))
+;;      "mathematica-mode"))
+
+;;;; maxima
+;; /opt/local/share/maxima/5.28.0/emacs/
+;; imaxima で必要なもの：dvips + breqn.sty
+;; macports でインストールする場合は、 port install imaxima とすると
+;; TeXLive がまるまるインストールされようとするのでダメ。
+;; maxima だけインストールしておけば、下記ですぐに imaxima が使える。
+(let ((maxima-path
+       (car (file-expand-wildcards "/opt/local/share/maxima/*/emacs"))))
+  (when (and maxima-path (file-directory-p maxima-path))
+    (add-to-load-path maxima-path)
+    (autoload 'maxima-mode "maxima" "Maxima mode" t)
+    (autoload 'maxima "maxima" "Maxima interaction" t)
+    (autoload 'imaxima "imaxima" "Frontend for maxima with Image support" t)
+    (autoload 'maxima "maxima" "Maxima interaction" t)
+    (autoload 'imath-mode "imath" "Imath mode for math formula input" t)
+    (add-to-auto-mode-alist '("\\.max" . maxima-mode))))
+
+;;;; math++ (obsolete)
+;; → wolfram-mode に移行。
+
+;;;; mediawiki <elpa>
+;; リンクや文字修飾などのMediaWikiを編集するための便利機能が多数。
+;; M-x mediawiki-draft
+;; M-x mediawiki-draft-page
+;; M-x mediawiki-draft-buffer
+
+;; M-x mediawiki-mode
+;; M-x mediawiki-open
+
+;;;; mustache <elpa>
+;; 比較的、言語に中立的なテンプレート。JavaScript等で便利。
+;; Emacs の場合は、キー (:key) ＋非括弧関数 (,) の方が便利。
+;; c.f. tkw-org-publish-gepub-script
+
+;;;; mustache-mode <elpa>
+;; Logic-less template (http://mustache.github.io/)
+(use-package mustache-mode :defer t
+  :mode ("\\.mustache$" . mustache-mode))
+
+;;;; nimrod-mode <elpa>
+;; http://nimrod-lang.org/
+(use-package nimrod-mod
+  :mode ("\\.nim$" . nimrod-mode))
+
+;;;; nrepl (epla)
+;; → cider に移行
+;; - M-x nrepl-jack-in で接続 (lein が必要)
+;; - コマンドラインで "lein repl" で起動して M-x nrepl で 58794 に接続。
+
+;;;; nxhtml-mode (abstain)
+;; 本ディレクトリには".nosearch"があるので、本来は読み込めない。
+;;(when (locate-library "nxhtml/autostart")
+;;  (load-library "nxhtml/autostart"))
+
+;;;; omn-mode <elpa>
+(use-package omn-mode :defer t
+  :mode (("\\.pomn\\'" . omn-mode)
+         ("\\.omn\\'" . omn-mode)))
+
+;;;; omnisharp <elpa>
+;; C# Omnicompletion
+;; Omnisharp-Server を、localhost:2000 で立ち上げること。
+(use-package omnisharp :defer t
+  :diminish " O#"
+  :init
+  (add-hook 'csharp-mode-hook 'omnisharp-mode)
+  :config
+  (define-key csharp-mode-map (kbd "M-.") 'omnisharp-auto-complete))
+
+;;;; php+-mode <elpa> (abstain)
+;; 同梱されている string-utils.el は名前空間規則に従っていない、Roland
+;; Walker氏の同名ツールと衝突する、等の理由でインストール禁止。
+
+;;;; powershell <elpa>
+;; - 参照 :: http://blogs.msdn.com/b/dotnetinterop/archive/2008/04/10/run-powershell-as-a-shell-within-emacs.aspx
+;; - 参考 :: http://www.emacswiki.org/emacs/PowerShell
+(use-package powershell
+  :commands (powershell))
+
+;;;; processing-mode <elpa>
+;; - autoload :: '("\\.pde$" . processing-mode)
+
+;;;; rd-mode / rd-mode-plus (obsolete)
+;; RubyDoc は現在、ほとんど使われなくなったため使用中止。
+;;(if (locate-library "rd-mode-plus")
+;;    (autoload 'rd-mode "rd-mode-plus")
+;;  (if (locate-library "rd-mode")
+;;      (autoload 'rd-mode "rd-mode")))
+;;(when (or (locate-library "rd-mode") (locate-library "rd-mode-plus"))
+;;  (add-to-auto-mode-alist '("\\.rd$" . rd-mode))
+;;  ;; howm を RDで管理するのはやめる。
+;;  ;;(add-to-auto-mode-alist '("\\.howm$" . rd-mode))
+;;  )
+;;(eval-after-load 'rd-mode
+;;  '(progn
+;;     (defvar rd-mode-hook nil)          ; =endの“...”への置換防止
+;;     (add-hook 'rd-mode-hook 'rd-show-other-block-all)))
+
+;;;; review-mode <elpa>
+;; ただいま改良中。
+(use-package review-mode :defer t)
+
+;;;; rnc-mode <elpa>
+;; http://www.pantor.com
+(use-package rnc-mode
+  :mode ("\\.rnc\\'" . rnc-mode)
+  :config
+  (setq rnc-indent-level 2) ;; trangの出力にあわせる。
+  (let ((jing (executable-find "jing.jar")))
+    (when jing
+      (setq rnc-enable-flymake t
+            rnc-jing-jar-file jing))))
+
+;;;; rinari <elpa>
+;; Ruby on Rails 開発環境
+(use-package rinari
+  :commands (global-rinari-mode))
+
+;;;; rsense <elpa> (abstain)
+;; Rubyのための開発援助ツール.
+;;(defvar rsense-home (expand-file-name "~/src/rsense-0.3"))
+;;(when (file-directory-p rsense-home)
+;;  (load-library "rsense")
+;;  ;; 随時、http://www.ruby-lang.org/ja/man/archive/ からダウンロードして最新版をインストール。
+;;  ;; e.g. ~/Resources/ruby/ruby-refm-1.9.2-dynamic-20100929/
+;;  (setq rsense-rurema-home "~/Resources/ruby")
+;;  (setq rsense-rurema-refe "refe-1_9_2") ;; 上記ディレクトリ下にあること！
+;;  (add-hook 'ruby-mode-hook
+;;            (lambda ()
+;;              (local-set-key (kbd "C-c .") 'ac-complete-rsense))))
+
+;;;; robe <elpa>
+;; Code navigation, documentation lookup and completion for Ruby
+
+;;;; rubocop <elpa>
+;; % gem install rubocop
+;; flycheck が自動的に行うので不要。
+(use-package rubocop :defer t
+  :if (executable-find "rubocop")
+  :init
+  (add-hook 'ruby-mode-hook 'rubocop-run-on-current-file)
+  (add-hook 'enh-ruby-mode-hook 'rubocop-run-on-current-file))
+
+;;;; ruby-block <elpa>
+;; begin ～ end の対応関係をハイライトする。
+(use-package ruby-block :defer t
+  :init
+  (add-hook 'ruby-mode-hook 'ruby-block-mode)
+  (add-hook 'enh-ruby-mode-hook 'ruby-block-mode)
+  (with-eval-after-load 'enh-ruby-mode
+    (require 'ruby-block)))
+
+;;;; ruby-electric <elpa>
+;; 括弧の自動挿入・インデント
+(use-package ruby-electric :defer t
+  :init
+  (add-hook 'ruby-mode-hook 'ruby-electric-mode)
+  (add-hook 'enh-ruby-mode-hook 'ruby-electric-mode))
+
+;;;; rubydb3x (obsolete)
+;; realgud に移行したので使用中止。
+;; http://svn.ruby-lang.org/repos/ruby/trunk/misc/rubydb3x.el
+;; (lazyload (rubydb) "rubydb3x")
+
+;;;; rust-mode <elpa>
+;; - autoload :: '("\\.rs\\'" . rust-mode)
+;; http://gifnksm.hatenablog.jp/entry/2013/07/15/170736 (Rust 基礎文法最速マスター)
+(use-package rust-mode :defer t
+  :config
+  (require 'flymake)
+  (defun flymake-rust-init ()
+    (let* ((temp-file (flymake-init-create-temp-buffer-copy
+                       'flymake-create-temp-inplace))
+           (local-file (file-relative-name
+                        temp-file
+                        (file-name-directory buffer-file-name))))
+      (list "rustc" (list "--no-trans" local-file))))
+  (add-to-list 'flymake-allowed-file-name-masks
+               '(".+\\.r[cs]$" flymake-rust-init
+                 flymake-simple-cleanup flymake-get-real-file-name)))
+
+;;;; scala-mode2 <elpa>
+;; - autoload :: ("\\.\\(scala\\|sbt\\)\\'" . scala-mode)
+
+;;;; sclang
+;; 【注意】パッケージに含まれる tree-widget.el は削除すること！
+;; SuperCollider は直接使わず、overtone をできるだけ使う。
+;; http://sourceforge.net/projects/supercollider/files/Source/3.6/
+;; からソースをダウンロードして、
+;; $ cp -r ./SuperCollider-Source/editors/scel ~/.emacs.d/site-lisp
+;; sclang, scsynth の両方を
+;; ./SuperCollider-Source/platform/mac/MOVED_STUFF.txt
+;; に書かれた通りに設定してパスを通す。
+;; TODO sclang-vars.el.in の編集して sclang-vars.el として保存。
+(use-package sclang
+  :if (and (executable-find "sclang")
+           (executable-find "scsynth"))
+  :mode ("\\.scd$" . sclang-mode))
+
+;;;; sclang-snippets <elpa> (obsolete)
+;; yasnippet ロード時に勝手に読み込まれるため、インストール中止。
+
+;;;; skewer-mode <elpa>
+;; JavaScript統合開発環境。
+;; Webページからのジャックインには、skewer-start 後、以下のBookmarkletを用いる。
+;; javascript:(function(){var d=document ;var s=d.createElement('script');s.src='http://localhost:8023/skewer';d.body.appendChild(s);})()
+;; https://github.com/magnars/.emacs.d/blob/master/setup-skewer.el
+(use-package skewer-mode :defer t
+  :commands (skewer-demo)
+  :config
+  (progn
+    (defvar css-mode-hook nil) ;; for compatibility with skewer-css, which assumes nonstandard css-mode.
+    (require 'skewer-repl)
+    (require 'skewer-html)
+    (require 'skewer-css)
+
+    (defvar httpd-port nil)
+    (defun skewer-start ()
+      (interactive)
+      (let ((httpd-port 8023))
+        (httpd-start)
+        (message "Ready to skewer the browser. Now jack in with the bookmarklet.")))
+
+    (defun skewer-demo ()
+      (interactive)
+      (let ((httpd-port 8024))
+        (run-skewer)
+        (skewer-repl)))
+
+    (when (require 'mouse-slider-mode nil :no-error)
+      (add-to-list 'mouse-slider-mode-eval-funcs
+                   '(js2-mode . skewer-eval-defun)))))
+
+;;;; slime <elpa>
+(use-package slime :defer t
+  :init (add-hook 'lisp-mode-hook 'slime-lisp-mode-hook)
+  :config
+  (slime-setup '(slime-repl)))
+
+;;;; slime-js (使用中止)
+;; skewer-mode に移行するため使用中止。
+;; % cd /path/to/npm-project
+;; (prepare package.json)
+;; % npm install -g swank-js
+;;    → /usr/local/bin/swank-js がインストールされる。（必須）
+;; % swank-js
+;; M-x slime-connect
+;; M-x slime-repl
+;;(lazyload () "slime-js"
+;;  (bind-key "C-x C-e" 'slime-js-eval-current slime-js-minor-mode-map)
+;;  (bind-key "C-c C-e" 'slime-js-eval-and-replace-current slime-js-minor-mode-map))
+;;(lazyload () "css-mode"
+;;  (add-hook ‘css-mode-hook
+;;              (lambda () (define-key css-mode-map “\M-\C-x” ‘slime-js-refresh-css)
+;;                (define-key css-mode-map “\C-c\C-r” ‘slime-js-embed-css))))
+;; https://raw.github.com/magnars/.emacs.d/master/setup-slime-js.el
+;;(lazyload (slime-js-jack-in-node slime-js-jack-in-browser) "setup-slime-js"
+;;  (bind-key [f5] 'slime-js-reload)
+;;  (add-hook 'js2-mode-hook
+;;          (lambda ()
+;;            (slime-js-minor-mode 1))))
+
+;;;; smalltalk-mode
+;; Gnu Smalltalk に付属。 loadpath追加。
+(use-package smalltalk-mode :defer t
+  :init
+  (add-to-auto-mode-alist '("\\.st$" . smalltalk-mode)))
+
+;;;; sparql-mode <elpa>
+(use-package sparql-mode
+  :mode ("\\.sparql$" . sparql-mode))
+
+;;;; sql-indent <elpa>
+(use-package sql-indent
+  :defer t
+  :init
+  (with-eval-after-load 'sql
+    (require 'sql-indent))
+  :config
+  (setq sql-indent-offset 4)
+  (setq sql-indent-maybe-tab t))
+
+;;;; taskjuggler-mode
+;; http://www.skamphausen.de/cgi-bin/ska/taskjuggler-mode (official)
+;; org-taskjuggler is better replacement.
+;; % gem install taskjuggler
+;; ~/.rbenv/versions/2.0.0-p195/lib/ruby/gems/2.0.0/gems/taskjuggler-3.5.0/bin/tj3
+(use-package taskjuggler-mode
+  :mode (("\\.tjp\\'" . taskjuggler-mode)
+         ("\\.tji\\'" . taskjuggler-mode)
+         ("\\.tjsp\\'" . taskjuggler-mode)))
+
+;;;; tern <elpa>
+;; javascript analyzer
+;; % git clone https://github.com/marijnh/tern
+;; % cd tern
+;; % sudo npm install
+;;
+;; M-.  Jump to the definition of the thing under the cursor.
+;; M-,  Brings you back to last place you were when you pressed M-..
+;; C-c C-r  Rename the variable under the cursor.
+;; C-c C-c  Find the type of the thing under the cursor.
+;; C-c C-d  Find docs of the thing under the cursor. Press again to open the associated URL (if any).
+
+(use-package tern
+  :commands tern-mode
+  :if (let ((tern-dir "~/share/cvs/tern"))
+        (when (file-directory-p tern-dir)
+          (add-to-list 'load-path (concat tern-dir "/emacs"))
+          (add-to-list 'exec-path (concat tern-dir "/bin"))))
+  :init
+  (add-hook 'js2-mode-hook (command (tern-mode t))))
+
+;;;; terraform-mode <elpa>
+;; autoload : '("\\.tf\\'" . terraform-mode)
+
+;;;; textile-mode <elpa>
+;; http://dev.nozav.org/textile-mode.html
+(use-package textile-mode :defer t
+  :commands (textile-mode)
+  :mode (("\\.textile\\'" . textile-mode)))
+
+;;;; terraform-mode
+;; https://github.com/syohex/emacs-terraform-mode
+(use-package terraform-mode
+  :mode (("\\.tf\\'" . terraform-mode)))
+
+;;;; tss <elpa>
+;; https://github.com/aki2o/emacs-tss
+;; typescript-tools (https://github.com/clausreinke/typescript-tools)
+;; を使って、補完・ドキュメント表示・文法チェックを行なう。
+(use-package tss
+  :defer t
+  :if (executable-find "tss")
+  :init
+  (add-hook 'typescript-mode-hook 'tss-setup t)
+  :config
+  (setq tss-jump-to-definition-key "C->"))
+
+;;;; ttcn-mode
+;; オリジナルファイルの (kill-all-local-variables) は削除すること。
+;; https://github.com/dholm/ttcn-el/
+(use-package ttcn3
+  :mode ("\\.ttcn3?\\'" . ttcn-3-mode))
+;; Test Managers は必要ないのと、 provide 文がないのでコメントアウト。
+;;(lazyload (forth-mode) "forth")
+;;(lazyload (tm-functions) "tm")
+
+;;;; typescript
+;; http://www.typescriptlang.org/
+;; typescript.el は、公式Webの "tools" からダウンロード
+;; reference は https://developers.google.com/chrome-developer-tools/ を参考に。
+;; （旧）TypeScript.el は、typescript.el とリネームする。
+;; （新）typescript.el は、emacs-tss に含まれているものを使用する。
+(use-package typescript
+  :mode ("\\.ts$" . typescript-mode))
+
+;;;; typed-clojure-mode <elpa>
+;; 
+;;;; tuareg <elpa>
+;; Ocaml の実行・編集・デバッガ
+;; - Manual :: http://www.typerex.org/files/cheatsheets/tuareg-mode.pdf
+;; - autoload :: ("\\.ml[iylp]?\\'" . tuareg-mode)
+;; - tuareg-run-ocaml で実行
+;; - C-x SPC (M-x ocamldebug) :: debugger
+(use-package tuareg :defer t
+  :config
+  (setq tuareg-use-smie t))
+
+;;;; visual-basic-mode
+(use-package visual-basic-mode
+  :mode ("\\.\\(frm\\|bas\\|cls\\|rvb\\)$" . visual-basic-mode))
+
+;;;; web-mode <elpa>
+;; http://web-mode.org/
+;; http://fukuyama.co/web-mode
+(use-package web-mode
+  :mode (("\\.phtml$"     . web-mode)
+         ("\\.tpl\\.php$" . web-mode)
+         ("\\.jsp$"       . web-mode)
+         ("\\.as[cp]x$"   . web-mode)
+         ("\\.erb$"       . web-mode)
+         ;; デフォルトでは、HTMLは web-mode にせず、手動で設定する。
+         ;; 巨大HTMLだと web-mode はフリーズすることがあるため。
+         ;;("\\.html?$"     . web-mode)
+         )
+  :config
+  ;; 臨時！臨時！
+  (setf (alist-get "\\.html?$" auto-mode-alist) 'fundamental-mode)
+  (setf (alist-get "\\.svgz?\\'" auto-mode-alist) 'fundamental-mode)
+  (setq web-mode-markup-indent-offset 2)
+  ;(setq web-mode-html-offset   2)
+  ;(setq web-mode-css-offset    2)
+  ;(setq web-mode-script-offset 2)
+  ;(setq web-mode-php-offset    2)
+  ;(setq web-mode-java-offset   2)
+  ;(setq web-mode-asp-offset    2)
+  ;(with-eval-after-load 'auto-complete
+  ;  (add-to-list 'ac-modes 'web-mode))
+  (with-eval-after-load 'smart-compile
+    (setf (alist-get 'web-mode smart-compile-alist) 'browse-url-of-buffer))
+  (add-hook 'web-mode-hook
+            (lambda () (setq tab-width 2)))
+  (bind-key "C-M-n" 'web-mode-element-end web-mode-map)
+  (bind-key "C-M-p" 'web-mode-element-beginning web-mode-map))
+
+;;;; wolfram-mode <elpa-posted>
+;; Wolfram Language
+;; - 文法 ::
+;;  http://reference.wolfram.com/mathematica/tutorial/OperatorInputForms.html
+;; - コマンドラインオプション ::
+;; http://reference.wolfram.com/mathematica/tutorial/MathematicaSessions.html
+;; パッケージ自動読み込み
+;; - (format "Block[{Short=Identity},Get[\"%s\"]]; SetOptions[$Output, PageWidth-> %d];" (emathica-comint-quote-filename file) (- (window-width) 1))
+(defvar wolfram-program "/Applications/Mathematica.app/Contents/MacOS/MathKernel")
+(use-package
+  :if (executable-find wolfram-program)
+  :commands run-wolfram
+  :mode (("\\.m$" . wolfram-mode)
+         ("\\.nb$" . wolfram-mode)
+         ("\\.cdf$" . wolfram-mode))
+  :config
+  ;;(remove-from-auto-mode-alist '("\\.m$" . wolfram-mode)) ;; Objective-C を扱う場合
+  (setq wolfram-mode-program-arguments
+        '("-run"
+          "showit := Module[{}, Export[\"/tmp/math.jpg\",%, ImageSize->{800,600}]; Run[\"open /tmp/math.jpg&\"]]")))
+
+;; Mathematicaプログラミングメモ
+;; http://reference.wolfram.com/mathematica/tutorial/UsingATextBasedInterface.html
+;; http://www.watson.org/~mccann/mathematica.el
+;; Mathematica ノートブックは 標準UIを使うべきだが、
+;; パッケージを書く場合は Emacs の方が便利。
+;; http://stackoverflow.com/questions/6574710/integrating-notebooks-to-mathematicas-documentation-center
+;; http://mathematica.stackexchange.com/questions/29324/creating-mathematica-packages
+;; 「ライセンスが切れた」と表示される場合は、他プロセスを動かしていないか確認する。
+
+;;;; yaml-mode <elpa>
+(use-package yaml-mode :defer t
+  :config
+  (setq yaml-indent-offset 4)
+  (defun tkw-yaml-indent-level ()
+    (looking-at " *")
+    (1+ (/ (- (match-end 0) (match-beginning 0)) yaml-indent-offset)))
+  (defun tkw-yaml-setup ()
+    (setq outline-regexp "\\( \\)*.+: *\\(&.+?\\)?\\(#.*?\\)?$")
+    (setq outline-level 'tkw-yaml-indent-level)
+    (outline-minor-mode 1))
+  (add-hook 'yaml-mode-hook 'tkw-yaml-setup))
+
+;;;; yang-mode
+;; - 参照 :: http://www.yang-central.org/twiki/pub/Main/YangTools/yang-mode.el
+(use-package yang-mode
+  :mode ("\\.yang\\'" . yang-mode))
+
+;;; 非標準アプリケーション
+;;;; 2048-game <elpa>
+(use-package 2048-game
+  :commands (2048-game))
+
+;;;; ac-inf-ruby <elpa> (abstain)
+;;(use-package ac-inf-ruby :defer t
+;;  :init
+;;  (add-hook 'inf-ruby-mode-hook 'ac-inf-ruby-enable))
 
 ;;;; ag <elpa>
 ;; * agのインストール
@@ -6982,11 +7501,15 @@ GDBは動作しない可能性があります！") (sit-for 2))
 ;; occur (list-matching-lines) の拡張版。検索結果を編集したら元ファイルに反映される。
 ;; - autoload :: all
 
-;;;; all-ext <elpa>
-(use-package all :defer t
-  :config (require 'all-ext nil :no-error))
+;;;; all-ext <elpa> (abstain)
+;; http://d.hatena.ne.jp/rubikitch/20130202/all
+;; 対象行を絞り込んでからまとめて編集する
+;;(use-package all-ext
+;;  :init
+;;  (with-eval-after-load 'all
+;;    (require 'all-ext nil :no-error)))
 
-;;;; alpha <elpa>
+;;;; alpha <elpa> (abstain)
 ;; フレームの透明度設定ツール
 ;; (X-Window版では利用不可)
 ;; * 問題点
@@ -7001,13 +7524,20 @@ GDBは動作しない可能性があります！") (sit-for 2))
   (transparency-set-value 90))
 
 ;;;; apropos-fn+var <elpa>
-;; M-x aprops を、function と variables に分離
+;; M-x aprops を、function と variables に分離する。
 
-;;;; apt-util <elpa>
+;;;; apt-utils <elpa>
 ;; make-local-hook を emacswiki から削除。
 ;; - autoload :: apt-utils-search, apt-utils-show-package
+(use-package apt-utils
+  :if (executable-find "apt-get"))
 
-;;;; back-button <elpa>
+;;;; ascii-art-to-unicode <elpa> (abstain)
+;; M-x aa2u
+;; Box Drawing の UCS化 (u2500-u251f)
+;; カラムが日本語では揃わないので不要。
+
+;;;; back-button <elpa> (abstain)
 ;; "戻る" ボタン
 
 ;;;; bbdb <elpa>
@@ -7097,7 +7627,7 @@ This function is a possible formatting function for
   (setq bbdb-separator-alist
         (cons '(name-last-first "[ ,;]" " ")
               (assq-delete-all 'name-last-first bbdb-separator-alist)))
-  (setq bbdb-file (locate-user-emacs-file ".bbdb.gpg"))
+  (setq bbdb-file (locate-user-emacs-file "bbdb.gpg"))
   ;; 日本人主体なので、Last+Firstの順番で表示する。
   (setq bbdb-name-format 'last-first)
   (setq bbdb-mail-name-format 'last-first)
@@ -7210,11 +7740,11 @@ This function is a possible formatting function for
   (require 'bibeltex nil :no-error))
 
 ;;;; bibretrieve <elpa>
-(use-package bibretrieve-base :defer t
-  :config
-  ;; bug: bibretrieve-baseに、(provide 'bibretrieve) とあるので
-  ;; 本家が読み込まれないことがある。
-  (load-library "bibretrieve"))
+(use-package bibretrieve :defer t)
+;  :config
+;  ;; bug: bibretrieve-baseに、(provide 'bibretrieve) とあるので
+;  ;; 本家が読み込まれないことがある。
+;  (load-library "bibretrieve"))
 
 ;;;; bookmark+ <elpa>
 ;; - 参照 :: http://www.emacswiki.org/BookmarkPlus
@@ -7245,48 +7775,43 @@ This function is a possible formatting function for
 ;; | Dired          |                                            |                                    |
 ;; | M-b (M-A-b)    | diredp-do-bookmark                         |                                    |
 
+;; ソースコードリーディング
+;; (1) C-x p L で専用ブックマークを作成・開く。
+;; (2) ソースコードを読む。
+;; (3) メモしたい場所で、C-x p m
+;; (4) 名前とメモを記入
+;; (5) 一覧は C-x r l
+;; (6) ハイライトされた部分のメモを読むには C-x j h
+
 ;; "open" で開くファイル一覧
 
 (defvar openwith-associations)
 (defvar bmkp-default-handlers-for-file-types)
-(defun tkw-open-externally-setup ()
-  "Setup Externally open applications."
-  (interactive)
-  (let* ((exts '("asta" "jude" "mm" "zip" "nb" "mp3" "mp4" "pdf"
-                 "ppt" "pptx" "potx" "doc" "docx" "xls" "xlsx"
-                 "odt" "enc" "wav" "sxi" "rtf" "tif" "cap" "dmg"))
-         (regexp (concat
-                  "\\." (regexp-opt exts) "$")))
-    (setq openwith-associations
-          `((,regexp
-             "open" (file)) ("/$" "open" (file))))
-    (setq bmkp-default-handlers-for-file-types
-          `((,regexp . "open")))))
-(tkw-open-externally-setup)
+(let* ((exts '("asta" "jude" "mm" "zip" "nb" "mp3" "mp4" "pdf"
+               "ppt" "pptx" "potx" "doc" "docx" "xls" "xlsx"
+               "odt" "enc" "wav" "sxi" "rtf" "tif" "cap" "dmg"))
+       (regexp (concat
+                "\\." (regexp-opt exts) "$")))
+  (setq openwith-associations
+        `((,regexp
+           "open" (file)) ("/$" "open" (file))))
+  (setq bmkp-default-handlers-for-file-types
+        `((,regexp . "open"))))
 
-(use-package bookmark+ :defer t
+(use-package bookmark+
+  :bind ("M-E" . bookmark-edit-annotation)
+  :mode ("\\.bmk$" . emacs-lisp-mode)
   :init
   (when (not (eq system-type 'windows-nt)) ; windows NT では ACL関係でエラー
     (add-hook 'find-file-hook 'bmkp-light-this-buffer))
-  :bind ("M-E" . bookmark-edit-annotation))
-
-(add-to-auto-mode-alist '("\\.bmk$" . emacs-lisp-mode))
-
-(use-package bookmark+-bmu :defer t
   :config
-  (setq bmkp-bmenu-state-file
-        (locate-user-emacs-file ".emacs-bmk-bmenu-state.el")))
-
-(use-package bookmark+-lit :defer t
-  :config
-  (setq bmkp-light-style-autonamed 'lfringe)
-  (setq bmkp-auto-light-when-set 'any-bookmark)
-  (setq bmkp-auto-light-when-jump 'any-bookmark))
-
-;;(use-package bookmark+-1 :defer t
-;;  :config
-;;  (setq bmkp-default-handlers-for-file-types
-;;        `((,tkw-open-externally-ext-regexp . "open"))))
+  (with-eval-after-load 'bookmark+-bmu
+    (setq bmkp-bmenu-state-file
+          (locate-user-emacs-file ".emacs-bmk-bmenu-state.el")))
+  (with-eval-after-load 'bookmark+-lit
+    (setq bmkp-light-style-autonamed 'lfringe)
+    (setq bmkp-auto-light-when-set 'any-bookmark)
+    (setq bmkp-auto-light-when-jump 'any-bookmark)))
 
 ;; bookmark への機械的登録
 ;; 追加する場合は、既存のブックマーク画面で "S" で保存すること!
@@ -7305,22 +7830,29 @@ This function is a possible formatting function for
 ;; (tkw-bmkp-target-set tkw-css-sources-alist
 ;;                      "~/.emacs.d/bookmarks/w3.bmk" 'url)
 
-;;;; boxquote <elpa>
+;;;; boxquote <elpa> (abstain)
 ;; 使用中止。→ rebox2 を利用
 
-;;;; browse-kill-ring <elpa>
+;;;; browse-kill-ring <elpa> (abstain)
 ;; helm-kill-rings を使うので不要。
 
-;;;; browse-url-dwim <elpa>
+;;;; browse-url-dwim <elpa> (abstain)
 ;; Context-sensitive external browse URL
+
+;;;; buffer-move <elpa>
+;; (global-set-key (kbd "<C-S-up>")     'buf-move-up)
+;; (global-set-key (kbd "<C-S-down>")   'buf-move-down)
+;; (global-set-key (kbd "<C-S-left>")   'buf-move-left)
+;; (global-set-key (kbd "<C-S-right>")  'buf-move-right)
 
 ;;;; bundler <elpa>
 ;; Ruby Gem Bundler 操作ユーティリティ
-;; * 関数一覧
+;; * 関数一覧 (autoload)
 ;;   - bundle-open :: 指定bundleのソースコード・ディレクトリを開く
 ;;   - bundle-console :: 指定bundleを取り入れたrubyのプロセスを開く
 
 ;;;; cask <elpa>
+;; http://cask.readthedocs.org/en/latest/
 ;; * テスト時に便利なパッケージ
 ;;   - noflet … 一時的な関数の変更
 ;;   - ecukes/espuds … Cumcumber-Like testing
@@ -7336,6 +7868,7 @@ This function is a possible formatting function for
 ;; % cask exec ecukes -h
 ;; % cask exec ecukes new
 ;; (<project>/feature/<project>.featureを編集)
+(add-to-auto-mode-alist '("^Cask$" . emacs-lisp-mode))
 
 ;;;; cacoo <elpa>
 ;; http://d.hatena.ne.jp/kiwanami/20100507/1273205079
@@ -7374,11 +7907,21 @@ This function is a possible formatting function for
        tkw-calfw-content-sources)))
 
 ;; Proxy環境下では https 通信ができないため、外部命令でデータを取得する。
-(use-package calfw-ical :defer t
+(use-package calfw :defer t
   :config
-  (when (getenv "http_proxy")
-    (unless (executable-find "wget") (error "You need `wget'!"))
-    (setq cfw:ical-url-to-buffer-get 'cfw:ical-url-to-buffer-external)))
+  (with-eval-after-load 'calfw-ical
+    (when (getenv "http_proxy")
+      (unless (executable-find "wget") (error "You need `wget'!"))
+      (setq cfw:ical-url-to-buffer-get 'cfw:ical-url-to-buffer-external))))
+
+;;;; charmap <elpa>
+;; Unicode Map for Emacs.
+;;   * M-x charmap to display a unicode block.
+;;   * M-x charmap-all to display entire unicode blocks but it's slow.
+;;   * C-f / C-b / C-n / C-p to navigate the characters.
+;;   * RET will copy a character on current cursor to kill-ring.
+(use-package charmap :defer t
+  :commands (charmap charmap-all))
 
 ;;;; color-moccur <elpa>
 ;; http://www.bookshelf.jp/soft/meadow_49.html#SEC669
@@ -7417,9 +7960,9 @@ This function is a possible formatting function for
 
 ;;;; commander <elpa>
 ;; http://tuxicity.se/emacs/2013/06/11/command-line-parsing-in-emacs.html
-;; eucakes 等で使用。
+;; ecukes 等で使用。
 
-;;;; cygwin-mount <elpa>
+;;;; cygwin-mount
 ;; cygwin風のファイル名をWindows風に加えて使えるようにする。
 ;;(declare-function cygwin-mount-activate "cygwin-mount")
 ;;(when (equal system-type 'windows-nt)
@@ -7430,19 +7973,20 @@ This function is a possible formatting function for
 ;;    (cygwin-mount-activate)))
 
 ;;;; dired+ <elpa>
-(use-package dired :defer t
+(use-package dired+ :defer t
+  :init
+  (with-eval-after-load 'dired
+    (require 'dired+ nil t))
   :config
-  (when (require 'dired+ nil :no-error)
-    ;; dired+のM-<小文字>定義キーの一部を、M-A-<小文字>へ移動する。
-    (defun tkw-dired-reset-keys ()
-      (bind-key "M-c" nil dired-mode-map)
-      (bind-key "M-b" nil dired-mode-map)
-      (bind-key "M-p" nil dired-mode-map)
-      (bind-key "M-A-c" 'diredp-capitalize-this-file dired-mode-map)
-      (bind-key "M-A-b" 'diredp-do-bookmark          dired-mode-map)
-      (bind-key "M-A-p" 'diredp-print-this-file      dired-mode-map))
-    (add-hook 'dired-mode-hook 'tkw-dired-reset-keys)
-    ))
+  ;; dired+のM-<小文字>定義キーの一部を、M-A-<小文字>へ移動する。
+  (defun tkw-dired-reset-keys ()
+    (bind-key "M-c" nil dired-mode-map)
+    (bind-key "M-b" nil dired-mode-map)
+    (bind-key "M-p" nil dired-mode-map)
+    (bind-key "M-A-c" 'diredp-capitalize-this-file dired-mode-map)
+    (bind-key "M-A-b" 'diredp-do-bookmark          dired-mode-map)
+    (bind-key "M-A-p" 'diredp-print-this-file      dired-mode-map))
+  (add-hook 'dired-mode-hook 'tkw-dired-reset-keys))
 
 ;;;; dired-details <elpa> (abstain)
 ;; → dired+ に移行
@@ -7451,10 +7995,18 @@ This function is a possible formatting function for
 ;; (lazyload () "dired"
 ;;   (when (require 'dired-details nil :no-error)))
 
-;;;; dired-details+ <elpa>
+;;;; dired-details+ <elpa> (abstain)
 ;; → dired+ に移行
 ;;(lazyload () "dired"
 ;;  (when (require 'dired-details+ nil :no-error)))
+
+;;;; dired-k <elpa>
+;; highlight dired buffer by file size, modified time, git status
+
+;;;; direx <elpa>
+;; Explorerライクなファイルブラウザ
+(use-package direx
+  :bind ("C-x A-d" . direx:jump-to-directory))
 
 ;;;; doremi <elpa>
 (use-package doremi :defer t
@@ -7498,6 +8050,10 @@ This function is a possible formatting function for
   (bind-key "z" 'doremi-font-size+ tkw-rotate-map)       ; "Zoom"
   (bind-key "w" 'doremi-window-height+ tkw-rotate-map)
   (bind-key "s" (command (doremi-font-size+ 2)) tkw-rotate-map)       ; "Zoom"
+  (bind-key "l" (command (rotate-fonts ?l)) tkw-rotate-map)
+  (bind-key "k" (command (rotate-fonts ?k)) tkw-rotate-map)
+  (bind-key "h" (command (rotate-fonts ?h)) tkw-rotate-map)
+  (bind-key "p" (command (rotate-fonts ?p)) tkw-rotate-map)
   )
 
 ;;;; dsvn <elpa>
@@ -7510,7 +8066,7 @@ This function is a possible formatting function for
 (use-package dsvn
   :commands (svn-status svn-update))
 
-;;;; durendal <elpa>
+;;;; durendal (abstain)
 ;; slime-clj が必要。
 ;; A bucket of tricks for Clojure and Slime.
 ;;(when (require 'durendal nil :no-error)
@@ -7538,20 +8094,27 @@ This function is a possible formatting function for
 (use-package e2wm
   :bind ("M-+" . e2wm:start-management))
 
-;;;; e2wm-svg-clock <elpa>
-(use-package e2wm
-  (require 'ew2m-svg-clock nil :no-error))
+;;;; e2wm-svg-clock <elpa> (abstain)
+;; svg-clock plug-in for svg.
 
 ;;;; ebib <elpa>
 ;; 設定は ~/.emacs.d/ebibrc.el に書く。
-;; (setq ebib-rc-file "~/.emacs.d/ebibrc.el")
 ;; （browse-reftex で十分か？）
 ;; [[info:ebib]]
-(use-package ebib :defer t
-  :config
-  ;;(setq ebib-preload-bib-search-dirs tkw-bibtex-directories
-  ;;      ebib-preload-bib-files       tkw-bibtex-files))
-  )
+;;(use-package ebib :defer t
+;;  :config
+;;  (setq ebib-rc-file                 "~/.emacs.d/ebibrc.el"
+;;        ebib-preload-bib-search-dirs tkw-bibtex-directories
+;;        ebib-preload-bib-files       tkw-bibtex-files))
+;;  )
+
+;;;; ein <elpa>
+;; IPython Notebook interface for Emacs.
+;; - document :: http://tkf.github.io/emacs-ipython-notebook/#quick-try
+;; - autload :: ein:connect-to-notebook, etc.
+;; % ipython notebook ← start at http://127.0.0.1:8888/
+;; (use-package ein :defer t
+;;   )
 
 ;;;; ejacs
 (use-package js-console
@@ -7588,6 +8151,18 @@ This function is a possible formatting function for
 ;;(setq elscreen-prefix-key "\C-c\C-c") ; Old copy-to-register
 ;;(require 'elscreen nil :no-error)
 
+;;;; ert-runner <elpa>
+;; http://tuxicity.se/emacs/testing/cask/ert-runner/2013/09/26/unit-testing-in-emacs.html
+;; - Cask に以下のファイルを書く。
+;; | (source "melpa")
+;; | (development
+;; |  (depends-on "ert-runner"))
+;; -実行
+;; % cask install
+;; % cask exec ert-runner init
+;; test/ids-test.el にテストを書く。
+;; % cask exec ert-runner
+
 ;;;; esh-buf-stack <elpa>
 (use-package esh-buf-stack :defer t
   :config
@@ -7619,7 +8194,7 @@ This function is a possible formatting function for
 
 ;;;; flx-ido <elpa>
 ;; more powerful alternative to `ido-mode''s built-in flex matching.
-(use-package flx-ido
+(use-package flx-ido :defer t
   :config
   (flx-ido-mode 1))
 
@@ -7654,6 +8229,9 @@ This function is a possible formatting function for
 ;; trang.jar を使った RNC ファイルの自動生成
 (use-package genrnc
   :commands (genrnc-regist-url genrnc-regist-file genrnc-update-user-schema))
+
+;;;; google-maps <elpa>
+;; ,/. で地図を拡大・縮小。
 
 ;;;; google-this <elpa>
 
@@ -7867,14 +8445,14 @@ This function is a possible formatting function for
 ;;     (bind-key "o" 'helm-c-moccur-occur-by-moccur helm-command-map)))
 
 ;;;; helm-c-yasnippet <elpa>
-(use-package helm-c-yasnippet
+(use-package helm-c-yasnippet :defer t
   :commands (helm-c-yas-complete)
   :init
   (with-eval-after-load 'helm-config
     (bind-key "y" 'helm-c-yas-complete helm-command-map)))
 
-;;;; helm-chrome
-;; autoload :: helm-chrome-bookmarks
+;;;; helm-chrome <elpa>
+;; - autoload :: helm-chrome-bookmarks
 
 ;;;; helm-descbinds <elpa>
 ;; describe-bindings をhelmで行なう。
@@ -7920,6 +8498,10 @@ This function is a possible formatting function for
 ;;;; help+ <elpa>
 ;; where-is と describe-key を置換する。
 
+;;;; hide-lines <elpa>
+;; M-x hide-lines REGEXP ... hide lines that matches REGEXP.
+;; C-u M-x hide-lines REGEXP ... hide lines that doesn't match REGEXP.
+
 ;;;; hfyview
 ;; hfyview = htmlfontify-view.
 ;; htmlfontify を使って、バッファをブラウザで開く。（印刷向け）
@@ -7939,7 +8521,7 @@ This function is a possible formatting function for
   :init (add-to-auto-mode-alist '("\\.howm$" . org-mode))
   :config
   ;; TITLEの変更（org-modeにも対応）
-  (setq howm-directory "~/Dropbox/howm/"
+  (setq howm-directory "~/share/howm/"
         howm-view-title-header "#+TITLE:" ;; ← howm のロードより前に書くこと
         howm-view-title-regexp "^\\(\\(#\\+TITLE:\\)\\|=\\)\\( +\\(.*\\)\\|\\)$"
         howm-view-title-regexp-pos 4
@@ -8008,7 +8590,7 @@ This function is a possible formatting function for
 
 ;;;; ido-ubiquitous <elpa>
 ;; ido-mode を拡張する。
-(use-package ido-ubiquitous
+(use-package ido-ubiquitous :defer t
   :init
   (with-eval-after-load 'ido
     (ido-ubiquitous-mode)))
@@ -8027,7 +8609,17 @@ This function is a possible formatting function for
     :config
     (require 'info+ nil :no-error)))
 
-;;;; japanese-holidays <elpa>
+;;;; ipa <emacswiki>
+;; In-place annotations
+(use-package ipa :defer t)
+
+;;;; itail <elpa>
+;; 指定されたファイルをフィルタして tail で追跡する。
+;; itail-toggle-filter でフィルタ文字列を指定する。
+(use-package itail
+  :commands (itail))
+
+;;;; japanese-holidays <elpa-posted>
 ;; cf. [[info:emacs#Holiday Customizing]]
 ;; calendar-holidays のデータは、 displayed-year, displayed-month の
 ;; 変数を設定されて、 calendar-holiday-list 関数によってevalされて
@@ -8054,7 +8646,9 @@ This function is a possible formatting function for
     ))
 
 ;;;; japanlaw <elpa>
-;; 日本の法律の検索エンジン
+;; 日本の法律の閲覧・検索エンジン
+(use-package japanlaw :defer t
+  :commands japanlaw)
 
 ;;;; jd-el
 ;; http://julien.danjou.info/google-maps-el.html
@@ -8075,10 +8669,13 @@ This function is a possible formatting function for
 ;;      (defalias 'truncate-string 'truncate-string-to-width))
 ;;  (autoload 'kill-summary "kill-summary" nil t))
 
+;;;; kurecolor <elpa>
+;; color editor for emacs.
+
 ;;;; lib-requires <elpa>
 ;; packageの依存関係を調査する。
 
-;;;; list-package-ext <elpa>
+;;;; list-packages-ext <elpa>
 ;; https://github.com/laynor/list-packages-ext/blob/master/list-packages-ext.el
 ;; Emacs 24.4 (2013-06-12) 以降の list-packages 1.01 が必要。
 (use-package list-packages-ext :defer t
@@ -8101,6 +8698,10 @@ This function is a possible formatting function for
 ;; Emacs終了時にLookupでエラーが出る場合は、
 ;;   (remove-hook 'kill-emacs-hook 'lookup-exit)
 ;; を実行する。
+;; 要再設計。
+;; ndtext(grep one line), nddsl(grep), ndeb(eblook), ndict(dict), ndstar(sdcv) がサポートされていれば十分か。
+;; support ファイルは、それが存在しなくても動作することを必須とすること。
+;; それ以外の辞書は原則として、xdxf_makedict
 (use-package lookup
   :bind (("C-c M-/" . lookup-pattern)
          ("A-?" . lookup-pattern)
@@ -8112,6 +8713,9 @@ This function is a possible formatting function for
   ;; javascript:location.href='org-protocol://lookup://'+encodeURIComponent(window.getSelection())
   :defines org-protocol-protocol-alist
   :config
+  (with-eval-after-load 'ndtext
+    (when (executable-find "ggrep")
+      (setenv "GREP" "ggrep")))
   (with-eval-after-load 'org-protocol
     (add-to-list 'org-protocol-protocol-alist
                  '("Lookup"
@@ -8231,15 +8835,18 @@ This function is a possible formatting function for
   :bind (("M-g s" . magit-status)
          ("M-g b" . magit-blame-mode)))
 
-;;;; magithub <elpa>
+;;;; magithub <elpa> (obsolete)
 ;; magit の仕様変更に追随できない場合が多いので使用停止。
 ;;(lazyload () "magit-key-mode"
 ;;  (setq magit-log-edit-confirm-cancellation nil))
 
-;;;; mark-multiple <elpa>
+;;;; maylon <elpa-post?>
+;; Z-Machine Interpreter for Emacs
+
+;;;; mark-multiple <elpa> (obsolete)
 ;; → multipel-cursors に名称変更。
 
-;;;; math-symbols
+;;;; math-symbols <elpa>
 (use-package mathy-symbols :defer t
   :init
   (with-eval-after-load 'helm-config
@@ -8249,7 +8856,7 @@ This function is a possible formatting function for
 ;; https://gist.github.com/Kouzuka/900452
 ;; TODO check
 
-;;;; melpa <elpa>
+;;;; melpa <elpa> (obsolete)
 ;; パッケージ管理システム。ブラックリストパッケージの管理等。
 ;;(lazyload () "melpa"
 ;;  (add-to-list 'package-archive-exclude-alist '(("melpa" bbdb-vcard))))
@@ -8314,10 +8921,29 @@ This function is a possible formatting function for
 ;; - Emacsでリファクタリングに超絶便利なmark-multiple
 ;;   http://d.hatena.ne.jp/tuto0621/20121205/1354672102
 ;;   http://emacsrocks.com/e13.html
-(use-package multiple-cursors
+(use-package multiple-cursors :defer t
   :bind (("C->" . mc/mark-next-like-this)
          ("C-<" . mc/mark-previous-like-this)
-         ("C-c M-8" . mc/mark-all-like-this)))
+         ;;("C-M-c" .  mc/edit-lines)
+         ;;("C-M-r" . mc/mark-all-in-region))
+         ("C-c M-8" . mc/mark-all-like-this))
+  :config
+  (when (functionp 'smartrep-define-key)
+    (global-unset-key (kbd "M-t")) ; TODO transpose に代わる良いキーを探す。
+    (smartrep-define-key global-map "M-t"
+      '(("M-t"      . 'mc/mark-next-like-this)
+        ("n"        . 'mc/mark-next-like-this)
+        ("p"        . 'mc/mark-previous-like-this)
+        ("m"        . 'mc/mark-more-like-this-extended)
+        ("u"        . 'mc/unmark-next-like-this)
+        ("U"        . 'mc/unmark-previous-like-this)
+        ("s"        . 'mc/skip-to-next-like-this)
+        ("S"        . 'mc/skip-to-previous-like-this)
+        ("*"        . 'mc/mark-all-like-this)
+        ("d"        . 'mc/mark-all-like-this-dwim)
+        ("i"        . 'mc/insert-numbers)
+        ("o"        . 'mc/sort-regions)
+        ("O"        . 'mc/reverse-regions)))))
 
 ;;;; nav <elpa>
 ;; http://d.hatena.ne.jp/wocota/20091001/1254411232
@@ -8336,7 +8962,7 @@ This function is a possible formatting function for
 ;;    (interactive)
 ;;    (navi (buffer-name))))
 
-;;;; navi2ch
+;;;; navi2ch <elpa>
 ;; 開発サイト
 ;; https://github.com/naota/navi2ch/
 ;; * インストール
@@ -8398,7 +9024,7 @@ This function is a possible formatting function for
 ;; http://oneliner-elisp.sourceforge.net
 ;;(require 'oneliner nil :no-error)
 
-;;;; nyan-prompt <elpa>
+;;;; nyan-prompt <elpa> (abstain)
 ;; eshell-bol がうまく動かなくなるので使用中止。
 ;; (when (functionp 'nyan-prompt-enable)
 ;;   (lazyload () "eshell"
@@ -8406,7 +9032,7 @@ This function is a possible formatting function for
 ;; 使用をやめるときは、
 ;; eshell-prompt-function と eshell-prompt-regexp をもとに戻す。
 
-;;;; org
+;;;; org <elpa>
 ;;;;; org/org
 
 ;; * 基本記法 (refcard: /opt/local/share/emacs/24.2.50/etc/refcards/orgcard.pdf)
@@ -8423,9 +9049,9 @@ This function is a possible formatting function for
 ;;   行頭で `<' `<TAB>' `s' 等。 org-structure-template-alist 参照
 ;; * org-mode の ELPA版・Emacs標準添付版のパスを削除する。
 ;;  （contrib に含まれているツールをつかうため。）
-(setq load-path
-      (cl-delete-if (lambda (x) (or (string-match "/elpa/org-20" x)
-                                    (string-match "/lisp/org" x))) load-path))
+;(setq load-path
+;      (cl-delete-if (lambda (x) (or (string-match "/elpa/org-20" x)
+;                                    (string-match "/lisp/org" x))) load-path))
 
 ;; ".org.txt" も org-mode 管理にする。
 (add-to-auto-mode-alist '("\\.org.txt$" . org-mode))
@@ -8460,7 +9086,7 @@ This function is a possible formatting function for
   (setq org-support-shift-select t)
   (setq org-ellipsis "↓")
   ;; org-caputure/org-mobile 等が使用するデフォルトディレクトリ
-  (setq org-directory "~/Dropbox/org")
+  (setq org-directory "~/share/org")
     ;; C-o 回避
   (bind-key "C-c M-o" 'org-open-at-point org-mode-map)
   ;; #+STARTUP: indent 相当。自動的にインデントする。必須。
@@ -8509,7 +9135,8 @@ This function is a possible formatting function for
               (expand-file-name "home/home.org.txt" org-directory)))
   ;;(setq org-agenda-file-regexp "\\`[^.].*\\.org\\.txt$")
   ;; org-clock
-  (org-clock-persistence-insinuate)
+  ;; タイマー管理の自動設定
+  ;; (org-clock-persistence-insinuate)
   ;; tags
   ;; (setq org-tags-alist)
   ;; リファイル
@@ -8642,7 +9269,7 @@ XeTeX/LuaTeX や HTML, DocBook 等、日本語の改行が空白扱いになる�
 ;;;;; org/org-mobile
 (use-package org-mobile :defer t
   :config
-  (setq org-mobile-directory "~/Dropbox/MobileOrg"))
+  (setq org-mobile-directory "~/share/MobileOrg"))
 
 ;;;;; org/org-protocol
 ;; 設定方法：(http://orgmode.org/worg/org-contrib/org-protocol.html)
@@ -8690,7 +9317,7 @@ XeTeX/LuaTeX や HTML, DocBook 等、日本語の改行が空白扱いになる�
 
 (use-package ob :defer t
   :config
-  (setq org-babel-load-languages
+  (setq orgv-babel-load-languages
         `((C . t)
           (css . t)
           (emacs-lisp . t)
@@ -8719,7 +9346,6 @@ XeTeX/LuaTeX や HTML, DocBook 等、日本語の改行が空白扱いになる�
           ,@(and (executable-find "mscgen")
                  '((mscgen . t)))
           ,@(and (executable-find "R")
-                 (require 'ess nil :no-error)
                  '((R . t)))
           ,@(and (executable-find "ruby")
                  '((ruby . t)))
@@ -8775,10 +9401,11 @@ XeTeX/LuaTeX や HTML, DocBook 等、日本語の改行が空白扱いになる�
   (let ((secret (plist-get (nth 0 (auth-source-search :host "www.getdropbox.com"))
                            :secret)))
     ;; Dropbox の秘密公開ディレクトリの設定
-    (defvar tkw-org-export-icalendar-directory)
     (if (functionp secret)
-        (setq tkw-org-export-icalendar-directory
-              (expand-file-name (funcall secret) "~/Dropbox/Public/"))
+        (setq org-icalendar-combined-agenda-file
+              (expand-file-name
+               "org.ics"
+               (concat "~/share/Public/" (funcall secret))))
       (error "Dropbox Secret Folder not set!")))
   ;; iCal の説明文
   (setq org-icalendar-combined-description "OrgModeのスケジュール出力")
@@ -8816,6 +9443,7 @@ XeTeX/LuaTeX や HTML, DocBook 等、日本語の改行が空白扱いになる�
       ;; http://www.logicmatters.net/resources/pdfs/latex/BussGuide2.pdf
       ;; http://www.logicmatters.net/latex-for-logicians/nd/
       ("" "bussproofs" t) ; 自然推論
+      ("all" "xypic" t) ; ダイヤグラム
       ("" "isomath"   t) ; MathJax未対応
       ("" "latexsym"  t) ; MathJax未対応
       ("" "marvosym"  t) ; Martin Vogel's Symbols Font
@@ -8898,7 +9526,12 @@ XeTeX/LuaTeX や HTML, DocBook 等、日本語の改行が空白扱いになる�
             ;; ("backend=biber", "biblatex" t)
             ;; ↓これを入れると、includegraphics で png が入らないので注意。
             ("" "listings")
-            ("" "color")))
+            ,(case latex
+               ('luatex '("pdftex,pdfencoding=auto" "color" t))
+               ('euptex '("dvipdfmx" "color"  t))
+               ('xetex  '("xetex" "color"  t))
+               (t       '("pdftex" "color"  t)))
+            ))
 
     (setq org-latex-classes ; LaTeX クラス名・ヘッダ・セクション
           `(("article"
@@ -9017,10 +9650,10 @@ XeTeX/LuaTeX や HTML, DocBook 等、日本語の改行が空白扱いになる�
   (setq org-publish-project-alist
         ;; Sample ePUB3 publication project
         '(("epub3-sample"
-           :base-directory "~/Dropbox/lessons/org-mode/publish/"
+           :base-directory "~/share/lessons/org-mode/publish/"
            :base-extension "org"
            :publishing-function org-html-publish-to-html
-           :publishing-directory "~/Dropbox/Public/org-publish/"
+           :publishing-directory "~/share/Public/org-publish/"
            :auto-sitemap t
            :sitemap-title "タイトルのテスト"
            :sitemap-subtitle "サブタイトルのテスト"
@@ -9093,7 +9726,7 @@ XeTeX/LuaTeX や HTML, DocBook 等、日本語の改行が空白扱いになる�
                            :secret)))
     (when secret
       (setq org-taskjuggler-reports-directory
-            (expand-file-name (concat "~/Dropbox/Public/"
+            (expand-file-name (concat "~/share/Public/"
                                       (funcall secret) "/tj-reports")))
       ;; `secret' is lexically bound.
       (defun tkw-taskjuggler-page ()
@@ -9105,6 +9738,25 @@ XeTeX/LuaTeX や HTML, DocBook 等、日本語の改行が空白扱いになる�
 (use-package ox-texinfo
   :commands (org-texinfo-export-to-texinfo))
 
+;;;; org-plus-contrib <elpa>
+;;;;; org/contrib/org-annotate-file
+(use-package org-annotate-file
+  :bind ("C-c C-l" . org-annotate-file)
+  :init
+  (defun bookmark-show-org-annotations ()
+  "Opens the annotations window for the currently selected bookmark file."
+  (interactive)
+  (bookmark-bmenu-other-window)
+  (org-annotate-file)
+  ;; or, if you're using the http://bitbucket.org/nickdaly/org-annotate-file fork,
+  ;; (org-annotate-file-show-annotations)
+  )
+  :config
+  (setq org-annotate-file-storage-file "~/.emacs.d/org-annotated.org")
+  (add-hook 'bookmark-bmenu-mode-hook
+            (lambda ()
+              (local-set-key (kbd "a") 'bookmark-show-org-annotations))))
+
 ;;;;; org/contrib/org-bibtex-extras
 (use-package org-bibtex-extras :defer t
   :config
@@ -9115,7 +9767,8 @@ XeTeX/LuaTeX や HTML, DocBook 等、日本語の改行が空白扱いになる�
                 (obe-html-export-citations)))))
 
 ;;;;; org/contrib/org-contacts
-(use-package org-contacts :defer t
+(use-package org-contacts
+  :defer t
   :config
   (add-to-list
    'org-capture-templates
@@ -9126,22 +9779,26 @@ XeTeX/LuaTeX や HTML, DocBook 等、日本語の改行が空白扱いになる�
               ":END:"))))
 
 ;;;;; org/contrib/ox-deck
-;; file:/Users/kawabata/Dropbox/Public/
+;; file:/Users/kawabata/share/Public/
 ;; → https://dl.dropboxusercontent.com/u/463784/
 (use-package ox-deck
   :commands (org-deck-export-as-html org-deck-export-to-html)
   :config
-  (setq org-deck-directories (list (expand-file-name "~/Dropbox/Public/deck.js"))
+  (setq org-deck-directories (list (expand-file-name "~/share/Public/deck.js"))
          org-deck-base-url (concat "file:" (car org-deck-directories))))
         ;;org-deck-base-url "http://imakewebthings.com/deck.js"))
 
-;;;; org-bullets <elpa>
-(use-package org :defer t
-  :config
-  (when (require 'org-bullets nil :no-error)
+;;;;; org/contrib/ox-s5
+(use-package ox-s5
+  :commands (org-s5-export-as-html org-s5-export-to-html))
+
+;;;; org/contrib/org-bullets
+(use-package org-bullets :defer t
+  :init
+  (with-eval-after-load 'org
     (add-hook 'org-mode-hook 'org-bullets-mode)))
 
-;;;; org-mac-iCal <elpa>
+;;;; org-mac-iCal <elpa> (abstain)
 ;; iCalendar → diary
 ;;(lazyload () "org"
 ;;  (when (require 'org-mac-iCal nil t)
@@ -9206,8 +9863,8 @@ XeTeX/LuaTeX や HTML, DocBook 等、日本語の改行が空白扱いになる�
         org-octopress-directory-org-posts "~/org/octopress/blog"
         org-octopress-setup-file          "~/org/octopress.org"
         ;; export先のディレクトリ
-        org-octopress-directory-top       "~/Dropbox/cvs/octopress/source"
-        org-octopress-directory-posts     "~/Dropbox/cvs/octopress/source/_posts")
+        org-octopress-directory-top       "~/share/cvs/octopress/source"
+        org-octopress-directory-posts     "~/share/cvs/octopress/source/_posts")
   ;; octopress-static も追加する。
   (add-hook 'org-octopress-summary-mode-hook
             (lambda ()
@@ -9222,11 +9879,12 @@ XeTeX/LuaTeX や HTML, DocBook 等、日本語の改行が空白扱いになる�
 ;;  (add-to-list 'package--builtins
 ;;               '(org-mac-link . [(1 2) nil "Grab links and url from various mac"])))
 
-;;;; org-table-comment <elpa>
+;;;; org-table-comment
 ;; orgtbl-mode では対応できない 非ブロックコメント形式のプログラム言語
 ;; でのテーブル入力を実現。
 ;; コメントヘッダを入力後、M-x orgtbl-comment-mode
-(bind-key "C-c |" 'orgtbl-comment-mode)
+(use-package org-table-comment
+  :bind ("C-c |" . orgtbl-comment-mode))
 
 ;;;; org-toodledo <elpa>
 ;; 要 w3m。http-post-simple.el
@@ -9259,17 +9917,73 @@ XeTeX/LuaTeX や HTML, DocBook 等、日本語の改行が空白扱いになる�
   ;; キー設定。 C-M-o d でタスク削除。
   )
 
-;;;; osx-plist <elpa>
+;;;; osx-plist <elpa> (obsolete)
 ;; MacOS 10.6 から environment.plist が未サポートになり利用中止。
+
+;;;; ox-gfm
+;; → pandoc へ移行。
+;; http://orgmode.org/cgit.cgi/org-mode.git/plain/contrib/lisp/ox-gfm.el
+;;(use-package ox-gfm :defer t
+;;  :init
+;;  (with-eval-after-load 'ox
+;;    (require 'ox-gfm nil t)))
 
 ;;;; ox-hatena
 ;; https://github.com/akisute3/ox-hatena/
 (use-package ox-hatena
   :commands (org-hatena-export-as-hatena org-hatena-export-to-hatena))
 
+;;;; ox-pandoc <elpa>
+(use-package ox-pandoc :defer t
+  :config
+  (setq org-pandoc-options-for-beamer-pdf '((latex-engine . "xelatex")))
+  (setq org-pandoc-options-for-latex-pdf '((latex-engine . "xelatex")))
+  (cl-pushnew '("p" "#+PANDOC_OPTIONS:" "") org-structure-template-alist))
+
+(defun tkw-org-pandoc-reference-quote-buffer ()
+  (interactive)
+  (goto-char (point-min))
+  ;;(or (search-forward "参考文献" nil t)
+  ;;    (search-forward "References" nil t))
+  (while (re-search-forward "\\(\\[[0-9]+\\]\\)" nil t)
+         ;;(re-search-forward "\n\n\\(\\[[0-9a-zA-Z]+?\\]\\)" nil t)
+    (replace-match "=\\1= ")))
+
 ;;;; osx-osascript
 (when (locate-library "osx-osascript")
   (autoload 'osascript-run-str "osx-osascript" "Run the osascript STR."))
+
+;;;; pallet <elpa>
+;; 自動的に ~/.emacs.d/Cask ファイル と Packaging を同期する。
+;; Network に繋がっていないとエラーになる。要対策。
+(use-package pallet :defer t
+  :init
+  ;;(condition-case nil
+  ;;      (pallet-init)
+  ;;    (error nil)))
+  )
+
+;;;; paradox <elpa>
+(use-package paradox
+  :bind ("C-c P" . paradox-list-packages)
+  :config
+  (pallet-init)
+  (setq paradox-github-token
+        (let ((secret
+               (plist-get (nth 0 (auth-source-search
+                                  :host "paradox.kawabata.github.com"
+                                  :user "kawabata"))
+                          :secret)))
+          (if (functionp secret) (funcall secret)
+            (error "Paradox Token not set!")))))
+
+;;;; phi-rectangle <elpa>
+(use-package phi-rectangle
+  :bind (("C-x r C-@" . rm-set-mark)
+         ("C-x r C-\\" . rm-set-mark)
+         ("C-x r C-x" . rm-exchange-point-and-mark)
+         ("C-x r C-w" . rm-kill-region)
+         ("C-x r M-w" . rm-kill-ring-save)))
 
 ;;;; ProofGeneral
 ;; http://proofgeneral.inf.ed.ac.uk/
@@ -9287,7 +10001,7 @@ XeTeX/LuaTeX や HTML, DocBook 等、日本語の改行が空白扱いになる�
 ;; - まとめ :: http://www39.atwiki.jp/fm-forum/m/pages/17.html
 ;; Proof Tree
 ;; - http://askra.de/software/prooftree/
-(use-package proof-site
+(use-package proof-site ;; not package!
   :commands (tkw-proof-general-version
              pghaskell-mode pgocaml-mode
              pgshell-mode phox-mode coq-mode isar-mode)
@@ -9382,13 +10096,9 @@ XeTeX/LuaTeX や HTML, DocBook 等、日本語の改行が空白扱いになる�
      ;; riece-eval-ruby
      riece-icon
      riece-shrink-buffer
-     riece-mcat)))
-
-;;;;; riece/riece-log
-(use-package riece-log
-  :defer t
-  :config
-  (setq riece-log-coding-system 'utf-8-emacs))
+     riece-mcat))
+  (with-eval-after-load riece-log
+    (setq riece-log-coding-system 'utf-8-emacs)))
 
 ;;;; rcodetools <gem>
 ;; コードの補完など
@@ -9399,16 +10109,21 @@ XeTeX/LuaTeX や HTML, DocBook 等、日本語の改行が空白扱いになる�
 ;;    '(progn (require 'rcodetools)
 ;;            (require 'anything-rcodetools))))
 
+;;;; restclient <elpa>
+;; cf. http://emacsrocks.com/e15.html
+
 ;;;; ox-reveal <elpa>
 ;; require すれば自動的に利用可能。
 ;; TODO サブノードを export する方法
+;; #+REVEAL_ROOT: http://cdn.jsdelivr.net/reveal.js/2.6.2/
 (use-package ox-reveal :defer t
   :config
-  (setq org-reveal-root "../reveal.js")
+  (setq org-reveal-root "http://cdn.jsdelivr.net/reveal.js/2.6.2/")
   (setq org-reveal-hlevel 2))
 
 ;;;; pdf-tools
-;; https://github.com/politza/pdf-tools
+;; https://github.com/politza/pdf-tools (本家)
+;; https://github.com/axot/pdf-tools (MacOS対応版)
 ;; * インストール方法
 ;; % brew install poppler --with-glib
 ;; % brew install zlib # keg only
@@ -9434,10 +10149,11 @@ XeTeX/LuaTeX や HTML, DocBook 等、日本語の改行が空白扱いになる�
 ;;  - pdf-sync-minor-mode
 ;;  - pdf-misc-context-menu-minor-mode :: マウスボタン３でメニュー表示
 ;;  - pdf-info-auto-revert-minor-mode
-(use-package pdf-occur :defer t
+(use-package pdf-tools :defer t
   :if (executable-find "epdfinfo")
   :init
-  (pdf-tools-install) ; doc-view-mode-hook に pdf-tools-enable を設定。
+  ;;(with-eval-after-load 'doc-view
+  ;;  (pdf-tools-install)) ; doc-view-mode-hook に pdf-tools-enable を設定。
   :config
   ;; ELPAディレクトリをDropboxで共有している場合、そこに含まれるepdfinfoは、
   ;; 異なるプラットフォームでは動作しない。
@@ -9445,11 +10161,14 @@ XeTeX/LuaTeX や HTML, DocBook 等、日本語の改行が空白扱いになる�
     (setq pdf-info-epdfinfo-program (executable-find "epdfinfo")))
   (define-key pdf-occur-buffer-mode-map (kbd "o") 'pdf-occur-view-occurrence))
 
-;;;; pianobar <elpa>
+;;;; phi-rectangle <elpa>
+;; - autoload :: phi-rectangle-mode
+
+;;;; pianobar <elpa> (abstain)
 ;; 音楽配信サイト pandora のクライアント
 ;; 現在はアメリカからのみ利用可能。
 
-;;;; popup-kill-ring <elpa>
+;;;; popup-kill-ring <elpa> (abstain)
 ;; M-x popup-kill-ring
 
 ;;;; popup-switcher <elpa>
@@ -9498,17 +10217,17 @@ XeTeX/LuaTeX や HTML, DocBook 等、日本語の改行が空白扱いになる�
 ;; C-c q v   :: 'quickref-describe-refs
 ;; C-c q C-s :: 'quickref-write-save-file
 ;; C-c q C-l :: 'quickref-load-save-file
-;;(when (functionp 'quickref-global-mode)
-;;  (quickref-global-mode 1))
+(use-package quickref
+  (quickref-global-mode 1))
 
-;;;; rect-mark <elpa>
+;;;; quickrun <elpa>
+;; smart-compile とどちらがいいか考え中。
+(use-package quickrun
+  :bind ("C-c q" . quickrun))
+
+;;;; rect-mark (obsolete)
 ;; 矩形選択を便利にする
-(use-package rect-mark
-  :bind (("C-x r C-@" . rm-set-mark)
-         ("C-x r C-\\" . rm-set-mark)
-         ("C-x r C-x" . rm-exchange-point-and-mark)
-         ("C-x r C-w" . rm-kill-region)
-         ("C-x r M-w" . rm-kill-ring-save)))
+;; phi-rectangle に移行。
 
 ;;;; realgud <elpa>
 ;; GUD rennovated.
@@ -9566,35 +10285,37 @@ XeTeX/LuaTeX や HTML, DocBook 等、日本語の改行が空白扱いになる�
 
 ;;;; session <elpa>
 ;; http://emacs-session.sourceforge.net/
-;; 終了時にヒストリ関連の変数を保存
+;; 終了時にセッション関連変数を保存
 ;; 標準の"desktop"（バッファリストなどを保存）と併用。
-(use-package session
-  :if (file-writable-p "~/.session")
-  :init
-  (add-hook 'after-init-hook 'session-initialize)
-  :config
-  (setq history-length t)
-  (session-initialize-and-set 'session-use-package t)
-  (setq session-globals-max-string 10240
-        session-registers-max-string 10240
-        session-use-package t
-        session-initialize '(de-saveplace session keys menus places)
-        session-globals-include '((kill-ring 50)
-                                  (session-file-alist 500 t)
-                                  (file-name-history 10000))
-        session-globals-exclude '(file-name-history load-history register-alist
-                                  vc-comment-ring flyspell-auto-correct-ring))
-  (add-hook 'after-init-hook 'session-initialize)
-  ;; 前回閉じたときの位置にカーソルを復帰
-  ;;(setq desktop-globals-to-save '(desktop-missing-file-warning))
-  (setq session-undo-check -1))
+;(use-package session :defer t
+;  ;; :if (file-writable-p "~/.session")
+;  :init
+;  (add-hook 'after-init-hook 'session-initialize)
+;  :config
+;  (setq history-length t)
+;  ;; 以下を設定すると、custom.el で強制的に session.el を読みこまされ、
+;  ;; 結果として session.el がない環境でエラーになる。
+;  ;; (session-initialize-and-set 'session-use-package t)
+;  (setq session-globals-max-string 10240
+;        session-registers-max-string 10240
+;        session-use-package t
+;        session-initialize '(de-saveplace session keys menus places)
+;        session-globals-include '((kill-ring 50)
+;                                  (session-file-alist 500 t)
+;                                  (file-name-history 10000))
+;        session-globals-exclude '(file-name-history load-history register-alist
+;                                  vc-comment-ring flyspell-auto-correct-ring))
+;  (add-hook 'after-init-hook 'session-initialize)
+;  ;; 前回閉じたときの位置にカーソルを復帰
+;  ;;(setq desktop-globals-to-save '(desktop-missing-file-warning))
+;  (setq session-undo-check -1))
 
 ;;;; setup-cygwin
 ;; Windows用のシンボリックリンクの設定など
 ;(when (equal system-type 'windows-nt)
 ;  (require 'setup-cygwin nil :no-error))
 
-;;;; shell-pop
+;;;; shell-pop <elpa>
 ;; 【注意】 shell-pop--cd-to-cwd-term の
 ;; (term-send-raw-string "\C-l") はコメントアウトすること。
 (use-package shell-pop
@@ -9623,44 +10344,33 @@ XeTeX/LuaTeX や HTML, DocBook 等、日本語の改行が空白扱いになる�
 ;;;; smartrep <elpa>
 ;; 例：C-c C-n の繰り返しを、C-c C-n C-n ... ですませられるようにする。
 (use-package smartrep
-  :commands (smartrep-define-key))
-;; これ以前の設定
-(when (boundp 'winner-mode-map)
-  (smartrep-define-key winner-mode-map "C-c"
-                       '(("M-p" . winner-undo)
-                         ("M-n" . winner-redo))))
-
-;; フォントセットを回転させる。
-(smartrep-define-rotate-key tkw-rotate-map "l"
-  (tkw-rotate-font-specs tkw-font-specs t)
-  (tkw-rotate-font-specs tkw-font-specs t -1))
-(smartrep-define-rotate-key tkw-rotate-map "k"
-  (tkw-rotate-font-specs tkw-font-specs 'kana)
-  (tkw-rotate-font-specs tkw-font-specs 'kana -1))
-(smartrep-define-rotate-key tkw-rotate-map "h"
-  (tkw-rotate-font-specs tkw-font-specs 'han)
-  (tkw-rotate-font-specs tkw-font-specs 'han -1))
-;; テーマの回転 (obsolete)
-;;(smartrep-define-rotate-key tkw-rotate-map "t"
-;;  (rotate-theme) (rotate-theme -1))
-
-(use-package outline
-  :defer t
-  :config
-  (when (require 'smartrep nil :no-error)
+  :commands (smartrep-define-key)
+  :init
+  (when (boundp 'winner-mode-map)
+    (smartrep-define-key winner-mode-map "C-c"
+                         '(("M-p" . winner-undo)
+                           ("M-n" . winner-redo))))
+  ;; テーマの回転 (obsolete)
+  ;;(smartrep-define-rotate-key tkw-rotate-map "t"
+  ;;  (rotate-theme) (rotate-theme -1))
+  (with-eval-after-load 'outline
     (smartrep-define-key
         outline-minor-mode-map "C-c"
       '(("C-n" . outline-next-visible-heading)
-        ("C-p" . outline-previous-visible-heading)))))
-
-(use-package org
-  :defer t
-  :config
-  (when (require 'smartrep nil :no-error)
+        ("C-p" . outline-previous-visible-heading))))
+  (with-eval-after-load 'org
     (smartrep-define-key
         org-mode-map "C-c"
       '(("C-n" . outline-next-visible-heading)
         ("C-p" . outline-previous-visible-heading)))))
+
+;;(declare-function smartrep-define-key "smartrep" (keymap prefix functions))
+;;(defmacro smartrep-define-rotate-key (keymap prefix function-1 function-2)
+;;  (declare (indent 2))
+;;  `(smartrep-define-key
+;;       ,keymap ,prefix
+;;     '(("n" . ,function-1)
+;;       ("p" . ,function-2))))
 
 ;;;; smex <elpa>
 ;; Smart Meta-X
@@ -9671,14 +10381,14 @@ XeTeX/LuaTeX や HTML, DocBook 等、日本語の改行が空白扱いになる�
 ;;  ;; This is your old M-x.
 ;;  (bind-key "C-c C-c M-x" 'execute-extended-command))
 
-;;;; sml-modeline <elpa>
+;;;; sml-modeline <elpa> (abstain)
 ;;(when (require 'sml-modeline nil :no-error)
 ;;  (sml-modeline-mode t)
 ;;  (if (functionp 'scroll-bar-mode)
 ;;      (scroll-bar-mode nil))
 ;;  )
 
-;;;; smooth-scrolling <elpa>
+;;;; smooth-scrolling <elpa> (abstain)
 ;; 重要な関数にアドバイスするのでインストール・使用中止。
 
 ;;;; sokoban (marmalade)
@@ -9689,7 +10399,8 @@ XeTeX/LuaTeX や HTML, DocBook 等、日本語の改行が空白扱いになる�
 ;; dired-listing-switches が、"al" 以外だと動作しないため使用中止。
 ;; 独自に移植。 (dired-rotate-sort) 参照。
 
-;;;; sublimity <elpa>
+;;;; sublimity <elpa> (abstain)
+;; 動作が重くなるので利用中止。
 ;; sublimity-scroll sublimity-map
 
 ;;;; sudden-death <elpa>
@@ -9836,6 +10547,7 @@ XeTeX/LuaTeX や HTML, DocBook 等、日本語の改行が空白扱いになる�
         ":favorites"
         ":direct_messages"
         ":search/emacs/"
+        "melpa_emacs"
         ;;"kawabata/kanji"
         ))
   ;; Shortcut
@@ -9871,14 +10583,14 @@ XeTeX/LuaTeX や HTML, DocBook 等、日本語の改行が空白扱いになる�
 ;;            (list default-fonts))))
 ;;  (tkw-push-font "CJK Unified Ideographs" "Hiragino Mincho Pro"))
 
-;;;; w3m-mode <elpa>
-;; eww へ移行。
+;;;; w3m <elpa>
+;; eww へ移行する。（一部ライブラリで使用するので、obsoleteにはしない。）
 (use-package w3m
   :defer t
   (when (coding-system-p 'cp51932)
     (add-to-list 'w3m-compatible-encoding-alist '(euc-jp . cp51932))))
 
-;;;; wget <elpa>
+;;;; wget <elpa> (obsolete)
 
 ;;;; wgrep <elpa>
 ;; You can edit the text in the *grep* buffer after typing C-c C-p.
@@ -9912,6 +10624,32 @@ XeTeX/LuaTeX や HTML, DocBook 等、日本語の改行が空白扱いになる�
 ;; `C-x n n', `C-x n w' をどうするのかは確認すること。
 (require 'wide-n nil :no-error)
 
+;;;; wisi <elpa>
+;; API
+;; - wisi-setup
+;; - wisi-backward-cache
+;; - wisi-backward-token
+;; - wisi-cache-class
+;; - wisi-cache-containing
+;; - wisi-cache-end
+;; - wisi-cache-last
+;; - wisi-cache-nonterm
+;; - wisi-cache-text
+;; - wisi-cache-token
+;; - wisi-forward-cache
+;; - wisi-forward-find-class
+;; - wisi-forward-token
+;; - wisi-get-cache
+;; - wisi-get-containing-cache
+;; - wisi-goto-containing
+;; - wisi-goto-containing-paren
+;; - wisi-goto-end-1
+;; - wisi-indent-current
+;; - wisi-indent-paren
+;; - wisi-next-statement-cache
+;; - wisi-prev-statement-cache
+;; - wisi-validate-cache
+
 ;;;; zossima <elpa>
 ;; Ruby で定義先メソッドへジャンプ
 (use-package zossima :defer t
@@ -9925,6 +10663,97 @@ XeTeX/LuaTeX や HTML, DocBook 等、日本語の改行が空白扱いになる�
   :defer t
   :init
   (add-hook 'TeX-mode-hook 'zotelo-minor-mode))
+
+;;; テーマ
+;;;; afternoon-theme <elpa>
+;;;; alect-themes <elpa>
+;;;; ample-theme <elpa>
+;;;; ample-zen-theme <elpa>
+;;;; anti-zenburn-theme <elpa>
+;;;; badger-theme <elpa>
+;;;; base16-theme <elpa>
+;;;; birds-of-paradise-plus-theme <elpa>
+;;;; bubbleberry-theme <elpa>
+;;;; busybee-theme <elpa>
+;;;; calmer-forest-theme <elpa>
+;;;; cherry-blossom-theme <elpa>
+;;;; clues-theme <elpa>
+;;;; colorsarenice-theme <elpa>
+;;;; cyberpunk-theme <elpa>
+;;;; dakrone-theme <elpa>
+;;;; darkburn-theme <elpa>
+;;;; darkmine-theme <elpa>
+;;;; darkmine-theme <elpa>
+;;;; display-theme <elpa>
+;;;; distinguished-theme <elpa>
+;;;; django-theme <elpa>
+;;;; espresso-theme <elpa>
+;;;; firebelly-theme <elpa>
+;;;; flatland-theme <elpa>
+;;;; flatui-theme <elpa>
+;;;; gandalf-theme <elpa>
+;;;; gotham-theme <elpa>
+;;;; grandshell-theme <elpa>
+;;;; gruber-darker-theme <elpa>
+;;;; gruvbox-theme <elpa>
+;;;; hc-zenburn-theme <elpa>
+;;;; hemisu-theme <elpa>
+;;;; heroku-theme <elpa>
+;;;; inkpot-theme <elpa>
+;;;; ir-black-theme <elpa>
+;;;; leuven-theme <elpa>
+;;;; light-soap-theme <elpa>
+;;;; lush-theme <elpa>
+;;;; minimal-theme <elpa>
+;;;; moe-theme <elpa>
+;; moe-theme は、require しないと利用できないので注意。
+;;;; molokai-theme <elpa>
+;;;; monochrome-theme <elpa>
+;;;; monokai-theme <elpa>
+;;;; mustang-theme <elpa>
+;;;; naquadah-theme <elpa>
+;;;; niflheim-theme <elpa>
+;;;; noctilux-theme <elpa>
+;;;; obsidian-theme <elpa>
+;;;; occidental-theme <elpa>
+;;;; oldlace-theme <elpa>
+;;;; organic-green-theme <elpa>
+;;;; pastels-on-dark-theme <elpa>
+;;;; phoenix-dark-mono-theme <elpa>
+;;;; phoenix-dark-pink-theme <elpa>
+;;;; planet-theme <elpa>
+;;;; professional-theme <elpa>
+;;;; purple-haze-theme <elpa>
+;;;; reverse-theme <elpa>
+;;;; smyx-theme <elpa>
+;;;; soft-charcoal-theme <elpa>
+;;;; soft-morning-theme <elpa>
+;;;; soft-stone-theme <elpa>
+;;;; solarized-theme <elpa>
+;;;; soothe-theme <elpa>
+;;;; spacegray-theme <elpa>
+;;;; stekene-theme <elpa>
+;;;; subatomic-theme <elpa>
+;;;; subatomic256-theme <elpa>
+;;;; sunny-day-theme <elpa>
+;;;; tango-2-theme <elpa>
+;;;; tango-plus-theme <elpa>
+;;;; tangotango-theme <elpa>
+;;;; tommyh-theme <elpa>
+;;;; toxi-theme <elpa>
+;;;; tronesque-theme <elpa>
+;;;; twilight-anti-bright-theme <elpa>
+;;;; twilight-bright-theme <elpa>
+;;;; twilight-theme <elpa>
+;;;; ujelly-theme <elpa>
+;;;; underwater-theme <elpa>
+;;;; zen-and-art-theme <elpa>
+;;;; zenburn-theme <elpa>
+;;;; zonokai-theme <elpa>
+
+;; デフォルトは tangotango で。
+(when (custom-theme-p 'tangotango)
+  (load-theme 'tangotango))
 
 ;;; 個人用アプリケーション
 ;;;; aozora-proc
@@ -9948,8 +10777,16 @@ XeTeX/LuaTeX や HTML, DocBook 等、日本語の改行が空白扱いになる�
 ;;    (add-hook 'yas-after-exit-snippet-hook 'ruby-clean-up)))
 
 ;;;; bbdb-export
+;; bbdb-export is a versatille BBDB export support.
+;; ファイルの輸出先：
+;;   https://www.icloud.com/#contacts
 (use-package bbdb-export
-  :bind ("C-c V" . bbdb-export-vcard-v3))
+  :bind ("C-c V" . bbdb-export-vcard-v3)
+  :init
+  (add-hook 'bbdb-after-save-hook 'bbdb-export-vcard-v3)
+  :config
+  (when (file-directory-p "~/Desktop")
+    (setq bbdb-export-file "~/Desktop/bbdb.vcf")))
 
 ;;;; bib-cinii
 ;; BibTeX Cinii検索
@@ -9965,6 +10802,56 @@ XeTeX/LuaTeX や HTML, DocBook 等、日本語の改行が空白扱いになる�
 (use-package hz2py
   :commands (hz2py-region))
 
+;;;; next-bus
+(use-package next-bus
+  :config
+  (next-bus-mode))
+
+;;;; rotate-fonts
+(use-package rotate-fonts
+  :config
+  (customize-set-variable
+   'rotate-fonts-specs
+   '((?l ("Inconsolata"
+          "Source Code Pro"           ; Adobe
+          "Monaco"
+          "Monofur"
+          "Droid Sans Mono"
+          "DejaVu Sans Mono"
+          "Anonymous Pro"
+          "Consolas"                  ; Windows
+          "Menlo"                     ; Macintosh
+          "IPAMonaPGothic")
+         (latin))
+     (?k #1=(
+             "Hiragino Kaku Gothic ProN" ;"ヒラギノ角ゴ Pro"
+             "Hiragino Maru Gothic ProN" ;"ヒラギノ丸ゴ Pro"
+             "Hiragino Mincho ProN"      ;"ヒラギノ明朝 Pro"
+             "IPAMonaPGothic"            ;
+             ;; "PMinIWA-HW-Md"             ;"IWAp明-中Plus"
+             ;; "Iwata SeichouF Pro"        ;"I-OTF弘道軒清朝復刻版Pro B"
+             ;; "g_comickoin\-Light"
+             "Hanazono Mincho"
+             "Hanazono Mincho A"
+             "Hanazono Mincho B"
+             "Hanazono Mincho A Regular"
+             "Hanazono Mincho B Regular"
+             "SimSun"
+             ;; Windows
+             "ＭＳ 明朝"
+             "ＭＳ ゴシック"
+             "小塚明朝 Pr6N"
+             "花園明朝 A Regular"
+             "花園明朝 B Regular"
+             )
+         (kana symbol))
+     (?p ("EUDC2"
+          "Hanazono Mincho A")
+         ((#xf137 . #xf69d)))
+     (?h #1#
+         ((#x2e80 . #x2fff) (#x3400 . #x9fff)
+          (#xf900 . #xfaff) (#x20000 . #x2fffd))))))
+
 ;;;; tkw-birthdays
 ;; tkw-friend-birthdays
 ;; bbdb-anniv.el に移行。
@@ -9973,7 +10860,10 @@ XeTeX/LuaTeX や HTML, DocBook 等、日本語の改行が空白扱いになる�
 ;;;; view-pdf
 ;; `browse-url-browser-function' 変数を拡張して、ローカルファイル上の
 ;; PDFを見れるようにする。lookup等で有用。
-(require 'view-pdf nil :no-error)
+(use-package view-pdf :defer t
+  :init
+  (autoload 'view-pdf "view-pdf"))
+
 
 ;;;; view-pdf-dict
 ;; PDF辞書検索
@@ -9981,7 +10871,11 @@ XeTeX/LuaTeX や HTML, DocBook 等、日本語の改行が空白扱いになる�
   :bind ("M-S-d" . view-dict-at-point))
 
 ;;;; zsh-history
-(require 'zsh-history nil t)
+(use-package zsh-history
+  :config
+  (setq zsh-hist-merge-target-1 "~/.zsh_history")
+  (setq zsh-hist-merge-target-2 "~/share/dotfiles/.zsh_history")
+  (setq zsh-hist-merge-dest "~/.zsh_history_new"))
 
 ;;; 個人用関数
 ;;;; M-y (obolete)
@@ -10002,6 +10896,19 @@ XeTeX/LuaTeX や HTML, DocBook 等、日本語の改行が空白扱いになる�
         (string-match-p regex "")
         t)
     (invalid-regexp nil)))
+
+;;;; eval-and-replace
+;; S式を結果に置き換える。
+;; https://github.com/magnars/.emacs.d/blob/master/defuns/lisp-defuns.el
+(defun eval-and-replace ()
+  "Replace the preceding sexp with its value."
+  (interactive)
+  (backward-kill-sexp)
+  (condition-case nil
+      (prin1 (eval (read (current-kill 0)))
+             (current-buffer))
+    (error (message "Invalid expression")
+           (insert (current-kill 0)))))
 
 ;;;; データ操作
 (defun map-plist (plist func)
@@ -10083,6 +10990,11 @@ returned."
   (interactive "r")
   (remove-overlays from to))
 
+(defun remove-text-properties-region (from to)
+  "指定した領域のpropertiesを全て除去する。"
+  (interactive "r")
+  (set-text-properties from to nil))
+
 (defun put-text-property-region (from to property value)
   "指定した領域に指定した名前のテキストプロパティを設定する。"
   (interactive "*r\nSproperty name: \nSproperty value: ")
@@ -10123,6 +11035,24 @@ returned."
               (tkw-make-scratch 1))))
 
 
+;;;; モードラインに私用表示
+(define-minor-mode docomo-usage-mode
+  "ドコモのパケホーダイの利用目安量."
+  :global t
+  :init-value nil)
+
+(setf (alist-get 'docomo-usage-mode header-line-format)
+      '((:eval
+         ;; 7Gbyte を 30日で分割した場合の、現在日における２桁数字。
+         (format
+          "利用目安量 %sGb "
+          (/ (* (/ 70 30)
+                (string-to-number
+                 (format-time-string "%d" (current-time)))) 10.0)))))
+(setq-default header-line-format header-line-format)
+
+(docomo-usage-mode 1)
+
 ;;;; DropBox
 (declare-function ffap-read-file-or-url "ffap" (prompt guess))
 (declare-function ffap-guesser "ffap" nil)
@@ -10133,7 +11063,7 @@ returned."
   (or filename
       (setq filename
             (ffap-read-file-or-url
-             "Find file in DropBox: " (ffap-guesser))))
+             "Find a file in DropBox Folder: " (ffap-guesser))))
   (setq filename (expand-file-name (file-truename filename)))
   (if (string-match "Dropbox/\\(.*\\)$" filename)
       (if (file-directory-p filename)
@@ -10150,13 +11080,24 @@ returned."
   (or filename
       (setq filename
             (ffap-read-file-or-url
-             "Find file in DropBox: " (ffap-guesser))))
+             "Browse a file in DropBox Folder: " (ffap-guesser))))
   (setq filename (expand-file-name (file-truename filename)))
   (if (string-match "Dropbox/Public/\\(.*\\)$" filename)
           (browse-url (concat "https://dl.dropboxusercontent.com/u/463784/"
                               (match-string 1 filename)))
     (message "Not Dropbox Public Directory! %s -- " filename)))
 (bind-key "C-x M-F" 'browse-dropbox-public-folder)
+
+;;;; Melpa
+(defun browse-melpa-package (&optional package-name)
+  "PACKAGE-NAME を MELPA パッケージとしてブラウザで開く."
+  (interactive)
+  (or package-name
+      (setq package-name
+            (ffap-read-file-or-url
+             "Find file in MELPA: " (ffap-guesser))))
+  (browse-url (concat "http://melpa.milkbox.net/#/" package-name)))
+(bind-key "C-x C-S-f" 'browse-melpa-package)
 
 ;;;; count-features
 
@@ -10195,6 +11136,16 @@ returned."
    (delete-file tmpfile)))
 
 ;;;; その他の関数
+(defun find-file-no-mode ()
+  "Find file without no mode settings."
+  (interactive)
+  (let ((auto-mode-alist-bak auto-mode-alist))
+    (setq-default auto-mode-alist nil)
+    (condition-case nil
+        (call-interactively 'find-file)
+      ((quit error) (setq-default auto-mode-alist auto-mode-alist-bak)))
+    (setq-default auto-mode-alist auto-mode-alist-bak)))
+
 (defun find-in-naxos-music-library (word)
   (interactive "s Naxos Keyword? ")
   (browse-url (concat "http://ml.naxos.jp/KeywordSearch.aspx?word=" word)))
@@ -10233,24 +11184,72 @@ same directory as the org-buffer and insert a link to this file."
     (translate-region (point-min) (point-max) table)
     (buffer-string)))
 
+;;;; YAML Parser
+;; http://stackoverflow.com/questions/10093211/what-is-the-best-yaml-parser-in-elisp
+;; % pip install PyYaml
+(defun yaml-to-json-region (from to)
+  "Parse YAML region FROM TO and convert it to json.
+If SEXP is t, convert it to S-expression."
+  (interactive "r")
+  (save-excursion
+    (save-restriction
+      (narrow-to-region from to)
+      (shell-command-on-region
+       (point-min) (point-max)
+       "python -c 'import sys, yaml, json; json.dump(yaml.load(sys.stdin), sys.stdout, indent=4)'"
+       nil t))))
+
+(defun yaml-parse-string (string)
+  (with-temp-buffer
+    (insert string)
+    (yaml-parse-region (point-min) (point-max))
+    (goto-char (point-min))
+    (json-read)))
+
+(defun yaml-to-sexp-region (from to)
+  (interactive "r")
+  (save-excursion
+    (save-restriction
+      (narrow-to-region from to)
+      (goto-char from)
+      (insert (pp (yaml-parse-string (buffer-substring from to))))
+      (delete-region (point) (point-max)))))
+
+;;;;; ログ・ファイル出力
+(defvar logger-process nil)
+(defun logger (&rest msg)
+  (unless logger-process
+    (setq logger-process (start-process-shell-command "logger" nil (concat "cat >> ~/log.txt"))))
+  (process-send-string logger-process (concat (apply 'format msg) "\n")))
+
+;;;;; キー入力の表示
+(defun show-key-input ()
+  (message "%s" (format-kbd-macro (vector last-command-event))))
+
+(defun toggle-show-key-input ()
+  (interactive)
+  (if (memq 'show-key-input post-command-hook)
+      (remove-hook 'post-command-hook 'show-key-input)
+    (add-hook 'post-command-hook 'show-key-input)))
+
 ;;; Startup Files
 ;; Custom値の safe-local-variables 設定後にファイル変数を設定できるよう、
 ;; この部分は必ず custom-file 読み込みの後で行うこと。
 
 (load custom-file t) ; まず　custom値を設定する
-(unless noninteractive
-  (let
-      ((files
-        `(
-          ;; シェルヒストリを開いておくと、作業中に履歴を簡単に検索でき
-          ;; るので都合良い。
-          "~/.zsh_history"
-          ,(expand-file-name "init.el" user-emacs-directory)
-          )))
-    (dolist (file files)
-      (if (file-exists-p file)
-          (find-file file)
-        (message "File `%s' does not exist!" file )))))
+;;(unless noninteractive
+;;  (let
+;;      ((files
+;;        `(
+;;          ;; シェルヒストリを開いておくと、作業中に履歴を簡単に検索でき
+;;          ;; るので都合良い。
+;;          "~/.zsh_history"
+;;          ,(expand-file-name "init.el" user-emacs-directory)
+;;          )))
+;;    (dolist (file files)
+;;      (if (file-exists-p file)
+;;          (find-file file)
+;;        (message "File `%s' does not exist!" file )))))
 
 (put 'downcase-region 'disabled nil)
 (put 'erase-buffer 'disabled nil)
@@ -10261,7 +11260,7 @@ same directory as the org-buffer and insert a link to this file."
 (put 'set-goal-column 'disabled nil)
 (put 'upcase-region 'disabled nil)
 
-(provide 'init) ; make sure it only load once.
+;; (provide 'init) ; make sure it only load once.
 
 ;; Local Variables:
 ;; coding: utf-8-unix
