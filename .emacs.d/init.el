@@ -5,7 +5,7 @@
 ;; Package-Requires: ((emacs "24.4"))
 ;; Author: KAWABATA, Taichi <kawabata.taichi_at_gmail.com>
 ;; Created: around 1995 (Since my first Emacs experience...)
-;; Modified: 2015-01-22
+;; Modified: 2015-01-27
 ;; Version: 14
 ;; Keywords: internal, local
 ;; Human-Keywords: Emacs Initialization
@@ -245,7 +245,13 @@
 ;; (defun tkw-assoc-delete-all (key alist)
 ;;   (callf2 'remove-if (lambda (equal key (car item))) alist))
 
-;;; パッケージの一般設定
+;;; パッケージの設定
+;; 以下の手順で行う。
+;; (1) cask により、パッケージのインストールディレクトリをデフォルトから変更する。
+;; (2) パッケージの初期化を行う。
+;; (2) pallet により、インストールされるパッケージと Cask ファイルを同期する。
+;; (3) use-package により、自動的に必要なパッケージをインストールする。
+
 ;;;; cask
 ;; Windows ではCaskは caskxy
 (when (and (not (equal window-system 'w32))
@@ -263,10 +269,10 @@
 (package-initialize)
 (setq package-enable-at-startup nil) ; 初期化済みなので自動初期化は停止。
 
-;;   パッケージの情報は、~/.emacs.d/elpa/archives/ に格納される。自分
-;;   でパッケージを作る場合は、 package-x.el の、
-;;   `package-upload-{buffer,file}' を利用する。archive-contents ファ
-;;   イルが自動生成される。
+;; パッケージの情報は、~/.emacs.d/elpa/archives/ に格納される。自分で
+;; パッケージを作る場合は、 package-x.el の、
+;; `package-upload-{buffer,file}' を利用する。archive-contents ファイ
+;; ルが自動生成される。
 
 ;; パッケージ読み込み後は、読み込みライブラリを表示する。
 ;; （繁雑な XXXX-autoload は表示させない。）
@@ -290,7 +296,7 @@
 ;; ローカルレポジトリを追加
 (when (file-exists-p "~/.emacs.d/local-packages/archive-contents")
   (cl-pushnew '("local" . "~/.emacs.d/local-packages/")
-           package-archives :test 'equal))
+              package-archives :test 'equal))
 
 ;;;;; Marmalade について
 ;;
@@ -313,14 +319,6 @@
 ;;;; Emacs 25 対策
 ;; 2015年1月時点では、use-package の前にこれを読まないと Emacs 25 ではエラーになる。
 (require 'xref nil t)
-
-(unless (require 'use-package nil t)
-  (message "Use-package is unavailable!")
-  (defmacro use-package (&rest _args)))
-
-;; pallet -> f
-(defun tkw-find-dependant-package (pkg)
-  (package-desc-reqs (cadr (assoc pkg package-alist))))
 
 ;;;; use-package <elpa>
 ;; 非標準パッケージは use-package で管理する。
@@ -347,6 +345,13 @@
 ;; - :pre-load
 ;; - :requires
 
+;; use-package が未インストールの場合は、動作しないようにする。
+(unless (require 'use-package nil t)
+  (message "Use-package is unavailable!")
+  (defmacro use-package (&rest _args)))
+;; 形式的宣言
+(use-package use-package :ensure t)
+
 ;;;; pallet <elpa>
 ;; 自動的に ~/.emacs.d/Cask ファイル と Packaging を同期する。
 ;; Network に繋がっていないとエラーになる。要対策。
@@ -357,7 +362,7 @@
         (pallet-init)
       (error nil)))
 
-;;;; use-package のチェックと Cask の自動生成。
+;;;; init.el ファイルのチェック（ツール）
 ;; - 不要な :defer が設定されていないか？
 ;; - :ensure は適切に設定されているか？
 ;; - 不要なパッケージはインストールされていないか？
@@ -410,19 +415,24 @@ e.g. (tkw-package-dependencies 'helm-ag)"
           (if (null pkg-deps) (error "Package %s does not exist!" pkg-ensure)
             pkg-deps)
         (when pkg-deps
-          (message "Package %s exists in repository" pkg-symbol))
+          (message "Package %s not ensured but exists in repository" pkg-symbol))
         nil))))
+
+(defvar tkw-init-files
+  (list (expand-file-name "init.el" user-emacs-directory)
+        (expand-file-name "gnus.el" user-emacs-directory))
+  "Init files to be processed.")
 
 ;; init.el のチェック。
 ;; - use-package の ensure のパッケージが存在するか？
 ;; - ensure がないにも関わらず、ELPAにパッケージがないか？
 ;; - 存在するならば、Caskファイルを生成する。
 ;; - 不要なパッケージがインストールされていないか？
-(defun tkw-check-use-package (&optional init-file)
+(defun tkw-check-use-package ()
   (interactive)
   (with-temp-buffer
-    (insert-file-contents (or init-file
-                              (expand-file-name "init.el" user-emacs-directory)))
+    (dolist (file tkw-init-files)
+      (insert-file-contents file))
     (goto-char (point-min))
     (let ((required-pkgs)
           (dependent-pkgs)
@@ -439,20 +449,21 @@ e.g. (tkw-package-dependencies 'helm-ag)"
                 (dolist (pkg pkgs)
                   (pushnew pkg dependent-pkgs)))))
         (error (message "Parse error! : %s" _err)))
-      (message "installed-pcakages=%s" installed-pkgs)
-      (message "dependent-packages=%s" dependent-pkgs)
-      (message "required-pcakages=%s"  required-pkgs)
+      ;;(message "installed-pcakages=%s" installed-pkgs)
+      ;;(message "dependent-packages=%s" dependent-pkgs)
+      ;;(message "required-pcakages=%s"  required-pkgs)
       (dolist (pkg (set-difference installed-pkgs dependent-pkgs))
         (unless (string-match "-theme" (symbol-name pkg))
           (message "package '%s' is not required but installed." pkg)))
       required-pkgs)))
 
-(defun tkw-generate-cask (&optional init-file)
+;;;; init.el からCaskファイルの生成（ツール）
+(defun tkw-generate-cask ()
   "init.el から自動的に Cask ファイルを生成する。"
   (interactive)
   (unless package--initialized
     (package-initialize t))
-  (let ((required-pkgs (tkw-check-use-package init-file)))
+  (let ((required-pkgs (tkw-check-use-package)))
     (dolist (item package-alist)
       (when (string-match "-themes?$" (symbol-name (car item)))
         (pushnew (car item) required-pkgs)))
@@ -476,7 +487,6 @@ e.g. (tkw-package-dependencies 'helm-ag)"
 ;; - strie
 ;; - sync-env
 ;; - tern
-;; - terraform-mode
 ;; - theme-changer
 ;; - ucs-cmds
 ;; - ucs-utils
@@ -4910,21 +4920,23 @@ GDBは動作しない可能性があります！") (sit-for 2))
 ;; M-x smartparens-global-mode
 (use-package smartparens :defer t :ensure t
   :diminish ,(propertize "括" 'face '(:foreground "blue"))
+  ;; :init
+  ;; (smartparens-global-mode)
   :config
   (sp-local-pair 'rhtml-mode "<" ">")
   (sp-local-pair 'rhtml-mode "<%" "%>")
-  (smartparens-global-mode)
   (show-smartparens-global-mode t))
 
 ;;;; stripe-buffer <elpa>
 ;; バッファを縞々模様にする。
 ;; M-x stripe-buffer-mode
-(use-package stripe-buffer :defer t :ensure t
-  :init
-  (add-hook 'dired-mode-hook 'stripe-listify-buffer)
-  ;; 動作が重くなるので中止。
-  ;; (add-hook 'org-mode-hook 'turn-on-stripe-table-mode)
-  )
+;; ちょっと見づらいので利用休止。
+;;(use-package stripe-buffer :defer t :ensure t
+;;  :init
+;;  (add-hook 'dired-mode-hook 'stripe-listify-buffer)
+;;  ;; 動作が重くなるので中止。
+;;  ;; (add-hook 'org-mode-hook 'turn-on-stripe-table-mode)
+;;  )
 
 ;;;; tabbar <elpa> (使用中止)
 ;; [注意] tabbarはバッファが増えると著しく重くなるので使用中止。
@@ -6419,7 +6431,7 @@ GDBは動作しない可能性があります！") (sit-for 2))
 ;;;; irony-eldoc <elpa>
 (use-package irony-eldoc :defer t :ensure t
   :init
-  (add-hook 'irony-mode-hook 'iron-eldoc))
+  (add-hook 'irony-mode-hook 'irony-eldoc))
 
 ;;;; j-mode <elpa>
 ;; https://github.com/zellio/j-mode
@@ -6793,6 +6805,9 @@ GDBは動作しない可能性があります！") (sit-for 2))
   ;;            flymake-allowed-file-name-masks)
   )
 
+;;;; sass-mode <elpa>
+(use-package sass-mode :defer t :ensure t)
+
 ;;;; scala-mode2 <elpa>
 ;; - autoload :: ("\\.\\(scala\\|sbt\\)\\'" . scala-mode)
 (use-package scala-mode2 :defer t :ensure t)
@@ -6902,6 +6917,12 @@ GDBは動作しない可能性があります！") (sit-for 2))
   (setq sql-indent-offset 4)
   (setq sql-indent-maybe-tab t))
 
+;;;; squirrel-mode
+;; https://launchpadlibrarian.net/59321067/squirrel-mode.el
+(use-package squirrel-mode
+  :mode ("\\.nut\\'" . squirrel-mode)
+  )
+
 ;;;; taskjuggler-mode
 ;; http://www.skamphausen.de/cgi-bin/ska/taskjuggler-mode (official)
 ;; org-taskjuggler is better replacement.
@@ -6917,14 +6938,12 @@ GDBは動作しない可能性があります！") (sit-for 2))
 ;; % git clone https://github.com/marijnh/tern
 ;; % cd tern
 ;; % sudo npm install
-;;
 ;; M-.  Jump to the definition of the thing under the cursor.
 ;; M-,  Brings you back to last place you were when you pressed M-..
 ;; C-c C-r  Rename the variable under the cursor.
 ;; C-c C-c  Find the type of the thing under the cursor.
 ;; C-c C-d  Find docs of the thing under the cursor. Press again to open the associated URL (if any).
-
-(use-package tern
+(use-package tern :ensure t
   :commands tern-mode
   :if (let ((tern-dir "~/share/cvs/tern"))
         (when (file-directory-p tern-dir)
@@ -6934,7 +6953,8 @@ GDBは動作しない可能性があります！") (sit-for 2))
   (add-hook 'js2-mode-hook (command (tern-mode t))))
 
 ;;;; terraform-mode <elpa>
-;; autoload : '("\\.tf\\'" . terraform-mode)
+;; - autoload : '("\\.tf\\'" . terraform-mode)
+(use-package terraform-mode :defer t :ensure t)
 
 ;;;; textile-mode <elpa>
 ;; http://dev.nozav.org/textile-mode.html
@@ -6944,7 +6964,7 @@ GDBは動作しない可能性があります！") (sit-for 2))
 
 ;;;; terraform-mode
 ;; https://github.com/syohex/emacs-terraform-mode
-(use-package terraform-mode
+(use-package terraform-mode :ensure t
   :mode (("\\.tf\\'" . terraform-mode)))
 
 ;;;; tss <elpa>
@@ -7601,6 +7621,12 @@ This function is a possible formatting function for
 
 ;;;; dired-k <elpa>
 ;; highlight dired buffer by file size, modified time, git status
+;; https://github.com/syohex/emacs-dired-k
+(use-package dired-k :defer t :ensure t
+  :init
+  (add-hook 'dired-initial-position-hook 'dired-k)
+  :config
+  (define-key dired-mode-map (kbd "K") 'dired-k))
 
 ;;;; direx <elpa>
 ;; Explorerライクなファイルブラウザ
@@ -7839,6 +7865,8 @@ This function is a possible formatting function for
 
 ;;;; google-maps <elpa>
 ;; ,/. で地図を拡大・縮小。
+;; m (mark), h (home), c (center), C (center remove)
+(use-package google-maps :defer t :ensure t)
 
 ;;;; google-this <elpa>
 
@@ -7872,7 +7900,9 @@ This function is a possible formatting function for
 ;;;; goto-chg <elpa>
 (use-package goto-chg :ensure t
   :bind (("C-c ." . goto-last-change)
-         ("C-c ," . goto-last-change-reverse)))
+         ;; howm と衝突するので下記のキーバインドは禁止。
+         ;;("C-c ," . goto-last-change-reverse)
+         ))
 
 ;;;; haskell-emacs <elpa>
 ;; % cabal install attoparsec atto-lisp
@@ -8000,6 +8030,12 @@ This function is a possible formatting function for
 ;;      (quail-setup-overlays (quail-conversion-keymap))
 ;;      (let ((modified-p (buffer-modified-p))
 
+;;;;; helm/helm-bibtex
+(use-package helm-bibtex :defer t :ensure t
+  :config
+  (setq helm-bibtex-bibliography nil) ; list of bibtex files.
+  )
+
 ;;;;; helm/helm-config
 (defvar helm-command-prefix) ;; compile-error 避け
 (use-package helm-config :defer t :ensure helm
@@ -8114,6 +8150,9 @@ This function is a possible formatting function for
   :init
   (with-eval-after-load 'helm-config
     (bind-key "M-t" 'helm-gtags-select helm-command-map)))
+
+;;;; helm-open-github <elpa>
+(use-package helm-open-github :defer t :ensure t)
 
 ;;;; helm-projectile <elpa>
 (use-package helm-projectile :ensure t
@@ -8711,6 +8750,25 @@ This function is a possible formatting function for
 ;; org-mode で使用する数学記号パッケージの一覧
 ;; 一覧は http://milde.users.sourceforge.net/LUCR/Math/unimathsymbols.pdf 参照
 
+(defvar tkw-org-latex-math-symbols-packages-alist
+    '(("" "amssymb"   t)
+      ("" "amsmath"   t)
+      ("" "amsxtra"   t) ; MathJax未対応
+      ;;("" "bbold"     t)
+      ;; 形式的論理のスタイルファイル
+      ;; http://www.logicmatters.net/resources/pdfs/latex/BussGuide2.pdf
+      ;; http://www.logicmatters.net/latex-for-logicians/nd/
+      ("" "bussproofs" t) ; 自然推論
+      ("all" "xypic" t) ; ダイヤグラム
+      ("" "isomath"   t) ; MathJax未対応
+      ("" "latexsym"  t) ; MathJax未対応
+      ("" "marvosym"  t) ; Martin Vogel's Symbols Font
+      ;;("" "mathdots"  t) ; MathJax未対応
+      ("" "stmaryrd"  t) ; MathJax未対応
+      ("" "textcomp"  t) ; 特殊記号
+      ("" "wasysym"   t) ; Waldi symbol font. bussproofs と衝突。
+      ))
+
 (use-package org :ensure org-plus-contrib
   ;; ".org.txt" も org-mode 管理にする。
   :mode ("\\.org.txt$" . org-mode)
@@ -9079,24 +9137,6 @@ XeTeX/LuaTeX や HTML, DocBook 等、日本語の改行が空白扱いになる�
 ;;   backgroundcolor=\color{back}
 ;; }
 
-(defvar tkw-org-latex-math-symbols-packages-alist
-    '(("" "amssymb"   t)
-      ("" "amsmath"   t)
-      ("" "amsxtra"   t) ; MathJax未対応
-      ;;("" "bbold"     t)
-      ;; 形式的論理のスタイルファイル
-      ;; http://www.logicmatters.net/resources/pdfs/latex/BussGuide2.pdf
-      ;; http://www.logicmatters.net/latex-for-logicians/nd/
-      ("" "bussproofs" t) ; 自然推論
-      ("all" "xypic" t) ; ダイヤグラム
-      ("" "isomath"   t) ; MathJax未対応
-      ("" "latexsym"  t) ; MathJax未対応
-      ("" "marvosym"  t) ; Martin Vogel's Symbols Font
-      ;;("" "mathdots"  t) ; MathJax未対応
-      ("" "stmaryrd"  t) ; MathJax未対応
-      ("" "textcomp"  t) ; 特殊記号
-      ("" "wasysym"   t) ; Waldi symbol font. bussproofs と衝突。
-      ))
 
 (use-package ox-latex :defer t
   :config
