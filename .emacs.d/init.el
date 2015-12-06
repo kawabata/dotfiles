@@ -5,7 +5,7 @@
 ;; Package-Requires: ((emacs "24.4"))
 ;; Author: KAWABATA, Taichi <kawabata.taichi_at_gmail.com>
 ;; Created: around 1995 (Since my first Emacs experience...)
-;; Modified: 2015-11-25
+;; Modified: 2015-12-06
 ;; Version: 14
 ;; Keywords: internal, local
 ;; Human-Keywords: Emacs Initialization
@@ -29,7 +29,7 @@
 ;;   + use-package を使う場合は、:defines, :functions で変数と関数を定義する。
 
 ;;;; Emacsおよび関連ソフトのインストール方法
-;;;;; Ubuntu 12.04
+;;;;; Ubuntu
 ;;    % sudo add-apt-repository ppa:cassou/emacs
 ;;    % sudo apt-get update
 ;;    % sudo apt-get install emacs-snapshot
@@ -49,10 +49,9 @@
 ;;;;; Macintosh (Yamamoto Patch)
 ;; http://www.math.s.chiba-u.ac.jp/~mituharu/emacs-mac.git
 ;; -  更新履歴
+;;    * emacs-24.5-mac-5.13 (2015-10-31)
+;;    * emacs-24.5-mac-5.12 (2015-10-30)
 ;;    * emacs-24.5-mac-5.11 (2015-09-27)
-;;    * emacs-24.5-mac-5.10 (2015-08-25)
-;;    * emacs-24.5-mac-5.9 (2015-07-13)
-;;    * emacs-24.5-mac-5.8 (2015-05-17)
 ;;
 ;; - Brew
 ;;   日本語インラインパッチ付き
@@ -246,26 +245,6 @@
 ;;   (callf2 delete pair auto-mode-alist))
 ;; (defun tkw-assoc-delete-all (key alist)
 ;;   (callf2 'remove-if (lambda (equal key (car item))) alist))
-
-;;;; 環境設定
-(defvar tkw-local-servers
-  '("cifs://mirai-file.onlab.ntt.co.jp/mi"
-    "cifs://msho-file.onlab.ntt.co.jp/info"
-    "cifs://msho-file.onlab.ntt.co.jp/share"
-    ;;"cifs://mirai-file.onlab.ntt.co.jp/kawabata" （バックアップを取りたい用）
-    ;;"cifs://msho-bkup.onlab.ntt.co.jp/kawabata" （バックアップを取りたい用・パスワードはいつもの）
-    "cifs://mirai-file.onlab.ntt.co.jp/mi"
-    "cifs://mirai-file.onlab.ntt.co.jp/msho"
-    "cifs://mirai-file.onlab.ntt.co.jp/mi-kyoutsuu"
-    "cifs://mirai-file.onlab.ntt.co.jp/mi-share"
-    "cifs://mirai-file.onlab.ntt.co.jp/mirai"))
-
-;;; パッケージの設定
-;; 以下の手順で行う。
-;; (1) cask により、パッケージのインストールディレクトリをデフォルトから変更する。
-;; (2) パッケージの初期化を行う。
-;; (2) pallet により、インストールされるパッケージと Cask ファイルを同期する。
-;; (3) use-package により、自動的に必要なパッケージをインストールする。
 
 ;;;; cask
 ;; Windows ではCaskは caskxy
@@ -1773,6 +1752,8 @@
 ;;            (desktop-truncate regexp-search-ring 3)))
 
 ;;;; dired.el
+(defvar dired-mode-map)
+(defvar dired-actual-switches)
 (with-eval-after-load 'dired
   (require 'dired-x)
   (add-hook 'dired-mode-hook (lambda () (setenv "LANG" "C")))
@@ -1799,6 +1780,7 @@
   (defvar dired-sort-order '("" "t" "S" "X")
     "-t (時間) -X (拡張子) -S (サイズ) なし (アルファベット順) を切り替える。")
   (defvar dired-sort-order-position 0)
+  (declare-function dired-sort-other "dired")
   (defun dired-rotate-sort ()
     "Rotate dired toggle sorting order by `dired-sort-order'"
     (interactive)
@@ -1843,6 +1825,7 @@
 ;;  (setq insert-directory-program "c:/cygwin/bin/ls.exe"))
 
 ;;;; dired-aux.el
+(defvar dired-compress-file-suffixes)
 (with-eval-after-load 'dired-aux
   ;; atool を使い、多数の圧縮ファイルを閲覧可能にする。
   (when (executable-find "aunpack")
@@ -2351,25 +2334,6 @@
 ;; - color-values :: 色のRGB値を返す (xw-color-values/tty-color-values)
 ;; tty は原則8色だが、tty-color-standard-values で rgb.txt の類似色を返す。
 (bind-key "M-f" 'describe-face help-map)
-
-;;;; ffap.el
-;; バックスラッシュ記述のファイルサーバを自動補完
-;; | テキスト文                                 | 参照先                   |
-;; |--------------------------------------------+--------------------------|
-;; | \share\...                                 | /Volumes/share/...       |
-;; | \\catseye\shared\...                       | /Volumes/shared/...      |
-;; | \\129.60.126.33\share\..                   | /Volumes/share/...       |
-;; | \\mirai-file.onlab.ntt.co.jp\mi\...        | /Volumes/mi/...          |
-;; | \\mirai-file.onlab.ntt.co.jp\mi-share\...  | /Volumes/mi-share/...    |
-;; | \\mirai-file.onlab.ntt.co.jp\mi-kyotsu\... | /Volumes/mi-kyoutsuu/... |
-;; | \\mirai-file.onlab.ntt.co.jp\notice\...    | /Volumes/notice/...      |
-;; samples
-;; - \\mirai-file.onlab.ntt.co.jp\mi-share\01-管理簿\書庫\書庫整理2013.07.08.xls
-;; - \\129.60.126.33\share\マネジメント中心_SG\マネジメントエンジン\2013年度\01.議論_AT\20130618_会議\AT資料
-;;
-;; ffap で FTP でエラーになる現象
-;; ffap-guesser → ffap-file-at-point （失敗） → ffap-fixup-machine → ftp
-;; TODO ffap-file-at-point の調査と、ffap-fixup-machine に落とさないカスタム処理
 (bind-key "C-x C-f" 'find-file-at-point)
 (bind-key "C-x 4 f" 'ffap-other-window)
 (bind-key "C-x d" 'dired-at-point)
@@ -2382,39 +2346,7 @@
   ;;(set-variable 'ffap-dired-wildcards "*") ; TODO CHECK
   (set-variable 'ffap-ftp-regexp nil)
   (set-variable 'ffap-url-unwrap-remote nil) ; domain を ftp にwrapするのを抑止。
-  (dolist (regexp
-           '(("\\`\\\\[-a-z]+\\\\.+" . tkw-ffap-server-complete)
-             ("(svn)/.+" . tkw-svn-server-complete)
-             ;; ("\\`\\\\\\\\CATSEYE.*?\\\\[-a-z]+\\\\.+" . tkw-ffap-server-complete)
-             ("\\`\\\\\\\\mirai-file.*?\\\\[-a-z]+\\\\.+" . tkw-ffap-server-complete)
-             ("\\`\\\\\\\\msho-file.*?\\\\[-a-z]+\\\\.+" . tkw-ffap-server-complete)
-             ("\\`\\\\\\\\129\\.60\\.121\\.48\\\\[-a-z]+\\\\.+" . tkw-ffap-server-complete)
-             ("\\`\\\\\\\\129\\.60\\.126\\.33\\\\[-a-z]+\\\\.+" . tkw-ffap-server-complete)))
-  (pushnew regexp ffap-alist)))
-
-(defun tkw-ffap-server-complete (name)
-  (let ((name
-         ;; 3. 先頭に "/Volumes" を加える。
-         (concat "/Volumes"
-                 ;; 2. バックスラッシュはスラッシュに変換
-                 (replace-regexp-in-string
-                  "\\\\" "/"
-                  ;; 1. 先頭のサーバ名は除去。
-                  (replace-regexp-in-string "^\\\\\\\\.+?\\\\" "/" name)))))
-    (message "name=%s" name)
-    (if (file-exists-p name) name
-      (progn
-        (setq name
-              (car (file-expand-wildcards (concat name "*"))))
-        (if (file-exists-p name) name
-          (replace-regexp-in-string "[^/]+$" "" name))))))
-
-(defun tkw-svn-server-complete (name)
-  (let ((name
-         (concat "~/Documents/CNH_m-eng-r2/"
-                 (substring 5 name))))
-    (message "name=%s" name)
-    name))
+  )
 
 ;; ftp 時に ping をしないで，いきなり ange-ftp で開く
 ;;(setq ffap-machine-p-known 'accept)
@@ -4002,8 +3934,7 @@ GDBは動作しない可能性があります！") (sit-for 2))
 ;;;; textmodes/reftex.el
 ;; 色々と引用文献を楽に入力するようにする。
 ;; reftex-browse （スペースで該当Bibファイルにジャンプ）
-(defvar reftex-comment-citations) ; コンパイラ警告除け
-(defvar reftex-cite-format)       ; コンパイラ警告除け
+(defvar reftex-comment-citations)
 (with-eval-after-load 'reftex
   (set-variable
    'reftex-cite-format
@@ -4014,12 +3945,13 @@ GDBは動作しない可能性があります！") (sit-for 2))
   (set-variable 'reftex-default-bibliography tkw-bibtex-files)
   (set-variable 'reftex-cite-format-builtin '((default "Default macro %t \\cite{%l}"
                                        "%t \\cite[]{%l}")))
-  (set-variable 'reftex-cite-format 'default)
   (set-variable 'reftex-plug-into-AUCTeX t))
 
 (defun reftex-browse ()
   (interactive) (reftex-citation t))
+
 ;; Wikipedia 執筆用のreftex引用を用意する。
+(defvar reftex-cite-format)
 (defun tkw-reftex-wikipedia-reference ()
   (interactive)
   (require 'reftex)
@@ -4440,7 +4372,6 @@ returned."
             (unless (member "*scratch*" (tkw-buffer-name-list))
               (tkw-make-scratch 1))))
 
-
 ;;;; モードラインに私用表示
 (define-minor-mode docomo-usage-mode
   "ドコモのパケホーダイの利用目安量."
@@ -4646,68 +4577,6 @@ If SEXP is t, convert it to S-expression."
       (remove-hook 'post-command-hook 'show-key-input)
     (add-hook 'post-command-hook 'show-key-input)))
 
-;;;; Mount Mac File Server
-(when (fboundp 'mac-osa-compile)
-  (defvar tkw-mac-connect-servers
-    (mac-osa-compile
-     (mapconcat
-      (lambda (path)
-        (format "tell app \"Finder\" to open location \"%s\"" path))
-      tkw-local-servers "\n")))
-  (defun tkw-mac-connect-servers ()
-    "サーバに接続."
-    (interactive)
-    (mac-osa-script tkw-mac-connect-servers t))
-  (defvar tkw-mac-servers-table
-    (let ((table (make-hash-table :test 'equal)))
-      (dolist (server tkw-local-servers)
-        (when (string-match "jp/\\(.+\\)" server)
-          (puthash (match-string 1 server) server table)))
-      table))
-  (defun tkw-mac-disconnect-servers ()
-    "サーバを切り離す."
-    (interactive)
-    (maphash
-     (lambda (key _val)
-       (let ((dir (concat "/Volumes/" key)))
-         (when (file-directory-p dir)
-           ;; umount 対象となるバッファは一旦とじる。
-           (cl-loop for buf in (buffer-list)
-                    do
-                    (when (and (buffer-file-name buf)
-                               (string-match (concat "^" dir) (buffer-file-name buf)))
-                      (kill-buffer-ask buf)))
-           ;; diskutil umount は /sbin/umount と異なり、sudo でなくても実行できる。
-           (shell-command (concat "diskutil umount " dir)))))
-     tkw-mac-servers-table))
-  (defun tkw-mac-canonicalize-server-name ()
-    "/Volumes/XXXX → cifs://ZZZ.onlab.ntt.co.jp/XXXX に置換."
-    (interactive)
-    (save-excursion
-      (beginning-of-line)
-      (when (re-search-forward "/Volumes/\\(.+?\\)/" nil t)
-        (message (match-string 1))
-        (let* ((server (match-string 1))
-               (full (gethash server tkw-mac-servers-table)))
-          (when full
-            (replace-match (concat full "/")))))))
-  (defun tkw-mac-unc-server-name ()
-    "/Volumes/XXXX → \\ZZZ.onlab.ntt.co.jp\XXXX に置換."
-    (interactive)
-    (save-excursion
-      (beginning-of-line)
-      (when (re-search-forward "/Volumes/\\(.+?\\)/" nil t)
-        (message (match-string 1))
-        (let* ((server (match-string 1))
-               (full (gethash server tkw-mac-servers-table))
-               (start (match-beginning 0)))
-          (when full
-            (replace-match (concat (substring full 5) "\\\\"))
-            (goto-char start)
-            (while (re-search-forward "/" (line-end-position) t)
-              (replace-match "\\\\"))
-            ))))))
-
 ;;; 非標準ライブラリ
 ;;;; dash
 (use-package dash :no-require t :defer t :ensure t)
@@ -4725,11 +4594,40 @@ If SEXP is t, convert it to S-expression."
 (use-package ht :no-require t :defer t :ensure t)
 
 ;;;; kv
-(use-package kv :no-require t :defer t :ensure t)
+;; 相互変換
+;;(use-package kv :no-require t :defer t :ensure t)
 
 ;;;; peg
 ;; parsing expression grammar
 (use-package peg :no-require t :defer t :ensure t)
+
+
+;;;; wisi
+;; API
+;; - wisi-setup
+;; - wisi-backward-cache
+;; - wisi-backward-token
+;; - wisi-cache-class
+;; - wisi-cache-containing
+;; - wisi-cache-end
+;; - wisi-cache-last
+;; - wisi-cache-nonterm
+;; - wisi-cache-text
+;; - wisi-cache-token
+;; - wisi-forward-cache
+;; - wisi-forward-find-class
+;; - wisi-forward-token
+;; - wisi-get-cache
+;; - wisi-get-containing-cache
+;; - wisi-goto-containing
+;; - wisi-goto-containing-paren
+;; - wisi-goto-end-1
+;; - wisi-indent-current
+;; - wisi-indent-paren
+;; - wisi-next-statement-cache
+;; - wisi-prev-statement-cache
+;; - wisi-validate-cache
+(use-package wisi :no-require t :defer t :ensure t)
 
 ;;; 非標準マイナーモード
 ;;;; anzu
@@ -4774,41 +4672,13 @@ If SEXP is t, convert it to S-expression."
     (cl-loop for c from ?A to ?Z
              do (eval `(bind-key ,(format "A-%c" c) 'tkw-ace-jump-char-mode)))))
 
-;;;; auto-complete
-;; company とどちらを使うか.　company は日本語との相性が悪いので
-;; こちらを使って見る。
-;; - 参照 :: http://cx4a.org/software/auto-complete/manual.ja.html
-(use-package auto-complete :no-require t :defer t :ensure t
-  :config
-  ;; (add-to-list 'ac-dictionary-directories (expand-file-name "dict" pdir))
-  ;; CSS3 properties の追加
-  (with-eval-after-load 'auto-complete-config
-    (mapc
-     (lambda (entry) (push entry ac-css-property-alist))
-     '(
-       ;; http://dev.w3.org/csswg/css-writing-modes/
-       ("direction" "ltr" "rtl")
-       ("text-combine-horizontal" "none" "all" integer)
-       ("text-orientation" "mixed" "upright" "sideways-right" "sideways-left" "sideways"
-        "use-glyph-orientation mixed")
-       ("unicode-bidi" "normal" "embed" "isolate" "bidi-override" "isolate-override"
-        "plaintext")
-       ("writing-mode" "horizontal-tb" "vertical-rl" "vertical-lr")
-       ;;http://dev.w3.org/csswg/css-text-decor-3
-       ("text-decoration-line" "none" "underline" "overline" "line-through" "blink")
-       ("text-decoration-color" color))))
-  (ac-config-default))
-;; 動作が重いのでデフォルトはオフにする。
-(add-hook 'prog-mode-hook
-          (lambda () (require 'auto-complete-config nil :no-error)))
-
 ;;;; auto-dim-other-buffers (abstain)
 ;; run-hooks: Invalid function: (quote adob--after-change-major-mode-hook)
 ;; エラーが出るのでデフォルトでの使用中止。
 ;; M-x auto-dim-other-buffers
 (use-package auto-dim-other-buffers :no-require t :defer t :ensure t
-  :init
-  (auto-dim-other-buffers-mode)
+  ;; :init
+  ;; (auto-dim-other-buffers-mode)
   :diminish "")
 
 ;;;; auto-save-buffers-enhanced (abstain)
@@ -5440,39 +5310,6 @@ If SEXP is t, convert it to S-expression."
 ;;             (rotate-winhist) (rotate-winhist -1)))
 ;;    "smartrep")
 
-;;;; yasnippet
-;; TODO: 重要 yasnippet 読み込み時にエラーが出たら、とりあえず
-;; (set-variable 'clojure-snippets-dir nil) を実行してみること。
-;;
-;; official doc: https://capitaomorte.github.io/yasnippet
-;;   http://yasnippet-doc-jp.googlecode.com/svn/trunk/doc-jp/snippet-expansion.html
-;; - snippets を使うときは、M-x yas-minor-mode
-;;   + キーワードを入力して、<tab>キーを押す。
-;;   + キーワード一覧が分からなくなったときはメニューで確認。
-;; - snippets を編集したら、 M-x yas-reload-all でリロード。
-;; - snippets の呼び出しは、 M-x yas-insert-snippet (C-c & C-s)
-;; - snippets の展開は、M-x yas-expand (<tab>)
-
-;; 日本語文章の入力においては、空白で区切ってキーワードを入力することができない。
-;; そのため、snippetは、bindingのショートカットキーで呼び出す。
-;; - helm との連携 ::  <先頭文字をタイプ>,  M-x helm-c-yasnippet (M-X y)
-;; clojure-snippet で出るエラーについて
-;; これらは、yas-minor-mode を実行すると、yasnippet がロードされ、その
-;; 結果、eval-after-load で、そのバッファからsnippetを読み込もうとして
-;; エラーになる。なぜ何度も yasnippet がロードされようとするのかは不明。
-;; (yas-global-mode)
-(use-package yasnippet :no-require t :ensure t
-  :commands snippet-mode
-;;  :config
-;;  ;; 他スニペットのダウンロード (~/.emacs.d/snippets-3rd-party/)
-;;  (dolist (snip-dir (directory-files
-;;                     (locate-user-emacs-file "snippets-3rd-party") t "^[^.]"))
-;;    (when (file-directory-p snip-dir)
-;;      (add-to-list 'yas-snippet-dirs snip-dir t)
-;;      ;;(yas-load-directory snip-dir)
-  ;;      )))
-  )
-
 ;;;; zencoding-mode (abstain)
 ;; emmet-mode へ移行。
 ;; http://www.emacswiki.org/emacs/ZenCoding
@@ -5568,6 +5405,35 @@ If SEXP is t, convert it to S-expression."
 ;;   ("f[" . "ば") ("v[" . "び") ("2[" . "ぶ") ("^[" . "べ") ("-[" . "ぼ")
 ;;   ("f]" . "ぱ") ("v]" . "ぴ") ("2]" . "ぷ") ("^]" . "ぺ") ("-]" . "ぽ")))
 
+;;;; auto-complete
+;; company とどちらを使うか.　company は日本語との相性が悪いので
+;; こちらを使って見る。
+;; - 参照 :: http://auto-complete.org/doc/manual.html
+(use-package auto-complete-config :no-require t :defer t :ensure auto-complete
+  :init
+  ;; 動作が重いのでデフォルトはオフにする。
+  (add-hook 'prog-mode-hook
+            (lambda () (require 'auto-complete-config nil :no-error)))
+  :config
+  ;; (add-to-list 'ac-dictionary-directories (expand-file-name "dict" pdir))
+  ;; CSS3 properties の追加
+  ;;(with-eval-after-load 'auto-complete-config
+  ;;  (mapc
+  ;;   (lambda (entry) (push entry ac-css-property-alist))
+  ;;   '(
+  ;;     ;; http://dev.w3.org/csswg/css-writing-modes/
+  ;;     ("direction" "ltr" "rtl")
+  ;;     ("text-combine-horizontal" "none" "all" integer)
+  ;;     ("text-orientation" "mixed" "upright" "sideways-right" "sideways-left" "sideways"
+  ;;      "use-glyph-orientation mixed")
+  ;;     ("unicode-bidi" "normal" "embed" "isolate" "bidi-override" "isolate-override"
+  ;;      "plaintext")
+  ;;     ("writing-mode" "horizontal-tb" "vertical-rl" "vertical-lr")
+  ;;     ;;http://dev.w3.org/csswg/css-text-decor-3
+  ;;     ("text-decoration-line" "none" "underline" "overline" "line-through" "blink")
+  ;;     ("text-decoration-color" color))))
+  (ac-config-default))
+
 ;;;; autopair (abstain)
 ;; smartparen とかぶるので使用中止。
 ;;(use-package autopair
@@ -5584,12 +5450,40 @@ If SEXP is t, convert it to S-expression."
 ;;  )
 
 ;;;; company-anaconda
-(use-package company-anaconda :no-require t :defer t :ensure t
-  :if (fboundp 'company-mode))
+;;(use-package company-anaconda :no-require t :defer t :ensure t
+;;  :if (fboundp 'company-mode))
+
+;;;; company-auctex
+;; (use-package company-auctex :no-require t :ensure t
+;;   :if (fboundp 'company-mode)
+;;   :commands (company-auctex-init)
+;;   :init
+;;   (with-eval-after-load 'auctex
+;;     (company-auctex-init)))
+
+;;;; company-c-headers
+;; company は利用中断。
+;;(use-package company-c-headers :no-require t :defer t :ensure t
+;;  :if (fboundp 'company-mode)
+;;  :config
+;;  (pushnew 'company-c-headers company-backends)
+;;  )
+
+;;;; company-ghc
+;;(use-package company-ghc :no-require t :defer t :ensure t
+;;  :if (and (fboundp 'company-mode)
+;;           (executable-find "ghc-mod"))
+;;  :init
+;;  (add-hook 'haskell-mode-hook 'company-mode)
+;;  (set-variable 'company-ghc-show-info t))
+
+;;;; company-go
+;;;; company-inf-ruby
+;;;; company-tern
 
 ;;;; company-ycmd
-(use-package company-ycmd :no-require t :defer t :ensure t
-  :if (fboundp 'company-mode))
+;;(use-package company-ycmd :no-require t :defer t :ensure t
+;;  :if (fboundp 'company-mode))
 
 ;;;; codepage 51932 設定
 (use-package cp5022x :no-require t :defer t :ensure t
@@ -5854,6 +5748,39 @@ If SEXP is t, convert it to S-expression."
 ;;;; tc (abstain)
 ;; tcode/bushu.index2 が見つかりません、等のエラーが出るので中止。
 ;; isearch-search を行儀悪く上書きするので使用中止。
+
+;;;; yasnippet
+;; TODO: 重要 yasnippet 読み込み時にエラーが出たら、とりあえず
+;; (set-variable 'clojure-snippets-dir nil) を実行してみること。
+;;
+;; official doc: https://capitaomorte.github.io/yasnippet
+;;   http://yasnippet-doc-jp.googlecode.com/svn/trunk/doc-jp/snippet-expansion.html
+;; - snippets を使うときは、M-x yas-minor-mode
+;;   + キーワードを入力して、<tab>キーを押す。
+;;   + キーワード一覧が分からなくなったときはメニューで確認。
+;; - snippets を編集したら、 M-x yas-reload-all でリロード。
+;; - snippets の呼び出しは、 M-x yas-insert-snippet (C-c & C-s)
+;; - snippets の展開は、M-x yas-expand (<tab>)
+
+;; 日本語文章の入力においては、空白で区切ってキーワードを入力することができない。
+;; そのため、snippetは、bindingのショートカットキーで呼び出す。
+;; - helm との連携 ::  <先頭文字をタイプ>,  M-x helm-c-yasnippet (M-X y)
+;; clojure-snippet で出るエラーについて
+;; これらは、yas-minor-mode を実行すると、yasnippet がロードされ、その
+;; 結果、eval-after-load で、そのバッファからsnippetを読み込もうとして
+;; エラーになる。なぜ何度も yasnippet がロードされようとするのかは不明。
+;; (yas-global-mode)
+(use-package yasnippet :no-require t :ensure t
+  :commands snippet-mode
+;;  :config
+;;  ;; 他スニペットのダウンロード (~/.emacs.d/snippets-3rd-party/)
+;;  (dolist (snip-dir (directory-files
+;;                     (locate-user-emacs-file "snippets-3rd-party") t "^[^.]"))
+;;    (when (file-directory-p snip-dir)
+;;      (add-to-list 'yas-snippet-dirs snip-dir t)
+;;      ;;(yas-load-directory snip-dir)
+  ;;      )))
+  )
 
 ;;; 非標準メジャーモード、および関連マイナーモード
 ;;;; abc-mode
@@ -6249,35 +6176,6 @@ If SEXP is t, convert it to S-expression."
 ;;;; coffee-mode
 ;; - autoloaded-mode :: .coffee, .iced, Cakefile, coffee
 (use-package coffee-mode :no-require t :defer t :ensure t)
-
-;;;; company-auctex
-(use-package company-auctex :no-require t :ensure t
-  :if (fboundp 'company-mode)
-  :commands (company-auctex-init)
-  :init
-  (with-eval-after-load 'auctex
-    (company-auctex-init)))
-
-;;;; company-c-headers
-;; company は利用中断。
-;;(use-package company-c-headers :no-require t :defer t :ensure t
-;;  :if (fboundp 'company-mode)
-;;  :config
-;;  (pushnew 'company-c-headers company-backends)
-;;  )
-
-;;;; company-edbi
-;;;; company-ghc
-(use-package company-ghc :no-require t :defer t :ensure t
-  :if (and (fboundp 'company-mode)
-           (executable-find "ghc-mod"))
-  :init
-  (add-hook 'haskell-mode-hook 'company-mode)
-  (set-variable 'company-ghc-show-info t))
-
-;;;; company-go
-;;;; company-inf-ruby
-;;;; company-tern
 
 ;;;; cpputils-cmake
 ;; https://github.com/redguardtoo/cpputils-cmake
@@ -6855,11 +6753,11 @@ If SEXP is t, convert it to S-expression."
 
 ;;;; js-comint
 ;; M-x run-js
-(use-package js-comint :no-require t :defer t :ensure t
-  :config
-  (set-variable 'inferior-js-program-command
-                (when (executable-find "node")
-                  "node --interactive")))
+;;(use-package js-comint :no-require t :defer t :ensure t
+;;  :config
+;;  (set-variable 'inferior-js-program-command
+;;                (when (executable-find "node")
+;;                  "node --interactive")))
 
 ;;;; js-doc
 ;; Document :: http://d.hatena.ne.jp/mooz/20090820/p1
@@ -7505,9 +7403,10 @@ If SEXP is t, convert it to S-expression."
 ;; M-x apropos を、function と variables に分離する。
 
 ;;;; apt-utils
+;; ※ melpa から消失
 ;; make-local-hook を emacswiki から削除。
 ;; - autoloads :: apt-utils-search, apt-utils-show-package
-;;(use-package apt-utils :defer t :ensure t
+;;(use-package apt-utils :defer t
 ;;  :if (executable-find "apt-get"))
 
 ;;;; ascii-art-to-unicode (abstain)
@@ -8035,6 +7934,7 @@ This function is a possible formatting function for
                            '()))))
 
 ;;;; doremi-frm
+(declare-function rotate-fonts "rotate-fonts")
 (use-package doremi-frm :no-require t :defer t :ensure t
   :init
   (bind-key "a" 'doremi-all-faces-fg+ tkw-rotate-map)    ; "All"
@@ -8167,6 +8067,7 @@ This function is a possible formatting function for
 ;; % cask exec ert-runner init
 ;; test/ids-test.el にテストを書く。
 ;; % cask exec ert-runner
+(use-package ert-runner :no-require t :defer t :ensure t)
 
 ;;;; esh-buf-stack
 (use-package esh-buf-stack :no-require t :defer t :ensure t
@@ -10685,35 +10586,10 @@ XeTeX/LuaTeX や HTML, DocBook 等、日本語の改行が空白扱いになる�
   (add-hook 'ag-mode-hook 'wgrep-ag-setup))
 
 ;;;; wide-n
+;; melpaから削除
 ;; ナローイングの履歴を、 wide-n-restrictions に入れることで記録するツール。
 ;; `C-x n n', `C-x n w' を更新。
-;; (use-package wide-n :defer t)
-
-;;;; wisi
-;; API
-;; - wisi-setup
-;; - wisi-backward-cache
-;; - wisi-backward-token
-;; - wisi-cache-class
-;; - wisi-cache-containing
-;; - wisi-cache-end
-;; - wisi-cache-last
-;; - wisi-cache-nonterm
-;; - wisi-cache-text
-;; - wisi-cache-token
-;; - wisi-forward-cache
-;; - wisi-forward-find-class
-;; - wisi-forward-token
-;; - wisi-get-cache
-;; - wisi-get-containing-cache
-;; - wisi-goto-containing
-;; - wisi-goto-containing-paren
-;; - wisi-goto-end-1
-;; - wisi-indent-current
-;; - wisi-indent-paren
-;; - wisi-next-statement-cache
-;; - wisi-prev-statement-cache
-;; - wisi-validate-cache
+;;(use-package wide-n :no-require t :defer t :ensure t)
 
 ;;;; zeal-at-point
 ;; http://zealdocs.org/
@@ -10803,10 +10679,19 @@ XeTeX/LuaTeX や HTML, DocBook 等、日本語の改行が空白扱いになる�
   :commands (hz2py-region))
 
 ;;;; ids-edit
+(declare-function global-ids-edit-mode "ids-edit")
 (use-package ids-edit :no-require t
   :bind (("M-U" . ids-edit))
   :config
   (global-ids-edit-mode))
+
+;;;; init-checker
+(use-package init-checker :no-require t
+  :commands (init-checker init-checker-generate-cask)
+  :config
+  (set-variable 'init-checker-files
+                (list user-init-file
+                      (expand-file-name "gnus.el" user-emacs-directory))))
 
 ;;;; ivariants
 (use-package ivariants :no-require t
