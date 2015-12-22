@@ -5,7 +5,7 @@
 ;; Package-Requires: ((emacs "24.4"))
 ;; Author: KAWABATA, Taichi <kawabata.taichi_at_gmail.com>
 ;; Created: around 1995 (Since my first Emacs experience...)
-;; Modified: 2015-12-06
+;; Modified: 2015-12-23
 ;; Version: 14
 ;; Keywords: internal, local
 ;; Human-Keywords: Emacs Initialization
@@ -13,20 +13,6 @@
 ;; URL: https://github.com/kawabata/dotfiles/.emacs.d/init.el
 
 ;;; Commentary:
-
-;;;; init.el 設定ポリシー
-;;
-;; - 初期設定は "init.el" 単独で行い、複数のファイルでの分割設定は避ける。
-;; - パッケージの管理は、Caskを用いる。
-;;   Cask ファイルは、init.el から自動生成する。 (tkw-generate-cask)
-;;   Windows では cask が動かないため、use-package の :ensure でインストールする。
-;; - 本 init.el はバッチ処理では使用しない。
-;;   + init.el 内で noninteractive 変数チェックをしない。
-;; - 変数の設定は、set-variable で行う。
-;; - 変数の内容の変更は、 defvar で変数を宣言した後に、変数を操作し、
-;;   その結果を set-variable する。pushnew 等で直接操作するのは避ける。
-;; - 非組み込み関数を使う場合は、declare-function で関数を宣言する。
-;;   + use-package を使う場合は、:defines, :functions で変数と関数を定義する。
 
 ;;;; Emacsおよび関連ソフトのインストール方法
 ;;;;; Ubuntu
@@ -446,6 +432,7 @@
 (setq-default show-trailing-whitespace nil)
 (defun turn-on-show-trailing-whitespace  () (interactive) (setq show-trailing-whitespace t))
 (defun turn-off-show-trailing-whitespace () (interactive) (setq show-trailing-whitespace nil))
+(defun toggle-show-trailing-whitespace () (interactive) (callf null show-trailing-whitespace))
 (add-hook 'prog-mode-hook 'turn-on-show-trailing-whitespace)
 (add-hook 'org-mode-hook 'turn-on-show-trailing-whitespace)
 ;; フレームの横幅が一定以下になれば自動的に truncate-window-mode にする。
@@ -2337,7 +2324,9 @@
 (bind-key "C-x C-f" 'find-file-at-point)
 (bind-key "C-x 4 f" 'ffap-other-window)
 (bind-key "C-x d" 'dired-at-point)
-(defvar ffap-alist)
+;; ffap で FTP でエラーになる現象
+;; ffap-guesser → ffap-file-at-point （失敗） → ffap-fixup-machine → ftp
+;; TODO ffap-file-at-point の調査と、ffap-fixup-machine に落とさないカスタム処理
 (with-eval-after-load 'ffap
   (ffap-bindings)
   (set-variable 'ffap-machine-p-known 'accept)
@@ -3001,7 +2990,7 @@
 ;; 必要な場合は、以下に設定する。
 ;; (setq browse-url-browser-function 'browse-url-default-browser)
 ;; 2ch等の "ttp://..." を開けるようにする。
-(declare-function browse-url "browse-url" (url &rest arsgs))
+;; (declare-function browse-url "browse-url" (url &rest arsgs))
 (defadvice browse-url (before support-omitted-h (url &rest args) activate)
   (when (and url (string-match "\\`ttps?://" url))
     (callf2 concat "h" url)))
@@ -3315,7 +3304,9 @@
      ;;(c-toggle-auto-state 1)
      (set-variable 'indent-tabs-mode t)
      (set-variable 'tab-width 4)
-     (set-variable 'c-default-style '((c . "gnu") (java . "java"))))))
+     ;; 以下要チェック
+     ;;(set-variable 'c-default-style '((c . "gnu") (java . "java")))
+     )))
 
 ;;(defconst c-DOE-style
 ;;  '((c-basic-offset . 4)
@@ -3466,7 +3457,12 @@ GDBは動作しない可能性があります！") (sit-for 2))
 
 ;;;; progmodes/scheme.el
 (with-eval-after-load 'scheme
-  (set-variable 'scheme-program-name (executable-find "gosh")))
+  (let ((scheme-program-name
+         (or (executable-find "gosh")
+             (executable-find "gambit"))))
+    (when scheme-program-name
+      (set-variable 'scheme-program-name
+                    scheme-program-name))))
 
 ;;;; progmodes/sh-script.el
 (with-eval-after-load 'sh-script
@@ -5440,14 +5436,15 @@ If SEXP is t, convert it to S-expression."
 ;;  :init
 ;;  (autopair-global-mode))
 
-;;;; company (abstain)
-;; mac-auto-ascii-mode と相性が悪いので利用中止。
-;;(use-package company :defer t
-;;  :init
-;;  ;;(add-hook 'prog-mode-hook 'company-mode)
-;;  :config
-;;  (global-company-mode 1)
-;;  )
+;;;; company
+;; mac-auto-ascii-mode と相性が悪いので利用中止。→利用再開
+;; auto-complete を中止。
+(use-package company :no-require t :defer t :ensure t
+  :init
+  ;;(add-hook 'prog-mode-hook 'company-mode)
+  :config
+  (global-company-mode 1)
+  )
 
 ;;;; company-anaconda
 ;;(use-package company-anaconda :no-require t :defer t :ensure t
@@ -5478,7 +5475,12 @@ If SEXP is t, convert it to S-expression."
 ;;  (set-variable 'company-ghc-show-info t))
 
 ;;;; company-go
+
 ;;;; company-inf-ruby
+
+;;;; company-irony
+(use-package company-irony :no-require t :defer t :ensure t)
+
 ;;;; company-tern
 
 ;;;; company-ycmd
@@ -5492,7 +5494,6 @@ If SEXP is t, convert it to S-expression."
 
 ;;;; dabbrev-ja
 ;; 使用中止
-
 
 ;;;; IIMECF (obsolete)
 ;;(set-variable 'iiimcf-server-control-hostlist
@@ -5805,12 +5806,12 @@ If SEXP is t, convert it to S-expression."
 ;;                (add-to-list 'ac-sources 'ac-source-c-header-symbols t)))))
 
 ;;;; ac-haskell-process
-(use-package ac-haskell-process :no-require t :defer t :ensure t
-  :init
-  (add-hook 'interactive-haskell-mode-hook 'ac-haskell-process-setup)
-  (add-hook 'haskell-interactive-mode-hook 'ac-haskell-process-setup)
-  (with-eval-after-load 'auto-complete
-    (add-to-list 'ac-modes 'haskell-interactive-mode)))
+;; (use-package ac-haskell-process :no-require t :defer t :ensure t
+;;   :init
+;;   (add-hook 'interactive-haskell-mode-hook 'ac-haskell-process-setup)
+;;   (add-hook 'haskell-interactive-mode-hook 'ac-haskell-process-setup)
+;;   (with-eval-after-load 'auto-complete
+;;     (add-to-list 'ac-modes 'haskell-interactive-mode)))
 
 ;;;; ac-js2 (abstain)
 ;; Auto-complete source for Js2-mode
@@ -6164,7 +6165,9 @@ If SEXP is t, convert it to S-expression."
 
 ;;;; cmake-mode
 ;; http://www.cmake.org/CMakeDocs/cmake-mode.el
+;; http://qiita.com/advent-calendar/2014/cmake
 (use-package cmake-mode :no-require t :ensure t
+  :if (executable-find "cmake")
   :mode (("CMakeLists\\.txt\\'" . cmake-mode)
          ("\\.cmake\\'" . cmake-mode)))
 
@@ -6204,6 +6207,12 @@ If SEXP is t, convert it to S-expression."
 (use-package csharp-mode :no-require t :defer t :ensure t
   ;; :if (executable-find "mcs")
   )
+
+;;;; csp-mode
+;; http://www.zonix.de/div/el/csp-mode/
+(use-package csp-mode :no-require t
+  :mode (("\\.csp$" . csp-mode)
+         ("\\.fdr.?$" . csp-mode)))
 
 ;;;; d-mode
 ;; http://prowiki.org/wiki4d/wiki.cgi?EditorSupport/EmacsEditor
@@ -6246,7 +6255,9 @@ If SEXP is t, convert it to S-expression."
 
 ;;;; dokuwiki-mode
 ;; `dokuwiki-mode' is autoloaded.
-(use-package dokuwiki-mode :no-require t :defer t :ensure t)
+(use-package dokuwiki-mode :no-require t :defer t :ensure t
+  :mode ("\\.doku$" . dokuwiki-mode)
+  )
 
 ;;;; doxymacs
 ;; doxygen mode for emacs.
@@ -6436,6 +6447,12 @@ If SEXP is t, convert it to S-expression."
   (add-hook 'haskell-mode-hook
             (command (require 'flycheck-ghcmod))))
 
+
+;;;; flycheck-irony
+(use-package flycheck-irony :no-require t :defer t :ensure t
+  :init
+  (add-hook 'flycheck-mode-hook 'flycheck-irony-setup))
+
 ;;;; flymake-clang-c++ (abstain)
 ;; -> irony-mode 系統に移行。
 ;; https://github.com/necaris/emacs-config/blob/master/.emacs.d/flymake-clang-c%2B%2B.el
@@ -6566,10 +6583,10 @@ If SEXP is t, convert it to S-expression."
   :interpreter ("gnu-apl" . gnu-apl-mode))
 
 ;;;; go-autocomplete
-(use-package go-autocomplete :no-require t :defer t :ensure t
-  :init
-  (with-eval-after-load 'go-mode
-    (require 'go-autocomplete)))
+;; (use-package go-autocomplete :no-require t :defer t :ensure t
+;;   :init
+;;   (with-eval-after-load 'go-mode
+;;     (require 'go-autocomplete)))
 
 ;;;; go-eldoc
 ;; http://golang.org/
@@ -6703,11 +6720,20 @@ If SEXP is t, convert it to S-expression."
 ;;;; irony
 ;; libclang を使ったチェックモード
 ;; https://github.com/Sarcasm/irony-mode
+;; サーバのインストール
+;; M-x irony-install-server （要cmake）
+;; In-Source build は許されていないので、buildディレクトリを用意する。
 (use-package irony :no-require t :defer t :ensure t
+  :if (executable-find "~/.irony/bin/irony-server")
   :init
   (add-hook 'c++-mode-hook 'irony-mode)
   (add-hook 'c-mode-hook 'irony-mode)
-  (add-hook 'objc-mode-hook 'irony-mode))
+  (add-hook 'objc-mode-hook 'irony-mode)
+  (cl-pushnew "~/.irony/bin/" exec-path :test 'equal)
+  :config
+  (set-variable 'irony-server-install-prefix "~/.irony")
+  (set-variable 'irony-server-build-dir "~/.irony/build")
+  )
 
 ;;;; irony-eldoc
 (use-package irony-eldoc :no-require t :defer t :ensure t
@@ -7008,6 +7034,10 @@ If SEXP is t, convert it to S-expression."
 ;;  '(progn
 ;;     (defvar rd-mode-hook nil)          ; =endの“...”への置換防止
 ;;     (add-hook 'rd-mode-hook 'rd-show-other-block-all)))
+
+;;;; restclient
+;; https://github.com/pashky/restclient.el
+(use-package restclient :no-require t :defer t :ensure t)
 
 ;;;; review-mode
 ;; ただいま改良中。
@@ -7814,6 +7844,20 @@ This function is a possible formatting function for
 (use-package charmap :no-require t :ensure t
   :commands (charmap charmap-all))
 
+;;;; cmake-ide
+;; https://github.com/atilaneves/cmake-ide
+;; https://github.com/CppCon/CppCon2015/blob/master/Lightning%20Talks%20and%20Lunch%20Sessions/Emacs%20as%20a%20C++%20IDE/Emacs%20as%20a%20C++%20IDE%20-%20Atila%20Neves%20-%20CppCon%202015.pdf
+;; https://www.youtube.com/watch?v=5FQwQ0QWBTU
+(use-package cmake-ide :no-require t :ensure t
+  :if (and (executable-find "rdm")
+           (executable-find "rc"))
+  :bind
+  (("<f9>" . cmake-ide-compile))
+  :config
+  ;;(set-variable 'cmake-ide-rdm-executable "rdm")
+  ;;(set-variable 'cmake-ide-rc-executable "rc")
+  )
+
 ;;;; color-moccur
 ;; http://www.bookshelf.jp/soft/meadow_49.html#SEC669
 ;; replace.el list-matching-lines → occur
@@ -7864,20 +7908,21 @@ This function is a possible formatting function for
 ;;    (cygwin-mount-activate)))
 
 ;;;; dired+
-(use-package dired+ :no-require t :defer t :ensure t
-  :init
-  (with-eval-after-load 'dired
-    (require 'dired+ nil t))
-  :config
-  ;; dired+のM-<小文字>定義キーの一部を、M-A-<小文字>へ移動する。
-  (defun tkw-dired-reset-keys ()
-    (bind-key "M-c" nil dired-mode-map)
-    (bind-key "M-b" nil dired-mode-map)
-    (bind-key "M-p" nil dired-mode-map)
-    (bind-key "M-A-c" 'diredp-capitalize-this-file dired-mode-map)
-    (bind-key "M-A-b" 'diredp-do-bookmark          dired-mode-map)
-    (bind-key "M-A-p" 'diredp-print-this-file      dired-mode-map))
-  (add-hook 'dired-mode-hook 'tkw-dired-reset-keys))
+;; → dired-hacks シリーズへ移行する。
+;;(use-package dired+ :no-require t :defer t :ensure t
+;;  :init
+;;  (with-eval-after-load 'dired
+;;    (require 'dired+ nil t))
+;;  :config
+;;  ;; dired+のM-<小文字>定義キーの一部を、M-A-<小文字>へ移動する。
+;;  (defun tkw-dired-reset-keys ()
+;;    (bind-key "M-c" nil dired-mode-map)
+;;    (bind-key "M-b" nil dired-mode-map)
+;;    (bind-key "M-p" nil dired-mode-map)
+;;    (bind-key "M-A-c" 'diredp-capitalize-this-file dired-mode-map)
+;;    (bind-key "M-A-b" 'diredp-do-bookmark          dired-mode-map)
+;;    (bind-key "M-A-p" 'diredp-print-this-file      dired-mode-map))
+;;  (add-hook 'dired-mode-hook 'tkw-dired-reset-keys))
 
 ;;;; dired-details (abstain)
 ;; → dired+ に移行
@@ -7890,6 +7935,25 @@ This function is a possible formatting function for
 ;; → dired+ に移行
 ;;(lazyload () "dired"
 ;;  (when (require 'dired-details+ nil :no-error)))
+
+;;;; dired-hacks
+;; https://github.com/Fuco1/dired-hacks
+;;;;; dired-hacks-utils
+(use-package dired-hacks-utils :no-require t :defer t :ensure t)
+;;;;; dired-filter
+(use-package dired-filter :no-require t :defer t :ensure t)
+;;;;; dired-avfs
+(use-package dired-avfs :no-require t :defer t :ensure t)
+;;;;; dired-open
+(use-package dired-open :no-require t :defer t :ensure t)
+;;;;; dired-rainbow
+(use-package dired-rainbow :no-require t :defer t :ensure t)
+;;;;; dired-subtree
+(use-package dired-subtree :no-require t :defer t :ensure t)
+;;;;; dired-ranger
+(use-package dired-ranger :no-require t :defer t :ensure t)
+;;;;; dired-narrow
+(use-package dired-narrow :no-require t :defer t :ensure t)
 
 ;;;; dired-k
 ;; highlight dired buffer by file size, modified time, git status
@@ -8601,8 +8665,10 @@ This function is a possible formatting function for
 
 ;;;; japanlaw
 ;; 日本の法律の閲覧・検索エンジン
-(use-package japanlaw :no-require t :ensure t
-  :commands japanlaw)
+(use-package japanlaw :no-require t :defer t :ensure t
+  :config
+  (set-variable 'japanlaw-coding-system-for-write 'shift_jis)
+  )
 
 ;;;; jd-el
 ;; http://julien.danjou.info/google-maps-el.html
@@ -8962,6 +9028,7 @@ This function is a possible formatting function for
 ;; - 検索
 ;;   - C-c C-s :: navi2ch-search-web
 (use-package navi2ch :no-require t :ensure t
+  :if (executable-find "2chproxy.pl")
   :bind ("C-c N" . navi2ch)
   :config
   (set-variable 'navi2ch-directory (locate-user-emacs-file "navi2ch"))
@@ -9084,6 +9151,7 @@ This function is a possible formatting function for
           ;;org-rmail
           ))
   (set-variable 'org-footnote-tag-for-non-org-mode-files "脚注:")
+  (set-variable 'org-use-speed-commands t)
   (set-variable 'org-format-latex-options
         '(:foreground default :background default :scale 1.5
           :html-foreground "Black" :html-background "Transparent"
@@ -10039,6 +10107,18 @@ XeTeX/LuaTeX や HTML, DocBook 等、日本語の改行が空白扱いになる�
 ;;;; restclient
 ;; cf. http://emacsrocks.com/e15.html
 
+;;;; rtags
+;; sudo apt-get install libclang-dev
+;; git clone --recursive https://github.com/Andersbakken/rtags.git &
+;; mkdir build_rtags && pushd build_rtags
+;; LIBCLANG_LLVM_CONFIG_EXECUTABLE=path_to_llvm-config CC=gcc CXX=g++ cmake ../rtags -DCMAKE_BUILD_TYPE=Release -DCMAKE_EXPORT_COMPILE_COMMANDS=ON -DCMAKE_INSTALL_PREFIX=where_to_install_rtags
+;; cmake --build ./ --target install
+(use-package rtags :no-require t :defer t :ensure t
+  :if (and (executable-find "rp")
+           (executable-find "rc")
+           (executable-find "rdm"))
+  )
+
 ;;;; ox-reveal
 ;; require すれば自動的に利用可能。
 ;; TODO サブノードを export する方法
@@ -10611,6 +10691,13 @@ XeTeX/LuaTeX や HTML, DocBook 等、日本語の改行が空白扱いになる�
   (add-hook 'TeX-mode-hook 'zotelo-minor-mode))
 
 ;;; 個人用アプリケーション
+;; - 以下のパッケージは、autoload ファイルは自分で生成する。
+;; e.g. (my-generate-autoloads 'ox-pandoc)
+(defun my-generate-autoloads (pkg)
+  (let ((dir (file-name-directory
+              (locate-library (symbol-name pkg)))))
+    (package-generate-autoloads pkg dir)))
+
 ;;;; aozora-proc
 (use-package aozora-proc :no-require t
   :commands (aozora-proc aozora-proc-region aozora-proc-buffer))
@@ -10680,7 +10767,7 @@ XeTeX/LuaTeX や HTML, DocBook 等、日本語の改行が空白扱いになる�
 
 ;;;; ids-edit
 (declare-function global-ids-edit-mode "ids-edit")
-(use-package ids-edit :no-require t
+(use-package ids-edit :no-require t :defer t
   :bind (("M-U" . ids-edit))
   :config
   (global-ids-edit-mode))
@@ -10743,6 +10830,10 @@ XeTeX/LuaTeX や HTML, DocBook 等、日本語の改行が空白扱いになる�
 (use-package next-bus :no-require t
   :commands (next-bus-mode))
 
+;;;; n**-work
+(when (string-match (rot13-string "agg.pb") (system-name))
+  (require (intern (rot13-string "agg-jbex")) nil t))
+
 ;;;; ox-pandoc
 (use-package ox-pandoc :no-require t :defer t
   :init
@@ -10758,11 +10849,11 @@ XeTeX/LuaTeX や HTML, DocBook 等、日本語の改行が空白扱いになる�
     (while (re-search-forward " commonlisp" nil t) (replace-match " common-lisp" nil t)))
   (add-hook 'org-pandoc-after-processing-markdown_github-hook
             'tkw-markdown_github-after-processing-hook)
-  (add-hook 'org-pandoc-before-processing-latex-hook
-            (lambda ()
-              (goto-char (point-min))
-              (while (re-search-forward "#\\+LABEL: \\(.+\\)" nil t) (replace-match "\\\\label{\\1}" nil))
-            ))
+  ;;(add-hook 'org-pandoc-before-processing-latex-hook
+  ;;          (lambda ()
+  ;;            (goto-char (point-min))
+  ;;            (while (re-search-forward "#\\+LABEL: \\(.+\\)" nil t) (replace-match "\\\\label{\\1}" nil))
+  ;;          ))
   )
 
 (defun tkw-org-pandoc-reference-quote-buffer ()
@@ -10909,7 +11000,6 @@ XeTeX/LuaTeX や HTML, DocBook 等、日本語の改行が空白扱いになる�
 ;; Local Variables:
 ;; coding: utf-8-unix
 ;; outline-minor-mode: t
-;; auto-compile-mode: nil
 ;; auto-complete-mode: nil
 ;; flycheck-mode: nil
 ;; time-stamp-pattern: "10/Modified:\\\\?[ \t]+%:y-%02m-%02d\\\\?\n"

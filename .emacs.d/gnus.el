@@ -1,7 +1,7 @@
 ;;; .gnus.el --- setup for Gnus -*- lexical-binding: t; coding: utf-8 -*-
 ;;
 ;; Author: KAWABATA, Taichi <kawabata.taichi_at_gmail.com>
-;; Modified: 2015-01-26
+;; Modified: 2015-12-21
 ;; Namespace: tkw-mail-
 ;; URL: https://github.com/kawabata/dotfiles/
 ;;
@@ -117,9 +117,12 @@
     (when (file-exists-p spool)
       `((file :path ,spool)))))
 
-(setq message-signature-directory "~/Dropbox/signatures/")
+(set-variable 'message-signature-directory
+                "~/share/signatures/")
 
-(defvar tkw-mail-properties
+(defvar tkw-mail-properties nil
+  "Alist of mail address vs. properties.")
+(setq tkw-mail-properties
   `(("kawabata.taichi@lab.ntt.co.jp"
      (""
       :from "川幡 太一 <kawabata.taichi@lab.ntt.co.jp> ( Taichi KAWABATA )"
@@ -129,7 +132,7 @@
       (("X-GPG-Fingerprint" . "E31F FE94 5036 1E3D B76D 37CB 3E38 B803 DC18 167E")
        ("X-GPG-Key" . "http://pgp.nic.ad.jp:11371/pks/lookup?op=index&search=kawabata.taichi@lab.ntt.co.jp")
        ;;,@tkw-mail-extra-headers
-       ("X-Message-SMTP-Method" . "smtp mailsv.y.ecl.ntt.co.jp 25"))) ;; mailsv5
+       ("X-Message-SMTP-Method" . "smtp 129.60.125.3 10025"))) ;; mailsv5
      ("-en"
       :refer "kawabata.taichi@lab.ntt.co.jp"
       :from "Taichi Kawabata <kawabata.taichi@lab.ntt.co.jp>"
@@ -150,13 +153,19 @@
       :from "Taichi Kawabata <kawabata.taichi@gmail.com>"
       :signature ".signature.gmail.en")
      ;;,@tkw-mail-secondary-properties
-     ))
-  "Alist of mail address vs. properties.")
+     )))
 
-(defvar tkw-mail-host-properties
+(defvar tkw-mail-host-properties)
+(setq tkw-mail-host-properties
   `(("mailsv.y.ecl.ntt.co.jp" ;; mailsv5
      :primary-source (nnml "kawabata.taichi@lab.ntt.co.jp"
-                           (pop :server "mailsv.y.ecl.ntt.co.jp" :user "tk319")))
+                           ;; メールスプールが大きすぎて、読み込めなくなる場合は、
+                           ;; (1) 下記のサーバを元の mailsv に戻してメールを読む。
+                           ;; (2) C:\Users\kawabata\AppData\Roaming\NTT SOFT\CipherCraft\MAIL_H\isolated
+                           ;;     以下のフォルダを削除する。
+                           (pop :server "129.60.125.3" :port 10111 :user "tk319")
+                           ;;(pop :server "mailsv.y.ecl.ntt.co.jp" :user "tk319")
+                           ))
     ("pop.gmail.com"
      :primary-source (nnml "kawabata.taichi@gmail.com"
                            ,(tkw-mail-pop-src "kawabata.taichi@gmail.com"))
@@ -181,7 +190,6 @@
                          (nnimap "xkawabata@yahoo.co.jp")
                          (nntp "news.gmane.org")
                          (nntp "nntp.aioe.org")))))
-
 
 (defun tkw-mail-source-to-gnus-method (source)
   "Convert SOURCE to Gnus Method."
@@ -322,21 +330,28 @@ MAILHOST環境変数に基いて設定するので、必要に応じて変更す
 (defvar ldap-default-base)
 (with-eval-after-load 'ldap
   ;; (when (string-match "ntt.co.jp" user-mail-address))
-  (setq ldap-default-host "ldap.rdh.ecl.ntt.co.jp")
-  (setq ldap-default-base "dc=ntt,dc=co,dc=jp")
+  (set-variable 'ldap-default-host "ldap.rdh.ecl.ntt.co.jp")
+  (set-variable 'ldap-default-base "dc=ntt,dc=co,dc=jp")
   ;; ldapsearch 命令の引数
   ;; 利用LDAPサーバはSASL接続しないので、-xが必要。
   ;; また、"-tt" によりテンポラリファイルに出力される。
-  (setq ldap-ldapsearch-args '("-tt" "-LL" "-x"))
+  (set-variable 'ldap-ldapsearch-args '("-tt" "-LL" "-x"))
   ;; % ldapsearch -x -h ldap.rdh.ecl.ntt.co.jp -b "dc=ntt,dc=co,dc=jp" "cn=山田*"
   ;; M-x trace-function ldap-search-internal
+  )
+
+;;;; net/eudc.el
+;; Emacs Unified Directory Client
+(declare-function eudc-protocol-set "eudc")
+(with-eval-after-load 'eudc
+  (require 'ldap)
   (eudc-set-server ldap-default-host 'ldap t)
-  (setq eudc-default-return-attributes nil
-        eudc-strict-return-matches nil
-        ;; BBDBv3はEUDC未対応。
-        eudc-server-hotlist `(;;("localhost" . bbdb)
-                              (,ldap-default-host . ldap))
-        eudc-inline-expansion-servers 'hotlist)
+  (set-variable 'eudc-default-return-attributes nil)
+  (set-variable 'eudc-strict-return-matches nil)
+  ;; BBDBv3はEUDC未対応。
+  (set-variable 'eudc-server-hotlist `(;;("localhost" . bbdb)
+                                       (,ldap-default-host . ldap)))
+  (set-variable 'eudc-inline-expansion-servers 'hotlist)
   (eudc-protocol-set 'eudc-inline-expansion-format '("%s <%s>" displayName email)
                      'ldap)
   (eudc-protocol-set 'eudc-inline-query-format '((cn)
@@ -492,13 +507,18 @@ MAILHOST環境変数に基いて設定するので、必要に応じて変更す
 (setq nnimap-record-commands t)
 
 ;;;; gnus/nnir.el
-(when (and (executable-find "estcmd")
-           (require 'nnir-est nil t))
-  (setq nnir-method-default-engines
-        '((nnmaildir . est)
-          (nnimap . imap)
-          (nnml . est)
-          (nntp . gmane))))
+  
+(use-package nnir-est :no-require t :defer t :ensure t
+  :if (executable-find "estcmd")
+  :init
+  (with-eval-after-load 'nnir
+    (require 'nnir-est)
+    ;;(set-variable 'nnir-method-default-engines
+    (setq nnir-method-default-engines
+                  '((nnmaildir . est)
+                    (nnimap . imap)
+                    (nnml . est)
+                    (nntp . gmane)))))
 ;; mail spool importer が動かなくなったので一時停止。
 ;;(when (and (executable-find "mdfind")
 ;;           (require 'nnir-spotlight nil t))
@@ -539,64 +559,72 @@ MAILHOST環境変数に基いて設定するので、必要に応じて変更す
 ;;;; gnus/nnrss.el
 ;; M-x nnrss-generate-download-script で生成したスクリプトを
 ;; crontab で実行する。
-(use-package nnrss
-  :config
+(defvar nnrss-use-local)
+(with-eval-after-load 'nnrss
   (setq nnrss-use-local t))
 
 ;;;; gnus/pop3.el
 (with-eval-after-load 'pop3
-  (setq pop3-password-required nil
-        pop3-stream-type 'starttls))
+  (set-variable 'pop3-password-required nil)
+  (set-variable 'pop3-stream-type 'starttls))
 
 ;;; 外部ライブラリ
 ;;;; bbdb.el
-(use-package bbdb :defer t :ensure t
+(use-package bbdb :no-require t :defer t :ensure t
   :init
   (add-hook 'gnus-startup-hook 'bbdb-insinuate-gnus 'bbdb-insinuate-message)
   :config
   (bbdb-initialize 'gnus 'message)
   ;; バッファでは表示のみ行い、確認や自動更新は行わない。
-  (setq bbdb-mua-update-interactive-p '(query . search))
-  (setq bbdb-mua-pop-up-window-size 0.3)
+  (set-variable 'bbdb-mua-update-interactive-p '(query . search))
+  (set-variable 'bbdb-mua-pop-up-window-size 0.3)
   (bbdb-mua-auto-update-init 'gnus))
 
-;;;; gnus-alias.el <elpa>
-(use-package gnus-alias :ensure t
+;;;; gnus-alias
+(use-package gnus-alias :no-require t :defer t :ensure t
+  :init
+  (with-eval-after-load 'message (require 'gnus-alias))
   :config
-  (setq gnus-alias-verbosity          9
-        gnus-alias-point-position     'empty-header-or-body
-        gnus-alias-overlay-identities nil
-        gnus-alias-default-identity   user-mail-address)
-  (setq gnus-alias-identity-alist
-        (cl-mapcan
-         (lambda (x)
-           (let ((address (car x))
-                 (props (cdr x)))
-             (mapcar
-              (lambda (prop)
-                (let* ((suffix (car prop))
-                       (plist (cdr prop))
-                       (signature (plist-get plist :signature)))
-                  `(,(concat address suffix)
-                     ,(plist-get plist :refer)
-                     ,(plist-get plist :from)
-                     ,(plist-get plist :organization)
-                     ,(plist-get plist :extra-headers)
-                     ,(plist-get plist :body)
-                     ,(and signature (expand-file-name signature message-signature-directory)))))
-              props)))
-         tkw-mail-properties))
-  (setq gnus-alias-identity-rules
-        ;;(("Description"
-        ;;  ("header-name" "regexp" 'both/'current/'previous)
-        ;;  "identity"))
-        (mapcar
-         (lambda (x)
-           `(,(car x)
-             ("any" ,(regexp-quote (car x)) 'both)
-             ,(car x)))
-         tkw-mail-properties))
-  (gnus-alias-init)
+  (defun tkw-set-gnus-alias-identity-rules ()
+    (set-variable 'gnus-alias-identity-alist
+                  (cl-mapcan
+                   (lambda (x)
+                     (let ((address (car x))
+                           (props (cdr x)))
+                       (mapcar
+                        (lambda (prop)
+                          (let* ((suffix (car prop))
+                                 (plist (cdr prop))
+                                 (signature (plist-get plist :signature)))
+                            `(,(concat address suffix)
+                              ,(plist-get plist :refer)
+                              ,(plist-get plist :from)
+                              ,(plist-get plist :organization)
+                              ,(plist-get plist :extra-headers)
+                              ,(plist-get plist :body)
+                              ,(and signature
+                                    (expand-file-name
+                                     signature message-signature-directory)))))
+                        props)))
+                   tkw-mail-properties))
+    (setq gnus-alias-identity-rules
+                ;;(("Description"
+                ;;  ("header-name" "regexp" 'both/'current/'previous)
+                ;;  "identity"))
+                (mapcar
+                 (lambda (x)
+                   `(,(car x)
+                     ("any" ,(regexp-quote (car x)) 'both)
+                     ,(car x)))
+                 tkw-mail-properties))
+    (gnus-alias-init))
+  (set-variable 'gnus-alias-verbosity          9)
+  (set-variable 'gnus-alias-point-position     'empty-header-or-body)
+  (set-variable 'gnus-alias-overlay-identities nil)
+  (set-variable 'gnus-alias-default-identity   user-mail-address)
+  (tkw-set-gnus-alias-identity-rules)
+  ;;(set-variable 'gnus-alias-identity-rules...)
+  ;; キーマップ設定
   (define-key message-mode-map "\C-c\C-p" 'gnus-alias-select-identity))
 
 ;;;; gnus-spotlight.el (obsoleted by nnir-spotlight.el)
@@ -625,18 +653,19 @@ MAILHOST環境変数に基いて設定するので、必要に応じて変更す
 ;; (use-package ido-gnus :defer t :ensure t)
 
 ;;;; mu-cite.el
-(use-package mu-bbdb
+(use-package mu-cite :no-require t
+  :commands (mu-cite-original)
   :config
   ;; citeをつけない行をlooking-atでチェックするときのregexp.
   ;; オリジナルはこちら →            "\\(^[^ \t\n<>]+>+[ \t]*\\|^[ \t]*$\\)"
   ;; これだと、単なる">"や"|"はひっかからないので、以下に変更する。
   ;; (setq mu-cite-cited-prefix-regexp "\\(^[^ \t>]*>+\\|^[ \t]*$\\|^[:|｜]+\\)")
-  (setq mu-cite-top-format
-        '("川幡です。\n\n"
-          ">> " id " で,\n"
-          ">> " bbdb-prefix-register-verbose " は書きました.\n\n"
-          "<" bbdb-prefix ">\n\n" ))
-  (setq mu-cite-prefix-format '("> ")))
+  (set-variable 'mu-cite-top-format
+                '("川幡です。\n\n"
+                  ">> " id " で,\n"
+                  ">> " bbdb-prefix-register-verbose " は書きました.\n\n"
+                  "<" bbdb-prefix ">\n\n" ))
+  (set-variable 'mu-cite-prefix-format '("> ")))
 
 ;;;; supercite.el
 ;; mu-cite を使うため使用しない。
